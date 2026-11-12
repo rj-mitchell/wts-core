@@ -54,9 +54,10 @@ still work on the database the new version leaves behind.**
 - **The old tables are dropped one release later,** by a migration the site turns on once the owner is content.
 - **Before the first import, the package copies the database file** to `state.pre-wts-core.<date>` beside it (the
   files are small: megabytes), and the import refuses to run if the copy fails.
-- **Connections:** one helper for every store: a short-lived connection per operation, write-ahead logging,
-  a 30-second busy timeout, rows by name. Where MPs Stand's web app and its update job are separate processes
-  writing to the same file, which is why the file is SQLite and why the helper sets write-ahead logging everywhere.
+- **Connections:** one helper for every store: a short-lived connection per operation, a 30-second busy timeout,
+  rows by name. The journal mode is left as each site's file has it today (Where MPs Stand's web app and update job
+  are separate processes writing to the same file, so its file uses write-ahead logging). Every site's backup
+  already copies the database with SQLite's own online backup, which is safe in either mode.
 - **Saved data keeps its meaning.** Token counts in `wts_spending` are stored as they are today (input including
   cache writes), and saved and cached events are copied byte for byte (ADR 0003).
 

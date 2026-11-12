@@ -152,7 +152,139 @@ not listed: MPs has `# vector_nprobes = 20` (:42) and `# reranker = "Xenova/ms-m
 by code when set. Keys the code reads but no file sets (for example `embedding.enabled`, written to
 `settings.local.toml` by MPs' bootstrap) were not searched for exhaustively.
 
-<!--SETTINGS_TABLE-->
+| Section | Key | MPs | Countries | Councils | Landlords | In |
+|---|---|---|---|---|---|---|
+| `[answer]` | `comprehensive_effort` | `"high"` | `"high"` | `"high"` | – | 3 (same value) |
+| `[answer]` | `comprehensive_side_sources` | `15` | – | – | – | 1 |
+| `[answer]` | `comprehensive_sources` | `40` | `40` | `40` | – | 3 (same value) |
+| `[answer]` | `interests_check` | `true` | – | – | – | 1 |
+| `[answer]` | `max_tokens` | `16000` | `16000` | `16000` | – | 3 (same value) |
+| `[answer]` | `model` | `"claude-sonnet-5-5"` | `"claude-sonnet-5-5"` | `"claude-sonnet-5-5"` | – | 3 (same value) |
+| `[answer]` | `query_parse_effort` | `"low"` | `"low"` | `"low"` | – | 3 (same value) |
+| `[answer]` | `query_parse_model` | `"claude-haiku-5-5"` | `"claude-haiku-5-5"` | `"claude-haiku-5-5"` | – | 3 (same value) |
+| `[answer]` | `side_sources` | `10` | – | – | – | 1 |
+| `[answer]` | `summary_effort` | `"medium"` | `"medium"` | `"medium"` | – | 3 (same value) |
+| `[answer]` | `summary_sources` | `24` | `24` | `24` | – | 3 (same value) |
+| `[answer]` | `use_fallbacks` | `true` | `true` | `true` | – | 3 (same value) |
+| `[archive]` | `archive_start_date` | – | `"1946-01-01"` | – | – | 1 |
+| `[archive]` | `born_digital_from` | – | `1994` | – | – | 1 |
+| `[archive]` | `default_years` | – | `10` | `4` | – | 2 |
+| `[archive]` | `record_dirs` | `["debates", "westminhall", "lordspages", "wrans", "lordswrans", "wms", "lordswms", "standing"]` | – | – | – | 1 |
+| `[archive]` | `start_date` | `"1997-05-01"` | `"1992-01-01"` | `"2018-05-01"` | – | 3 |
+| `[auth]` | `required` | `false` | – | – | – | 1 |
+| `[auth]` | `session_days` | `14` | – | – | – | 1 |
+| `[coverage]` | `min_homes` | – | – | – | `1000` | 1 |
+| `[embedding]` | `backend` | `"fastembed"` | `"fastembed"` | `"fastembed"` | – | 3 (same value) |
+| `[embedding]` | `batch_size` | `8` | `8` | `8` | – | 3 (same value) |
+| `[embedding]` | `dim` | `384` | `384` | `384` | – | 3 (same value) |
+| `[embedding]` | `model` | `"snowflake/snowflake-arctic-embed-xs"` | `"snowflake/snowflake-arctic-embed-xs"` | `"snowflake/snowflake-arctic-embed-xs"` | – | 3 (same value) |
+| `[embedding]` | `passage_words` | `250` | `250` | `250` | – | 3 (same value) |
+| `[fetch]` | `min_interval_seconds` | – | – | – | `1.0` | 1 |
+| `[fetch]` | `retries` | – | – | – | `3` | 1 |
+| `[fetch]` | `timeout_seconds` | – | – | – | `60` | 1 |
+| `[fetch]` | `user_agent` | – | – | – | `"Mozilla/5.0 (compatible; WhereLandlordsStand/0.1; +https://github.com/rj-mitchell/wherelandlordsstand)"` | 1 |
+| `[groups]` | `show_ipsa` | `true` | – | – | – | 1 |
+| `[live]` | `gd_bundled` | – | `"gd_website"` | – | – | 1 |
+| `[live]` | `gd_from_session` | – | `79` | – | – | 1 |
+| `[live]` | `gd_website` | – | `true` | – | – | 1 |
+| `[live]` | `sc_after_meeting` | – | `9524` | – | – | 1 |
+| `[live]` | `sc_from` | – | `"2024-01-01"` | – | – | 1 |
+| `[modgov]` | `min_interval_seconds` | – | – | `1.0` | – | 1 |
+| `[modgov]` | `read_documents` | – | – | `true` | – | 1 |
+| `[modgov]` | `refetch_days` | – | – | `120` | – | 1 |
+| `[modgov]` | `retries` | – | – | `3` | – | 1 |
+| `[modgov]` | `timeout_seconds` | – | – | `40` | – | 1 |
+| `[modgov]` | `timeouts_in_a_row` | – | – | `2` | – | 1 |
+| `[modgov]` | `user_agent` | – | – | `"Mozilla/5.0 (compatible; WhereCouncilsStand/0.1; +https://github.com/rj-mitchell/wherecouncilsstand)"` | – | 1 |
+| `[paths]` | `data_dir` | `"data"` | `"data"` | `"data"` | `"data"` | 4 (same value) |
+| `[publish]` | `approval_days` | – | – | – | `14` | 1 |
+| `[publish]` | `keep_builds` | – | – | – | `6` | 1 |
+| `[publish]` | `mode` | – | – | – | `"approve"` | 1 |
+| `[publish]` | `notify_to` | – | – | – | `"wheretheystanduk@gmail.com"` | 1 |
+| `[ranking]` | `bm25_weight` | `0.5` | `0.5` | `0.5` | – | 3 (same value) |
+| `[ranking]` | `candidates_bm25` | `300` | `300` | `300` | – | 3 (same value) |
+| `[ranking]` | `candidates_frontbench` | `100` | – | – | – | 1 |
+| `[ranking]` | `candidates_vector` | `300` | `300` | `300` | – | 3 (same value) |
+| `[ranking]` | `default_recency` | `0.25` | `0.4` | `0.4` | – | 3 |
+| `[ranking]` | `default_role_weight` | `1.5` | `1.3` | – | – | 2 |
+| `[ranking]` | `local_factor` | `0.7` | – | – | – | 1 |
+| `[ranking]` | `m_chair_match` | `1.0` | – | – | – | 1 |
+| `[ranking]` | `m_chair_other` | `0.5` | – | – | – | 1 |
+| `[ranking]` | `m_gov_match` | `1.0` | – | – | – | 1 |
+| `[ranking]` | `m_gov_other` | `0.5` | – | – | – | 1 |
+| `[ranking]` | `m_head` | – | `1.0` | – | – | 1 |
+| `[ranking]` | `m_member_match` | `0.3` | – | – | – | 1 |
+| `[ranking]` | `m_minister` | – | `0.7` | – | – | 1 |
+| `[ranking]` | `m_representative` | – | `0.3` | – | – | 1 |
+| `[ranking]` | `m_shadow_match` | `1.0` | – | – | – | 1 |
+| `[ranking]` | `m_shadow_other` | `0.5` | – | – | – | 1 |
+| `[ranking]` | `max_per_council` | – | – | `2` | – | 1 |
+| `[ranking]` | `max_per_country` | – | `2` | – | – | 1 |
+| `[ranking]` | `max_per_meeting` | – | – | `1` | – | 1 |
+| `[ranking]` | `max_per_speaker` | `2` | `2` | – | – | 2 (same value) |
+| `[ranking]` | `max_persistent` | `4` | – | – | – | 1 |
+| `[ranking]` | `min_half_life_years` | `0.5` | `3.0` | `3.0` | – | 3 |
+| `[ranking]` | `min_occasions` | `3` | – | – | – | 1 |
+| `[ranking]` | `min_relevance_ratio` | `0.25` | `0.25` | `0.25` | – | 3 (same value) |
+| `[ranking]` | `no_records_threshold` | `0.2` | – | – | – | 1 |
+| `[ranking]` | `recency_floor` | `0.35` | `0.35` | `0.35` | – | 3 (same value) |
+| `[ranking]` | `rerank_query` | `"both"` | – | – | – | 1 |
+| `[ranking]` | `rerank_top` | `100` | – | – | – | 1 |
+| `[ranking]` | `rerank_weight` | `0.6` | – | – | – | 1 |
+| `[ranking]` | `vector_refine_factor` | `5` | `5` | `5` | – | 3 (same value) |
+| `[regions]` | `devolved_nations` | `["Scotland", "Wales", "Northern Ireland"]` | – | – | – | 1 |
+| `[regions]` | `midlands` | `["East Midlands", "West Midlands"]` | – | – | – | 1 |
+| `[regions]` | `northern` | `["North East", "North West", "Yorkshire and The Humber"]` | – | – | – | 1 |
+| `[regions]` | `southern` | `["London", "South East", "South West", "East of England"]` | – | – | – | 1 |
+| `[robots]` | `obey` | – | – | `false` | – | 1 |
+| `[sister_sites]` | `where_councils_stand` | – | – | – | `"https://wherecouncilsstand.com/councils/{gss}"` | 1 |
+| `[sister_sites]` | `where_councils_stand_list` | – | – | – | `"https://wherecouncilsstand.com/api/councils"` | 1 |
+| `[site]` | `contact` | – | – | – | `"admin@wherelandlordsstand.com"` | 1 |
+| `[site]` | `dir` | – | `""` | – | – | 1 |
+| `[site]` | `donate_url` | `"https://wheretheystand.uk/donate"` | – | `""` | – | 2 |
+| `[site]` | `feedback_email` | – | – | – | `"admin@wherelandlordsstand.com"` | 1 |
+| `[site]` | `launched` | – | – | – | `false` | 1 |
+| `[site]` | `name` | – | – | `"Where Councils Stand"` | `"Where Landlords Stand"` | 2 |
+| `[site]` | `operator` | – | – | – | `"Rob Mitchell"` | 1 |
+| `[site]` | `parent_name` | – | – | – | `"Where They Stand"` | 1 |
+| `[site]` | `stage` | – | – | – | `"alpha"` | 1 |
+| `[site]` | `url` | – | `""` | `"https://wherecouncilsstand.com"` | `"https://wherelandlordsstand.com"` | 3 |
+| `[sources]` | `compress_raw_xml` | `true` | – | – | – | 1 |
+| `[sources]` | `parlparse_branch` | `"master"` | – | – | – | 1 |
+| `[sources]` | `parlparse_repo` | `"https://github.com/mysociety/parlparse"` | – | – | – | 1 |
+| `[sources]` | `sc_meta` | – | `"https://dataverse.harvard.edu/api/access/datafile/10809806"` | – | – | 1 |
+| `[sources]` | `sc_speakers` | – | `"https://dataverse.harvard.edu/api/access/datafile/10809807"` | – | – | 1 |
+| `[sources]` | `sc_speeches` | – | `"https://dataverse.harvard.edu/api/access/datafile/10809805"` | – | – | 1 |
+| `[sources]` | `twfy_https` | `"https://www.theyworkforyou.com/pwdata/scrapedxml"` | – | – | – | 1 |
+| `[sources]` | `twfy_rsync` | `"data.theyworkforyou.com::parldata/scrapedxml"` | – | – | – | 1 |
+| `[sources]` | `undocs` | – | `"https://undocs.org/en/"` | – | – | 1 |
+| `[sources]` | `ungd_guestbook` | – | `{"institution": "Where They Stand", "position": "Project lead", "purpose": "Research"}` | – | – | 1 |
+| `[sources]` | `votes_record` | – | `"https://digitallibrary.un.org/record/4060887"` | – | – | 1 |
+| `[sync]` | `times` | `["07:15", "19:15"]` | – | – | – | 1 |
+| `[topics]` | `enabled` | `true` | – | – | – | 1 |
+| `[topics]` | `file` | `"topics.toml"` | – | – | – | 1 |
+| `[topics]` | `max_per_run` | `4` | – | – | – | 1 |
+| `[topics]` | `unchanged_overlap` | `0.8` | – | – | – | 1 |
+| `[usage]` | `answer_cache_hours` | `168` | `168` | `168` | – | 3 (same value) |
+| `[usage]` | `briefing_estimate_usd` | – | `0.1` | `0.15` | – | 2 |
+| `[usage]` | `briefings_at_once` | – | `8` | `8` | – | 2 (same value) |
+| `[usage]` | `briefings_at_once_per_visitor` | – | `2` | `2` | – | 2 (same value) |
+| `[usage]` | `cache_write_multiplier` | `1.25` | `1.25` | `1.25` | – | 3 (same value) |
+| `[usage]` | `daily_spend_cap_usd` | `10.0` | `3.0` | `3.0` | – | 3 |
+| `[usage]` | `monthly_spend_cap_usd` | `150.0` | `50.0` | `50.0` | – | 3 |
+| `[usage]` | `per_user_daily_questions` | `60` | – | – | – | 1 |
+| `[usage]` | `per_visitor_daily_questions` | `40` | `40` | `30` | – | 3 |
+| `[usage]` | `price_cache_read_per_mtok` | `0.2` | `0.2` | `0.2` | – | 3 (same value) |
+| `[usage]` | `price_input_per_mtok` | `4.0` | `2.0` | `2.0` | – | 3 |
+| `[usage]` | `price_output_per_mtok` | `20.0` | `10.0` | `10.0` | – | 3 |
+| `[usage]` | `requests_per_minute` | `20` | `20` | `20` | – | 3 (same value) |
+| `[usage]` | `support_reminder_every` | `10` | – | – | – | 1 |
+| `[usage.models."claude-haiku-5-5"]` | `price_cache_read_per_mtok` | `0.01` | `0.01` | `0.01` | – | 3 (same value) |
+| `[usage.models."claude-haiku-5-5"]` | `price_input_per_mtok` | `0.1` | `0.1` | `0.1` | – | 3 (same value) |
+| `[usage.models."claude-haiku-5-5"]` | `price_output_per_mtok` | `0.5` | `0.5` | `0.5` | – | 3 (same value) |
+| `[usage.models."claude-sonnet-5-5"]` | `price_cache_read_per_mtok` | `0.2` | – | – | – | 1 |
+| `[usage.models."claude-sonnet-5-5"]` | `price_input_per_mtok` | `2.0` | – | – | – | 1 |
+| `[usage.models."claude-sonnet-5-5"]` | `price_output_per_mtok` | `10.0` | – | – | – | 1 |
 
 Other files in `config/`:
 
@@ -164,7 +296,7 @@ Other files in `config/`:
 | Landlords | `reconciliation.toml` (122) | `[tsm."2023/24"|"2024/25"|"2025/26"]`, `[ombudsman."2024-25"|"2025-26"]`, `[stock."2025/26"]` | `checks.py:304` |
 | Landlords | `rights.toml` (108) | `heading`, `intro`, `not_advice`; 5 `[[section]]`: `heading`, `text`, `sources`, `checked`, `recheck`, `list`, `note` | `site_pages.py:398`, `checks.py:274` |
 | Landlords | `pages.toml` (271) | `[about]`, `[terms]`, `[accessibility]`, `[named]`, `[press]`, `[status]`, `[not_found]` | `site_pages.py:341, 376, 431, 482, 543`, `status.py:94` |
-| Landlords | `wording.toml` (267) | 24 tables of page wording: `site`, `footer`, `card`, `types`, `council_link`, `method`, `grade`, `bands`, `method_note`, `ombudsman`, `safety`, `areas`, `sources`, `search`, `area`, `compare`, `downloads`, `corrections`, `privacy`, `statement` (and others at one level) | `site.py:542`, `statements.py:284`, `status.py:158` |
+| Landlords | `wording.toml` (267) | 20 tables of page wording: `site`, `footer`, `card`, `types`, `council_link`, `method`, `grade`, `bands`, `method_note`, `ombudsman`, `safety`, `areas`, `sources`, `search`, `area`, `compare`, `downloads`, `corrections`, `privacy`, `statement` | `site.py:542`, `statements.py:284`, `status.py:158` |
 
 These six Landlords files and MPs' `topics.toml` are the site's own content, not shared settings; they were read by
 their parsed outline, not line by line.

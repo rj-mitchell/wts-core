@@ -42,10 +42,12 @@ site actually uses:
 |---|---|---|
 | (none) | nothing beyond Python | settings, the state database, usage and caps, the checks, the briefing desk, the streamer, reports and statements, backup, records and statistics |
 | `[cli]` | `typer` | the shared commands a site adds to its own command line |
+| `[offsite]` | `httpx` | off-site copies of backups (the sites speak Backblaze's own HTTP interface with `httpx`; there is no B2 library to depend on) |
 | `[duckdb]` | `duckdb` | the thread-safe DuckDB wrapper |
 | `[ai]` | `anthropic`, `fastembed`, `lancedb`, `numpy`, `pyarrow` | the adapters: the Anthropic client, the fastembed embedder, the LanceDB index |
 
-Where Landlords Stand installs `wts-core[cli,duckdb]`. The AI sites install `wts-core[cli,duckdb,ai]`. A test in CI
+Where Landlords Stand installs `wts-core[cli,offsite]` (its code uses no DuckDB, though it declares it). The AI sites
+install `wts-core[cli,offsite,duckdb,ai]`. A test in CI
 installs the base alone and fails if any AI library arrives with it, or if any module outside `adapters/` imports
 one.
 
