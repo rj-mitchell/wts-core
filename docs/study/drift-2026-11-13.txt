@@ -1,0 +1,67 @@
+Shared-engine drift (family/ENGINE.md)
+
+  Where MPs Stand        /home/user/wherempsstand (de8b3f4, 2026-11-12)
+  Where Countries Stand  /home/user/wherecountriesstand (aa085c6, 2026-11-12)
+  Where Councils Stand   /home/user/wherecouncilsstand (10a79f7, 2026-11-12)
+  Where Landlords Stand  /home/user/wherelandlordsstand (c240d7f, 2026-11-12)
+
+Module                                   Upstream   Pair                   Alike  Change  Functions that differ
+---------------------------------------  ---------  ---------------------  -----  ------  ---------------------
+The embedder                             MPs        MPs ↔ Countries        0.99          (module level)
+                                                    MPs ↔ Councils         0.99          (module level)
+                                                    Countries ↔ Councils   0.99          (module level)
+British spelling                         MPs        MPs ↔ Countries        1.00          none
+                                                    MPs ↔ Councils         0.99          (module level)
+                                                    Countries ↔ Councils   0.99          (module level)
+The citation verifier                    Countries  MPs ↔ Countries        0.99  +0.04   recheck_flags
+                                                    Countries ↔ Councils   0.98  +0.03   _classify_uncited, _is_lead_in_piece, verify, (module level)
+                                                    MPs ↔ Councils         0.97! −0.03   _classify_uncited, _is_lead_in_piece, recheck_flags, verify, (module level)
+The loaded-words check                   MPs        MPs ↔ Countries        0.92          (module level)
+                                                    MPs ↔ Councils         0.82          still_loaded, (module level)
+                                                    Countries ↔ Councils   0.76          still_loaded, (module level)
+The Claude client and streaming          Countries  MPs ↔ Countries        0.94          Answerer.stream, make_client, (module level)
+                                                    Countries ↔ Councils   0.93          Answerer.stream, api_key, make_client, (module level)
+                                                    MPs ↔ Councils         0.92          Answerer.stream, api_key, make_client, (module level)
+The briefing streamer (sse)              MPs        MPs ↔ Countries        0.88          sse
+                                                    MPs ↔ Councils         0.90          sse
+                                                    Countries ↔ Councils   0.89          sse
+The rate limiter                         MPs        MPs ↔ Countries        1.00          none
+                                                    MPs ↔ Councils         0.86          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                    MPs ↔ Landlords        0.26          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                    Countries ↔ Councils   0.86          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                    Countries ↔ Landlords  0.26          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                    Councils ↔ Landlords   0.26          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+The visitor key                          MPs        MPs ↔ Countries        0.71  +0.36   network_of, visitor_key
+                                                    MPs ↔ Councils         0.65  +0.41   network_of, visitor_key
+                                                    Countries ↔ Councils   0.72  +0.11   network_of, visitor_key
+Cost accounting                          Councils   MPs ↔ Councils         0.30! −0.06   cost_usd, prices_for
+                                                    Countries ↔ Councils   0.36! −0.06   cost_usd, prices_for
+                                                    MPs ↔ Countries        0.82! −0.11   cost_usd, prices_for
+Spending caps and briefings in progress  MPs        MPs ↔ Countries        0.61          check_caps, InFlight, InFlight.__init__, InFlight.start
+                                                    MPs ↔ Councils         0.59  +0.01   check_caps, InFlight
+                                                    Countries ↔ Councils   0.59  +0.01   check_caps, InFlight, InFlight.__init__, InFlight.start
+The answer cache                         MPs        MPs ↔ Countries        1.00          none
+                                                    MPs ↔ Councils         0.07          cache_key, cached_events, store_events
+                                                    Countries ↔ Councils   0.07          cache_key, cached_events, store_events
+The thread-safe DuckDB wrapper           MPs        MPs ↔ Countries        1.00          none
+Backup                                   MPs        MPs ↔ Countries        0.43! −0.04   make_backup, restore_backup, (module level)
+                                                    MPs ↔ Councils         0.47          make_backup, restore_backup (only MPs), (module level)
+                                                    MPs ↔ Landlords        0.04          make_backup, restore_backup (only MPs), (module level) (only MPs)
+                                                    Countries ↔ Councils   0.63! −0.28   make_backup, restore_backup (only Countries), (module level)
+                                                    Countries ↔ Landlords  0.03! −0.02   make_backup, restore_backup (only Countries), (module level) (only Countries)
+                                                    Councils ↔ Landlords   0.05          make_backup, (module level) (only Councils)
+Config loading                           MPs        MPs ↔ Countries        0.71          load_settings, save_local_settings (only MPs), Settings, Settings.archive (only Countries), Settings.archive_start, Settings.born_digital_from (only Countries), Settings.log_dir (only MPs), Settings.models_dir (only Countries), Settings.parlparse_dir (only MPs), Settings.raw_dir (only Countries), Settings.raw_xml_dir (only MPs), Settings.record_dirs (only MPs), Settings.reference_dir (only MPs), Settings.regions (only MPs), Settings.start_date (only Countries), Settings.state_db (only MPs)
+                                                    MPs ↔ Councils         0.71          load_settings, save_local_settings (only MPs), Settings, Settings.archive (only Councils), Settings.archive_start (only MPs), Settings.log_dir (only MPs), Settings.models_dir (only Councils), Settings.modgov (only Councils), Settings.parlparse_dir (only MPs), Settings.raw_dir (only Councils), Settings.raw_xml_dir (only MPs), Settings.record_dirs (only MPs), Settings.reference_dir (only MPs), Settings.regions (only MPs), Settings.sources (only MPs), Settings.start_date (only Councils), Settings.state_db (only MPs)
+                                                    MPs ↔ Landlords        0.42          load_settings, load_toml (only Landlords), save_local_settings (only MPs), Settings, Settings.answer (only MPs), Settings.archive_start (only MPs), Settings.embedding (only MPs), Settings.fetch (only Landlords), Settings.index_dir (only MPs), Settings.log_dir (only MPs), Settings.parlparse_dir (only MPs), Settings.parquet_dir (only MPs), Settings.ranking (only MPs), Settings.raw_dir (only Landlords), Settings.raw_xml_dir (only MPs), Settings.record_dirs (only MPs), Settings.reference_dir (only MPs), Settings.regions (only MPs), Settings.sources (only MPs), Settings.staging_dir (only Landlords), Settings.state_db (only MPs), Settings.usage (only MPs), (module level)
+                                                    Countries ↔ Councils   0.86          Settings, Settings.archive_start (only Countries), Settings.born_digital_from (only Countries), Settings.modgov (only Councils), Settings.sources (only Countries), Settings.start_date
+                                                    Countries ↔ Landlords  0.52          load_settings, load_toml (only Landlords), Settings, Settings.answer (only Countries), Settings.archive (only Countries), Settings.archive_start (only Countries), Settings.born_digital_from (only Countries), Settings.embedding (only Countries), Settings.fetch (only Landlords), Settings.index_dir (only Countries), Settings.models_dir (only Countries), Settings.parquet_dir (only Countries), Settings.ranking (only Countries), Settings.raw_dir, Settings.sources (only Countries), Settings.staging_dir (only Landlords), Settings.start_date (only Countries), Settings.usage (only Countries), (module level)
+                                                    Councils ↔ Landlords   0.55          load_settings, load_toml (only Landlords), Settings, Settings.answer (only Councils), Settings.archive (only Councils), Settings.embedding (only Councils), Settings.fetch (only Landlords), Settings.index_dir (only Councils), Settings.models_dir (only Councils), Settings.modgov (only Councils), Settings.parquet_dir (only Councils), Settings.ranking (only Councils), Settings.raw_dir, Settings.staging_dir (only Landlords), Settings.start_date (only Councils), Settings.usage (only Councils), (module level)
+Off-site copies to B2                    MPs        MPs ↔ Countries        0.93  +0.04   backup_alerts, check, (module level)
+                                                    MPs ↔ Councils         0.97  +0.08   backup_alerts, check, (module level)
+                                                    MPs ↔ Landlords        0.89          backup_alerts (only MPs), check, (module level)
+                                                    Countries ↔ Councils   0.94! −0.05   backup_alerts, check
+                                                    Countries ↔ Landlords  0.89! −0.10   backup_alerts (only Countries), check, (module level)
+                                                    Councils ↔ Landlords   0.89! −0.10   backup_alerts (only Councils), check, (module level)
+
+Alike: 1.00 is identical apart from the package name. Change: since drift-baseline.json.
+! marks a pair that has moved further apart than accepted, or a missing file.
