@@ -1,0 +1,80 @@
+Shared-engine drift (family/ENGINE.md)
+
+  Where MPs Stand        /home/user/wherempsstand (c5ba393, 2026-11-13)
+  Where Countries Stand  /home/user/wherecountriesstand (469a3a0, 2026-11-13)
+  Where Councils Stand   /home/user/wherecouncilsstand (1dbd82c, 2026-11-13)
+  Where Landlords Stand  /home/user/wherelandlordsstand (e3190e4, 2026-11-13)
+
+Module                                      Upstream   Pair                   Alike  Change  Functions that differ
+------------------------------------------  ---------  ---------------------  -----  ------  ---------------------
+The embedder                                MPs        MPs ↔ Countries        0.99          (module level)
+                                                       MPs ↔ Councils         0.99          (module level)
+                                                       Countries ↔ Councils   0.99          (module level)
+British spelling                            MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.99          (module level)
+                                                       Countries ↔ Councils   0.99          (module level)
+The citation verifier                       MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.98          _classify_uncited, _is_lead_in_piece, verify, (module level)
+                                                       Countries ↔ Councils   0.98          _classify_uncited, _is_lead_in_piece, verify, (module level)
+The loaded-words check                      MPs        MPs ↔ Countries        0.92          (module level)
+                                                       MPs ↔ Councils         0.82          still_loaded, (module level)
+                                                       Countries ↔ Councils   0.76          still_loaded, (module level)
+The Claude client and streaming             Countries  MPs ↔ Countries        0.97          Answerer.stream, (module level)
+                                                       Countries ↔ Councils   0.95          Answerer.stream, api_key, make_client, (module level)
+                                                       MPs ↔ Councils         0.94          Answerer.stream, api_key, make_client, (module level)
+The briefing streamer (sse)                 MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         1.00          none
+                                                       Countries ↔ Councils   1.00          none
+The rate limiter                            MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.86          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                       MPs ↔ Landlords        0.57          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                       Countries ↔ Councils   0.86          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                       Countries ↔ Landlords  0.57          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+                                                       Councils ↔ Landlords   0.57          RateLimiter, RateLimiter.__init__, RateLimiter.allow
+The visitor key                             MPs        MPs ↔ Countries        0.71          network_of, visitor_key
+                                                       MPs ↔ Councils         0.65          network_of, visitor_key
+                                                       Countries ↔ Councils   0.72          network_of, visitor_key
+Cost accounting                             MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.95          cost_usd
+                                                       Countries ↔ Councils   0.95          cost_usd
+Spending caps and briefings in progress *   MPs        MPs ↔ Countries        0.63          check_caps, InFlight, InFlight.__init__
+                                                       MPs ↔ Councils         0.59          check_caps, InFlight
+                                                       Countries ↔ Councils   0.61          check_caps, InFlight, InFlight.__init__
+The answer cache *                          MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.07          cache_key, cached_events, store_events
+                                                       Countries ↔ Councils   0.07          cache_key, cached_events, store_events
+The thread-safe DuckDB wrapper              MPs        MPs ↔ Countries        1.00          none
+Backup *                                    MPs        MPs ↔ Countries        0.56          make_backup, restore_backup, (module level)
+                                                       MPs ↔ Councils         0.37          make_backup, restore_backup (only MPs), (module level)
+                                                       MPs ↔ Landlords        0.17          make_backup, restore_backup (only MPs), (module level) (only MPs)
+                                                       Countries ↔ Councils   0.63          make_backup, restore_backup (only Countries), (module level)
+                                                       Countries ↔ Landlords  0.25          make_backup, restore_backup (only Countries), (module level) (only Countries)
+                                                       Councils ↔ Landlords   0.37          make_backup, (module level) (only Councils)
+Config loading *                            MPs        MPs ↔ Countries        0.98          load_settings
+                                                       MPs ↔ Councils         0.98          load_settings
+                                                       MPs ↔ Landlords        0.45          load_settings
+                                                       Countries ↔ Councils   1.00          none
+                                                       Countries ↔ Landlords  0.46          load_settings
+                                                       Councils ↔ Landlords   0.46          load_settings
+Off-site copies to B2                       MPs        MPs ↔ Countries        0.93          backup_alerts, check, (module level)
+                                                       MPs ↔ Councils         0.97          backup_alerts, check, (module level)
+                                                       MPs ↔ Landlords        0.89          backup_alerts (only MPs), check, (module level)
+                                                       Countries ↔ Councils   0.94          backup_alerts, check
+                                                       Countries ↔ Landlords  0.89          backup_alerts (only Countries), check, (module level)
+                                                       Councils ↔ Landlords   0.89          backup_alerts (only Councils), check, (module level)
+Statements under the right of reply *       MPs        MPs ↔ Countries        0.24          _change (only Countries), _row (only Countries), add_statement, check (only MPs), check_country (only Countries), check_email (only Countries), check_line (only Countries), check_link (only Countries), check_text (only Countries), clean_link (only MPs), clean_text (only MPs), decline_statement, forget_emails (only Countries), forget_old_emails (only MPs), get_statement (only MPs), item_address (only Countries), item_path (only MPs), list_statements (only MPs), months_ago (only MPs), months_before (only Countries), person_of (only MPs), publish_statement, published (only MPs), published_statements (only Countries), recent_count (only MPs), statement (only Countries), StatementError (only MPs), statements (only Countries), today (only Countries), update_statement, withdraw_statement, (module level)
+                                                       MPs ↔ Councils         0.12          add_statement (only MPs), check (only MPs), check_email (only Councils), check_line (only Councils), check_link (only Councils), check_text (only Councils), clean_link (only MPs), clean_text (only MPs), decline_statement (only MPs), forget_old_emails (only MPs), get_statement (only MPs), item_address (only Councils), item_path (only MPs), list_statements (only MPs), months_ago (only MPs), months_before (only Councils), person_of (only MPs), publish_statement (only MPs), published (only MPs), recent_count (only MPs), safe_link (only Councils), StateDB._change_statement (only Councils), StateDB.add_statement (only Councils), StateDB.decline_statement (only Councils), StateDB.forget_statement_emails (only Councils), StateDB.publish_statement (only Councils), StateDB.published_statements (only Councils), StateDB.statement (only Councils), StateDB.statements (only Councils), StateDB.update_statement (only Councils), StateDB.withdraw_statement (only Councils), StatementError (only MPs), update_statement (only MPs), withdraw_statement (only MPs), (module level)
+                                                       MPs ↔ Landlords        0.20          _get (only Landlords), _h1 (only Landlords), _now (only Landlords), add_statement (only MPs), check, clean_link, decline (only Landlords), decline_statement (only MPs), folders (only Landlords), forget_old_emails, get_statement (only MPs), item (only Landlords), item_path (only MPs), list_statements (only MPs), months_ago, not_too_long (only Landlords), person_of (only MPs), placements (only Landlords), publish (only Landlords), publish_statement (only MPs), published, recent_count (only MPs), refresh (only Landlords), render (only Landlords), slot (only Landlords), StatementError, submit (only Landlords), update (only Landlords), update_statement (only MPs), withdraw (only Landlords), withdraw_statement (only MPs), write_into (only Landlords), (module level)
+                                                       Countries ↔ Councils   0.30          _change (only Countries), _row (only Countries), add_statement (only Countries), check_country (only Countries), check_line, check_link, check_text, decline_statement (only Countries), forget_emails (only Countries), item_address, publish_statement (only Countries), published_statements (only Countries), safe_link (only Councils), StateDB._change_statement (only Councils), StateDB.add_statement (only Councils), StateDB.decline_statement (only Councils), StateDB.forget_statement_emails (only Councils), StateDB.publish_statement (only Councils), StateDB.published_statements (only Councils), StateDB.statement (only Councils), StateDB.statements (only Councils), StateDB.update_statement (only Councils), StateDB.withdraw_statement (only Councils), statement (only Countries), statements (only Countries), today (only Countries), update_statement (only Countries), withdraw_statement (only Countries), (module level)
+                                                       Countries ↔ Landlords  0.15          _change (only Countries), _get (only Landlords), _h1 (only Landlords), _now (only Landlords), _row (only Countries), add_statement (only Countries), check (only Landlords), check_country (only Countries), check_email (only Countries), check_line (only Countries), check_link (only Countries), check_text (only Countries), clean_link (only Landlords), clean_text (only Landlords), decline (only Landlords), decline_statement (only Countries), folders (only Landlords), forget_emails (only Countries), forget_old_emails (only Landlords), item (only Landlords), item_address (only Countries), months_ago (only Landlords), months_before (only Countries), not_too_long (only Landlords), placements (only Landlords), publish (only Landlords), publish_statement (only Countries), published (only Landlords), published_statements (only Countries), refresh (only Landlords), render (only Landlords), slot (only Landlords), statement (only Countries), StatementError (only Landlords), statements (only Countries), submit (only Landlords), today (only Countries), update (only Landlords), update_statement (only Countries), withdraw (only Landlords), withdraw_statement (only Countries), write_into (only Landlords), (module level)
+                                                       Councils ↔ Landlords   0.10          _get (only Landlords), _h1 (only Landlords), _now (only Landlords), check (only Landlords), check_email (only Councils), check_line (only Councils), check_link (only Councils), check_text (only Councils), clean_link (only Landlords), clean_text (only Landlords), decline (only Landlords), folders (only Landlords), forget_old_emails (only Landlords), item (only Landlords), item_address (only Councils), months_ago (only Landlords), months_before (only Councils), not_too_long (only Landlords), placements (only Landlords), publish (only Landlords), published (only Landlords), refresh (only Landlords), render (only Landlords), safe_link (only Councils), slot (only Landlords), StateDB._change_statement (only Councils), StateDB.add_statement (only Councils), StateDB.decline_statement (only Councils), StateDB.forget_statement_emails (only Councils), StateDB.publish_statement (only Councils), StateDB.published_statements (only Councils), StateDB.statement (only Councils), StateDB.statements (only Councils), StateDB.update_statement (only Councils), StateDB.withdraw_statement (only Councils), StatementError (only Landlords), submit (only Landlords), update (only Landlords), withdraw (only Landlords), write_into (only Landlords), (module level)
+Readers' reports and the corrections log *  MPs        MPs ↔ Countries        0.08          add_report, close_report, corrections, list_reports, recent_count (only MPs), (module level) (only MPs)
+                                                       MPs ↔ Councils         0.00          add_report, close_report, corrections (only MPs), list_reports, recent_count (only MPs), (module level) (only MPs)
+                                                       MPs ↔ Landlords        0.00          add_report, close_report, corrections (only MPs), list_reports, recent_count (only MPs), (module level) (only MPs)
+                                                       Countries ↔ Councils   0.00          add_report, close_report, corrections (only Countries), list_reports
+                                                       Countries ↔ Landlords  0.00          add_report, close_report, corrections (only Countries), list_reports
+                                                       Councils ↔ Landlords   0.06          add_report, close_report, list_reports
+
+Alike: 1.00 is identical apart from the package name. Change: since drift-baseline.json.
+! marks a pair that has moved further apart than accepted, or a missing file.
+* is done differently by some sites on purpose: its copies converge when each site adopts wts-core, not before.
