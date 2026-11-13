@@ -22,15 +22,23 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-import wts_core
 from pydantic import BaseModel
 from wts_core.adapters import anthropic, model_client
 from wts_core.adapters.hashing import HashingEmbedder
 from wts_core.briefing import Event, Stage, current_stages
 from wts_core.checks import blend, check_briefing, round_robin
 from wts_core.events import Answer, Block, Completed, blocks_as_today, to_reader
-from wts_core.observe import config_id
-from wts_core.ports import Document, Embedder, ModelClient, ModelRequest, SpendingRecord, Usage, VectorIndex
+from wts_core.observe import SqliteBriefingLog, briefing_config
+from wts_core.ports import (
+    BriefingConfig,
+    Document,
+    Embedder,
+    ModelClient,
+    ModelRequest,
+    SpendingRecord,
+    Usage,
+    VectorIndex,
+)
 from wts_core.settings import SettingsError
 from wts_core.testing.index import MemoryIndex
 from wts_core.testing.models import ScriptedModel, load_header
@@ -357,16 +365,14 @@ def new_index(embedder: Embedder) -> VectorIndex:
 # ---- the configuration, for the record of each briefing ----------------------------------------------------------
 
 
-def configuration(settings: ParksSettings, embedder: Embedder) -> dict[str, Any]:
-    """Everything that could change a briefing, and the short id of it all (``config_id``): what the briefing desk
-    writes into each briefing's record and what an evaluation run is filed under, so a figure can be compared
-    before and after a change. Never a key, and nothing about a reader."""
+def configuration(settings: ParksSettings, embedder: Embedder, log: SqliteBriefingLog | None) -> BriefingConfig:
+    """Everything that could change a briefing, and the short id of it all: what the briefing desk writes into each
+    briefing's record and what an evaluation run is filed under, so a figure can be compared before and after a
+    change. Never a key, and nothing about a reader. Given the record of briefings, the same call keeps the
+    settings behind the id there; ``None`` (an evaluation run, which keeps no record) only works the id out."""
     answer = settings.answer
-    parts: dict[str, Any] = {
-        "model": answer["model"], "parse_model": answer["query_parse_model"],
-        "instructions": SITE.instructions_version, "package_version": wts_core.__version__,
-        "site_version": SITE.version, "provider": answer["provider"], "embedder": embedder.id,
-        "ranking": dict(settings.ranking),
-        "sources": {"summary": answer["summary_sources"], "comprehensive": answer["comprehensive_sources"]},
-    }
-    return {**parts, "config_id": config_id(parts)}
+    return briefing_config(
+        log=log, model=answer["model"], parse_model=answer["query_parse_model"],
+        instructions=SITE.instructions_version, site_version=SITE.version,
+        also={"provider": answer["provider"], "embedder": embedder.id, "ranking": dict(settings.ranking),
+              "sources": {"summary": answer["summary_sources"], "comprehensive": answer["comprehensive_sources"]}})

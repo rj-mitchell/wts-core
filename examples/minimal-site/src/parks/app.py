@@ -25,7 +25,16 @@ from pydantic import BaseModel, Field
 from wts_core.briefing import Ask, BriefingDesk, Event, Hooks, TooManyRequests, sse
 from wts_core.cli import backup_ages, check_route, last_day_figures
 from wts_core.observe import LOGGER, SqliteBriefingLog, json_logging
-from wts_core.ports import SYSTEM_CLOCK, SYSTEM_RANDOM, Clock, Embedder, ModelClient, Random, VectorIndex
+from wts_core.ports import (
+    SYSTEM_CLOCK,
+    SYSTEM_RANDOM,
+    BriefingConfig,
+    Clock,
+    Embedder,
+    ModelClient,
+    Random,
+    VectorIndex,
+)
 from wts_core.replies import Refused, Replies, statement_html
 from wts_core.state import StateDB
 from wts_core.usage import (
@@ -125,7 +134,7 @@ class Parks:
     replies: Replies
     pipeline: Pipeline
     desk: BriefingDesk
-    config: Mapping[str, Any]
+    config: BriefingConfig
     clock: Clock
     random: Random
     check_token: str | None
@@ -148,8 +157,7 @@ def build(settings: ParksSettings | None = None, *, model: ModelClient | None | 
     embedder = embedder or embedder_from_settings(settings)
     pipeline = Pipeline(settings, model=model_from_settings(settings, env) if model is ... else model,
                         embedder=embedder, index=index or new_index(embedder), spending=spending)
-    config = configuration(settings, embedder)
-    log.remember_config(config["config_id"], config)  # the settings behind the id, kept once
+    config = configuration(settings, embedder, log)  # its id worked out and the settings behind it kept, at once
 
     desk = BriefingDesk(
         messages=MESSAGES,
@@ -164,7 +172,6 @@ def build(settings: ParksSettings | None = None, *, model: ModelClient | None | 
         archive=archive,
         failures=Failures(db, clock=clock),
         log=log,  # the record of each briefing, turned on (docs/adr/0012)
-        parse_model=settings.answer["query_parse_model"],
         config=config,
         hooks=ParksHooks(spending, limits, pipeline.records_up_to),
         group_of=lambda card: card.get("park"),  # the record counts each briefing's sources by park

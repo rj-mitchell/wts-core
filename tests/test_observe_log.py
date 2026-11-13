@@ -14,7 +14,7 @@ import pytest
 from wts_core import observe
 from wts_core.observe import OWNER_ACCEPTED, Retention, SqliteBriefingLog, Tidied, config_id, count, counts
 from wts_core.observe.log import months_before, save_week, weeks
-from wts_core.ports import BriefingLog, BriefingRecord
+from wts_core.ports import BriefingConfig, BriefingLog, BriefingRecord
 from wts_core.settings import Site
 from wts_core.state import StateDB
 from wts_core.testing import FixedClock
@@ -320,6 +320,49 @@ def test_the_settings_behind_an_id_are_kept_once(db, log, clock):
     with db.connect() as con:
         assert [tuple(r) for r in con.execute("SELECT config_id, first_seen FROM wts_configs")] == [
             (made, "2026-11-13T12:00:00+00:00")]
+
+
+def test_a_sites_configuration_is_made_and_remembered_in_one_call(db, log):
+    import wts_core
+
+    made = observe.briefing_config(log=log, model="model-a", parse_model="model-b", instructions="v7",
+                                   site_version="2.3", also={"embedder": "hashing-64", "ranking": {"word_weight": 0.6}})
+    parts = {"model": "model-a", "parse_model": "model-b", "instructions": "v7",
+             "package_version": wts_core.__version__, "site_version": "2.3", "embedder": "hashing-64",
+             "ranking": {"word_weight": 0.6}}
+    assert made == BriefingConfig(config_id=config_id(parts), model="model-a", parse_model="model-b",
+                                  instructions="v7", package_version=wts_core.__version__, site_version="2.3",
+                                  settings=parts)
+    assert log.config(made.config_id) == parts  # kept by the same call: there is nothing for a site to forget
+
+
+def test_a_configuration_can_be_made_with_no_record_to_keep_it_in(db):
+    made = observe.briefing_config(log=None, model="model-a", parse_model=None, instructions="v7", site_version="1")
+    assert made.config_id == config_id(made.settings) and made.parse_model is None
+    with db.connect() as con:
+        assert con.execute("SELECT count(*) FROM wts_configs").fetchone()[0] == 0
+    with pytest.raises(TypeError):  # which of the two it is must be said: there is no default to fall into
+        observe.briefing_config(model="model-a", parse_model=None, instructions="v7", site_version="1")
+
+
+def test_an_experiments_arm_is_part_of_the_id_only_while_there_is_one(log):
+    plain = observe.briefing_config(log=log, model="m", parse_model=None, instructions="v7", site_version="1")
+    arms = [observe.briefing_config(log=log, model="m", parse_model=None, instructions="v7", site_version="1",
+                                    experiment="shorter", arm=arm) for arm in "ab"]
+    assert "arm" not in plain.settings and len({plain.config_id, *(a.config_id for a in arms)}) == 3
+    assert [(a.experiment, a.arm) for a in arms] == [("shorter", "a"), ("shorter", "b")]
+    assert log.config(arms[1].config_id)["arm"] == "b"
+
+
+def test_a_misspelt_or_doubled_field_of_the_configuration_stops_the_site_when_it_starts(log):
+    with pytest.raises(TypeError, match="parse_modle"):
+        observe.briefing_config(log=log, model="m", parse_modle="n", instructions="v7", site_version="1")
+    with pytest.raises(ValueError, match="model is given by name"):
+        observe.briefing_config(log=log, model="m", parse_model=None, instructions="v7", site_version="1",
+                                also={"model": "another"})
+    with pytest.raises(TypeError, match="config_idd"):
+        BriefingConfig(config_idd="c", model="m", parse_model=None, instructions="", package_version="",
+                       site_version="")
 
 
 # ---- daily and weekly totals -------------------------------------------------------------------------------------

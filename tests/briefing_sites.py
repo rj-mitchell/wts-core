@@ -33,6 +33,7 @@ import pytest
 from test_usage_sites import COUNCILS, COUNTRIES, MPS, SiteFacts, checkout_of
 from wts_core import usage as core_usage
 from wts_core.briefing import Ask, BriefingDesk, Hooks, TooManyRequests, sse
+from wts_core.observe import briefing_config
 from wts_core.ports import BriefingRecord
 from wts_core.state import StateDB
 from wts_core.testing import FixedClock
@@ -526,8 +527,10 @@ class DeskSide(Side):
             in_progress=BriefingsInProgress(int(cfg.get(facts.at_once_key, 2)), int(cfg.get("briefings_at_once", 8)),
                                             float(cfg["briefing_estimate_usd"])),
             spending=self.spending, cache=self.cache, cache_hours=self.cache_hours, archive=self.archive,
-            failures=self.failures, log=self.log, parse_model=mods.query_parse.parse_model(settings),
-            config={"config_id": "0123456789ab", "model": settings.answer["model"], "site_version": "test"},
+            failures=self.failures, log=self.log,
+            config=briefing_config(log=None, model=settings.answer["model"],
+                                   parse_model=mods.query_parse.parse_model(settings),
+                                   instructions=str(mods.app.INSTRUCTIONS_VERSION), site_version="test"),
             hooks=hooks, group_of=lambda card: card.get("group"), clock=clock, strict=True)
         self._route = route
         self.app = FastAPI()

@@ -141,7 +141,7 @@ def test_one_record_is_written_for_every_question_and_names_no_reader(client: Te
     assert (written.input_tokens, written.cache_read_tokens, written.output_tokens) == (96 + 612, 540, 14 + 148)
     assert written.cost_usd == pytest.approx(0.004384) and cached.cost_usd == 0
     # the configuration it ran with, and the settings behind the id, kept once
-    assert written.config_id == parks.config["config_id"] and written.model == "recorded-briefing"
+    assert written.config_id == parks.config.config_id and written.model == "recorded-briefing"
     assert written.instructions == "2026-11-13"
     stored = parks.log.config(written.config_id)
     assert stored is not None and stored["ranking"]["max_per_park"] == 2

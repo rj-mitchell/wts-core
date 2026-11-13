@@ -52,6 +52,7 @@ from wts_core import Messages, usage
 from wts_core.briefing import Ask, BriefingDesk, TooManyRequests, sse
 from wts_core.checks import COMMON_LOADED_WORDS, EVIDENCE_NOTES_STRICT, LoadedWords, Verifier, check_briefing
 from wts_core.events import Completed, blocks_as_today, to_reader
+from wts_core.observe import briefing_config
 from wts_core.ports import ModelRequest, Price
 from wts_core.state import StateDB
 from wts_core.testing.models import ScriptedModel, load_documents, recorded
@@ -117,7 +118,8 @@ desk = BriefingDesk(
     caps=usage.Caps(spending, limits, MESSAGES), in_progress=usage.BriefingsInProgress(2, 8, 0.10),
     spending=spending, cache=usage.SqliteAnswerCache(db), cache_hours=168,
     archive=usage.BriefingArchive(db, new_id=lambda: usage.token_id(8)), failures=usage.Failures(db),
-    log=None, parse_model=None, config={})
+    log=None, config=briefing_config(log=None, model="synthetic-model", parse_model=None, instructions="1",
+                                     site_version="1"))
 
 app = FastAPI()
 

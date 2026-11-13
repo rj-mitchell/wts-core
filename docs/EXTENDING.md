@@ -274,7 +274,6 @@ From `examples/minimal-site/src/parks/app.py`:
         archive=archive,
         failures=Failures(db, clock=clock),
         log=log,  # the record of each briefing, turned on (docs/adr/0012)
-        parse_model=settings.answer["query_parse_model"],
         config=config,
         hooks=ParksHooks(spending, limits, pipeline.records_up_to),
         group_of=lambda card: card.get("park"),  # the record counts each briefing's sources by park
@@ -380,10 +379,10 @@ and a site that passed the wrong length would miss every answer it had cached. A
 park. The record of each briefing then holds how many sources came from each group, which is the spread the
 impartiality policy asks a site to be able to show.
 
-**The configuration** (`config`) is what the site says of the settings a briefing ran with. It goes into each
-briefing's record as it is. The desk reads these keys: `config_id`, `model`, `parse_model`, `instructions`,
-`package_version`, `site_version` and, in an experiment, `experiment` and `arm`. Section 9 shows how the example
-builds it.
+**The configuration** (`config`) is what the site says of the settings a briefing ran with: a
+`ports.BriefingConfig`, whose fields go into each briefing's record as they are. Its `parse_model` is the model
+the reading of a question is priced as, and in an experiment its `arm` is part of the answer cache's key. A site
+does not build one by hand: section 9 shows how the example makes it.
 
 ### 4.5 `Hooks`: the steps only some sites have
 
@@ -733,22 +732,24 @@ With `log=SqliteBriefingLog(db)` the desk writes one record for every question
 ([ADR 0012](adr/0012-briefing-record-and-statistics.md)). The site supplies two things.
 
 **The configuration.** Everything that could change a briefing, and the short id of it all.
+`observe.briefing_config` makes it: it works the id out, adds the package's own version, and keeps the settings
+behind the id in `wts_configs`, in one call. Every field is named, so a misspelt one stops the site when it starts.
+`also` holds whatever else could change a briefing on this site.
 
 From `examples/minimal-site/src/parks/pipeline.py`:
 
 ```python
     answer = settings.answer
-    parts: dict[str, Any] = {
-        "model": answer["model"], "parse_model": answer["query_parse_model"],
-        "instructions": SITE.instructions_version, "package_version": wts_core.__version__,
-        "site_version": SITE.version, "provider": answer["provider"], "embedder": embedder.id,
-        "ranking": dict(settings.ranking),
-        "sources": {"summary": answer["summary_sources"], "comprehensive": answer["comprehensive_sources"]},
-    }
-    return {**parts, "config_id": config_id(parts)}
+    return briefing_config(
+        log=log, model=answer["model"], parse_model=answer["query_parse_model"],
+        instructions=SITE.instructions_version, site_version=SITE.version,
+        also={"provider": answer["provider"], "embedder": embedder.id, "ranking": dict(settings.ranking),
+              "sources": {"summary": answer["summary_sources"], "comprehensive": answer["comprehensive_sources"]}})
 ```
 
-Never put a key, a password or anything about a reader in it. The settings behind each id are stored as they are.
+`log` is the site's `SqliteBriefingLog`. A site that has not turned the record on says `log=None`: the
+configuration is made and nothing is kept. Never put a key, a password or anything about a reader in it. The
+settings behind each id are stored as they are.
 
 **What happened next.** The routes that already receive these signals mark the briefing's record:
 `log.mark(briefing_id, reported=True)`, `useful=True` or `False`, `corrected=True`, `followed_up=True`.

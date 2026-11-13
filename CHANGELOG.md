@@ -5,6 +5,29 @@ interface, and each such change is listed under "Changed" with what a site must 
 The line `api: <hash>` under a version is the fingerprint of the public interface at that version
 (`docs/api-snapshot.txt`); `tests/test_public_api.py` fails when the interface changes without a new one here.
 
+## 0.2.0 (13 November 2026)
+
+The rough edges the example site found, removed before the three AI sites adopt the package. No site uses the
+briefing desk yet, so its interface could still change; the bytes a reader receives through it have not.
+
+api: 30aec6d7d152
+
+### Changed
+
+- **`BriefingDesk` takes `config: ports.BriefingConfig`, and no `parse_model`.** The configuration was a mapping
+  with string keys, where a misspelt key was recorded as empty; it is now a frozen dataclass with a field for each
+  (`config_id`, `model`, `parse_model`, `instructions`, `package_version`, `site_version`, `experiment`, `arm`,
+  and `settings`, the parts behind the id). The model a question's reading is priced as is its `parse_model`.
+  *What a site must do:* nothing yet (no site has adopted the desk). At adoption, make the configuration with
+  `observe.briefing_config` and pass it as `config`.
+
+### Added
+
+- `observe.briefing_config(log=…, model=…, parse_model=…, instructions=…, site_version=…, also=…)`: makes a
+  site's `BriefingConfig`, works out its id (`config_id` of the parts, with the package's version added) and
+  keeps the parts in `wts_configs` in the same call. `log=None`, said out loud, is for a site that has not turned
+  the record of briefings on.
+
 ## 0.1.0 (13 November 2026)
 
 The first release: everything the four sites did alike, in one place.

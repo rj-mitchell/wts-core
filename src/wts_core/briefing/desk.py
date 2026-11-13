@@ -46,6 +46,7 @@ from wts_core.ports import (
     SYSTEM_CLOCK,
     SYSTEM_RANDOM,
     AnswerCache,
+    BriefingConfig,
     BriefingLog,
     BriefingRecord,
     Clock,
@@ -226,10 +227,10 @@ class _Stream:
 class BriefingDesk:
     """The flow of a briefing, built once for a site from the shared parts and the site's own wording.
 
-    ``parse_model`` is the model the reading of a question is priced as. ``config`` is what the site says of the
-    configuration it is running (``config_id``, ``model``, ``parse_model``, ``instructions``, ``package_version``,
-    ``site_version`` and, in an experiment, ``experiment`` and ``arm``): it goes into each briefing's record as it
-    is, and in an experiment the arm goes into the cache key, so versions never serve each other's answers.
+    ``config`` is what the site says of the configuration it is running (``ports.BriefingConfig``, made once by
+    ``observe.briefing_config``): it goes into each briefing's record as it is, its ``parse_model`` is the model
+    the reading of a question is priced as, and in an experiment the arm goes into the cache key, so versions
+    never serve each other's answers.
     ``group_of`` says which group a source card belongs to (a party, a region, a body), for the record's count of
     sources by group. ``log=None`` writes no record: a site that has not turned the record on. ``archive`` is where
     briefings are saved when an ``Ask`` has no ``save`` of its own.
@@ -241,8 +242,8 @@ class BriefingDesk:
 
     def __init__(self, *, messages: Messages, limiter: Limiter, caps: Caps, in_progress: InProgress,
                  spending: SpendingRecord, cache: AnswerCache, cache_hours: float, archive: SavedBriefings | None,
-                 failures: FailureLog | None, log: BriefingLog | None, parse_model: str | None,
-                 config: Mapping[str, Any], hooks: Hooks | None = None,
+                 failures: FailureLog | None, log: BriefingLog | None, config: BriefingConfig,
+                 hooks: Hooks | None = None,
                  group_of: Callable[[Mapping[str, Any]], str | None] | None = None, clock: Clock = SYSTEM_CLOCK,
                  random: Random = SYSTEM_RANDOM, strict: bool = False) -> None:
         self._messages = messages
@@ -255,8 +256,7 @@ class BriefingDesk:
         self._archive = archive
         self._failures = failures
         self._log = log
-        self._parse_model = parse_model
-        self._config = dict(config)
+        self._config = config
         self._hooks = hooks or Hooks()
         self._group_of = group_of
         self._clock = clock
@@ -276,10 +276,10 @@ class BriefingDesk:
         it, which stops the model."""
         run = _Run(self._clock, self._random)
         try:
-            arm = self._config.get("arm")
+            arm = self._config.arm
             if ask.cache_key is not None and arm is not None:
                 ask = dataclasses.replace(ask, cache_key=cache_key(
-                    {"key": ask.cache_key, "experiment": self._config.get("experiment"), "arm": arm},
+                    {"key": ask.cache_key, "experiment": self._config.experiment, "arm": arm},
                     length=len(ask.cache_key)))
             key = ask.cache_key if self._cache_hours > 0 else None
             hit = (self._cache.get(key, self._cache_hours)
@@ -461,7 +461,7 @@ class BriefingDesk:
         """The model calls an event reports: what the site's hook names, then the event's own."""
         yield from self._hooks.usages(ask, event)
         if event["type"] == "plan":
-            yield "parse", self._parse_model, event.get("usage")
+            yield "parse", self._config.parse_model, event.get("usage")
         elif event["type"] in ("final", "error"):
             yield "answer", event.get("model"), event.get("usage")
 
@@ -528,11 +528,10 @@ class BriefingDesk:
         return BriefingRecord(
             id=run.id, at=run.at, outcome=run.outcome or "error", kind=ask.kind, question=ask.question,
             follow_up=ask.follow_up, mode=ask.mode, filters_set=tuple(ask.filters_set),
-            config_id=str(config.get("config_id", "")), model=config.get("model"),
-            parse_model=config.get("parse_model", self._parse_model),
-            instructions=str(config.get("instructions", "")), package_version=str(config.get("package_version", "")),
-            site_version=str(config.get("site_version", "")), experiment=config.get("experiment"),
-            arm=config.get("arm"), sources=run.sources, spread=None if run.groups is None else dict(run.groups),
+            config_id=config.config_id, model=config.model, parse_model=config.parse_model,
+            instructions=config.instructions, package_version=config.package_version,
+            site_version=config.site_version, experiment=config.experiment, arm=config.arm,
+            sources=run.sources, spread=None if run.groups is None else dict(run.groups),
             input_tokens=counts["input_tokens"], cache_read_tokens=counts["cache_read_tokens"],
             cache_write_tokens=counts["cache_write_tokens"], cache_write_long_tokens=spent.cache_write_long,
             output_tokens=counts["output_tokens"], cost_usd=round(run.cost + stages.cost_unseen, 6),

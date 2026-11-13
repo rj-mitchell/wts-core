@@ -137,7 +137,7 @@ class Ask
     options: Mapping[str, Any] = ...
     save: Callable[[Event, list[Event], str], Mapping[str, Any]] | None = ...
 class BriefingDesk
-    def __init__(self, *, messages: 'Messages', limiter: 'Limiter', caps: 'Caps', in_progress: 'InProgress', spending: 'SpendingRecord', cache: 'AnswerCache', cache_hours: 'float', archive: 'SavedBriefings | None', failures: 'FailureLog | None', log: 'BriefingLog | None', parse_model: 'str | None', config: 'Mapping[str, Any]', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>, strict: 'bool' = False) -> 'None'
+    def __init__(self, *, messages: 'Messages', limiter: 'Limiter', caps: 'Caps', in_progress: 'InProgress', spending: 'SpendingRecord', cache: 'AnswerCache', cache_hours: 'float', archive: 'SavedBriefings | None', failures: 'FailureLog | None', log: 'BriefingLog | None', config: 'BriefingConfig', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>, strict: 'bool' = False) -> 'None'
     def allow(self, key: 'str') -> 'None'
     def handle(self, ask: 'Ask') -> 'Iterator[Event]'
 type Event = dict[str, typing.Any]
@@ -586,6 +586,7 @@ STAGE_NAMES = tuple of 8
 SqliteBriefingLog: from wts_core.observe.log
 Stats: from wts_core.observe.figures
 Tidied: from wts_core.observe.log
+briefing_config: from wts_core.observe.log
 config_id: from wts_core.observe.config
 count: from wts_core.observe.log
 counts: from wts_core.observe.log
@@ -746,6 +747,7 @@ class SqliteBriefingLog
 class Tidied
     deleted: int
     blanked: int
+def briefing_config(*, log: 'SqliteBriefingLog | None', model: 'str', parse_model: 'str | None', instructions: 'str', site_version: 'str', experiment: 'str | None' = None, arm: 'str | None' = None, also: 'Mapping[str, Any] | None' = None) -> 'BriefingConfig'
 def count(db: 'StateDB', name: 'str', clock: 'Clock' = <wts_core.ports.SystemClock object>, *, n: 'int' = 1) -> 'None'
 def counts(db: 'StateDB', since: 'date | str') -> 'dict[str, dict[str, int]]'
 def migrations() -> 'tuple[Migration, ...]'
@@ -823,6 +825,16 @@ class AnswerCache(Protocol)
     def __init__(self, *args, **kwargs)
     def get(self, key: 'str', max_hours: 'float') -> 'list[dict[str, Any]] | None'
     def put(self, key: 'str', events: 'list[dict[str, Any]]', max_hours: 'float') -> 'None'
+class BriefingConfig
+    config_id: str
+    model: str
+    parse_model: str | None
+    instructions: str
+    package_version: str
+    site_version: str
+    experiment: str | None = ...
+    arm: str | None = ...
+    settings: Mapping[str, Any] = ...
 class BriefingLog(Protocol)
     def __init__(self, *args, **kwargs)
     def mark(self, briefing_id: 'str', *, useful: 'bool | None' = None, reported: 'bool' = False, corrected: 'bool' = False, followed_up: 'bool' = False) -> 'None'

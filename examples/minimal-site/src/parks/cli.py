@@ -23,6 +23,7 @@ from wts_core.cli import (
     replies_commands,
     stats_commands,
 )
+from wts_core.observe import config_id
 from wts_core.replies import Replies
 from wts_core.usage import PriceTable
 
@@ -181,13 +182,15 @@ app.add_typer(stats_commands(
 
 
 def _configuration() -> Mapping[str, Any]:
+    """What an evaluation run is filed under: the parts the site's configuration is made of. No record of
+    briefings is given, so nothing is kept: a run is not a reader's briefing."""
     settings = load()
-    return configuration(settings, embedder_from_settings(settings))
+    return configuration(settings, embedder_from_settings(settings), None).settings
 
 
 app.add_typer(eval_commands(
     lambda: ParksEval(load()),
-    config=_configuration, config_id=lambda config: str(config["config_id"]),
+    config=_configuration, config_id=config_id,  # the id the record of briefings gives the same parts
     pricing=lambda: PriceTable.from_settings(load().usage),
     thresholds=lambda: load().section("eval")["thresholds"],
     runs=lambda: RUNS,
