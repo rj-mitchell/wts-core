@@ -1,0 +1,106 @@
+# Where Parks Stand settings. Paths are relative to the site's root unless absolute.
+# Environment overrides: PARKS_CONFIG (another file), PARKS_DATA_DIR (another data folder).
+#
+# wts-core has no limits, prices or wording of its own (docs/adr/0004-how-sites-plug-in.md). Every key below is
+# read at start-up, and a missing one stops the site with its name. So this file is also the list of what a new
+# site must decide. The keys the package reads itself are marked "package"; the rest are read by parks/site.py
+# and handed to the package.
+
+[paths]
+data_dir = "data"                  # package: where the state database, backups, logs and reports are kept
+
+[record]
+# This site's own: where its record is.
+minutes = "data_static/minutes.json"
+
+[ranking]
+# This site's own: how the two searches are weighed, and how many minutes one park may have in a briefing.
+word_weight = 0.5
+meaning_floor = 0.0                # the embedding model's similarity for unrelated text, and for a strong match:
+meaning_ceiling = 0.6              # they belong to the model, so they change when [embedding] does
+max_per_park = 2
+
+[embedding]
+# "hashing" needs no model file: it captures shared words only. A real site names a real model here.
+backend = "hashing"
+dim = 256
+
+[answer]
+# "scripted" replays a recorded briefing, so the example runs anywhere with no key.
+# "anthropic" asks the real service: it needs PARKS_ANTHROPIC_API_KEY, real model names here, and their prices below.
+provider = "scripted"              # package (wts_core.adapters.model_client), for any provider but "scripted"
+recording = "dogs"                 # for "scripted": a file in data_static/recordings/
+model = "recorded-briefing"        # the model that writes briefings
+query_parse_model = "recorded-reading"  # the model that reads questions
+summary_sources = 4
+comprehensive_sources = 8
+summary_effort = "medium"
+comprehensive_effort = "high"
+query_parse_effort = "low"
+max_tokens = 4000
+use_fallbacks = true
+
+[usage]
+per_visitor_daily_questions = 30   # package: new briefings a visitor may have in a day
+daily_spend_cap_usd = 3.0          # package: over this, briefings stop for the day and the sources are shown instead
+monthly_spend_cap_usd = 50.0       # package
+requests_per_minute = 20           # questions a visitor may ask in a minute
+forget_idle_visitors_over = 50000  # how many visitors the per-minute limiter remembers before it forgets idle ones
+answer_cache_hours = 168           # the same question is answered from the cache for a week; 0 turns the cache off
+# A briefing's cost is known only when it finishes, so each one being written counts against the caps at this
+# estimate meanwhile; and only so many are written at once, for one visitor and in all.
+briefing_estimate_usd = 0.10
+briefings_at_once_per_visitor = 2
+briefings_at_once = 8
+# US dollars per million tokens. These four are the base prices (package), used for any model with no table below.
+price_input_per_mtok = 3.0
+price_output_per_mtok = 15.0
+price_cache_read_per_mtok = 0.3
+cache_write_multiplier = 1.25
+
+# A model whose name equals this, or starts with it, has its own prices (package). The site asks at start-up
+# that both models named under [answer] have a table here, so a new model is never costed at another's prices.
+[usage.models."recorded-briefing"]
+price_input_per_mtok = 3.0
+price_output_per_mtok = 15.0
+price_cache_read_per_mtok = 0.3
+
+[usage.models."recorded-reading"]
+price_input_per_mtok = 1.0
+price_output_per_mtok = 5.0
+price_cache_read_per_mtok = 0.1
+
+[server]
+behind_proxy = false               # true on a server whose front door sets X-Forwarded-For
+trust_forwarded_first = false      # true if the site, not the web server, must read that header
+
+[backup]
+keep = 14                          # backups kept on the server
+offsite_keep = 60                  # copies kept off site
+
+[logs]
+# The structured log: 14 days or 50 MB a site, whichever is less (docs/adr/0012).
+max_bytes = 3000000
+keep = 15
+days = 14
+
+[stats]
+# How alike two questions must be to count as one theme: it depends on the embedding model.
+theme_similarity = 0.5
+
+[alerts]
+# Thresholds start unset: the first weekly report proposes them from that week's figures, and the owner writes
+# them here. The names are p95_full_briefing_ms, error_rate, check_failure_rate, not_useful_rate, daily_cost_usd.
+
+[eval]
+max_cost_usd = 1.0                 # what one evaluation run may spend unless --max-cost says otherwise
+
+[eval.thresholds]
+# The set's second question is recorded with one unsupported sentence and one loaded word, on purpose: the
+# thresholds allow exactly that and nothing worse.
+max_invalid_citations = 0
+max_unverified_quotations = 0
+max_unsupported = 1
+max_loaded_words = 1
+min_grounded_ratio = 0.8
+max_errors = 0

@@ -1,0 +1,59 @@
+[project]
+name = "parks"
+version = "0.1.0"
+description = "Where Parks Stand: an invented site, and the living reference for building a Where They Stand site on wts-core."
+license = "AGPL-3.0-only"
+requires-python = ">=3.12"
+dependencies = [
+    # A real site pins the release wheel by its address, with the extras it uses (docs/adr/0006-distribution.md):
+    #   "wts-core[cli,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.1.0/wts_core-0.1.0-py3-none-any.whl"
+    # The example takes the package from the repository it sits in instead: see [tool.uv.sources] below.
+    "wts-core[cli,ai]",
+    "fastapi>=0.115",
+    "pydantic>=2.8",
+    "uvicorn>=0.30",
+]
+
+[project.scripts]
+parks = "parks.cli:app"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+# Only the example has this table. A real site deletes it and writes the wheel's address above.
+[tool.uv.sources]
+wts-core = { path = "../..", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/parks"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+# line length is kept to 120 by hand, as in the sites: long prose strings are clearer unbroken
+ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/parks"]

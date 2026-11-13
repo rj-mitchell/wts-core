@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where Parks Stand</title>
+<style>
+  body { font: 1rem/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; }
+  label, input, button { font: inherit; }
+  input[type=text] { width: 100%; padding: .4rem; box-sizing: border-box; }
+  pre { white-space: pre-wrap; font: inherit; }
+  .note { border-left: .25rem solid currentColor; padding-left: .75rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Where Parks Stand</h1>
+<p>What four park committees have decided, from their minutes. This is an invented site: the example that ships
+with <code>wts-core</code>. Its model is a recording, so every briefing is the one made for the question below.</p>
+<form id="ask">
+  <label for="question">Your question</label>
+  <input type="text" id="question" name="question" required minlength="3" maxlength="500"
+         value="What have park committees decided about dogs?">
+  <p><label><input type="checkbox" id="sources-only"> Show the minutes only, with no briefing</label></p>
+  <button type="submit">Ask</button>
+</form>
+<section aria-live="polite">
+  <h2>The minutes found</h2>
+  <ol id="sources"></ol>
+  <h2>Briefing</h2>
+  <pre id="briefing"></pre>
+  <p id="note" class="note" hidden></p>
+</section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+function show(event) {
+  if (event.type === "sources") {
+    for (const source of event.sources) {
+      const item = document.createElement("li"), link = document.createElement("a");
+      link.href = source.url; link.textContent = source.title;
+      item.append(link); $("sources").append(item);
+    }
+  } else if (event.type === "text") {
+    $("briefing").textContent += event.text;
+  } else if (event.type === "final" || event.type === "error") {
+    const said = [event.message, event.note];
+    if (event.answer) said.push(`${event.answer.unsupported_segments + event.answer.citations_invalid} to check.`);
+    $("note").textContent = said.filter(Boolean).join(" ");
+    if (event.briefing_id) {
+      const link = document.createElement("a");
+      link.href = `/b/${event.briefing_id}`; link.textContent = " This briefing's own address";
+      $("note").append(link);
+    }
+    $("note").hidden = false;
+  }
+}
+$("ask").addEventListener("submit", async (submitted) => {
+  submitted.preventDefault();
+  $("sources").replaceChildren(); $("briefing").textContent = ""; $("note").hidden = true;
+  const response = await fetch("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({question: $("question").value, sources_only: $("sources-only").checked})});
+  if (!response.ok) { show({type: "error", message: (await response.json()).detail}); return; }
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  for (let waiting = "";;) {
+    const {value, done} = await reader.read();
+    if (done) break;
+    const parts = (waiting + value).split("\n\n");
+    waiting = parts.pop();
+    for (const part of parts) {
+      const data = part.split("\n").find((line) => line.startsWith("data: "));
+      if (data) show(JSON.parse(data.slice(6)));
+    }
+  }
+});
+</script>
+</body>
+</html>
