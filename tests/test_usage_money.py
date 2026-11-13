@@ -288,3 +288,25 @@ def test_spending_shows_who_it_was_for(db, clock):
     assert today.calls == 5 and today.spent_usd == pytest.approx(sum(a.spent_usd for a in who))
     assert f"{today.spent_usd / 10.0:.0%}" == "101%" and f"{who[0].spent_usd / 10.0:.0%} of the $10 cap" == \
         "80% of the $10 cap"
+
+
+def test_writes_to_the_one_hour_cache_are_costed_at_their_own_higher_rate():
+    """No site uses the one-hour cache today. If one turns it on, its writes cost twice the input price (Anthropic's
+    published rate), not the five-minute cache's 1.25 times: costing them alike would under-count spending against
+    the daily and monthly caps."""
+    usage = {"price_input_per_mtok": 2.0, "price_output_per_mtok": 10.0, "price_cache_read_per_mtok": 0.2,
+             "cache_write_multiplier": 1.25}
+    prices = PriceTable.from_settings(usage)
+    short = Usage(cache_write=1_000_000)
+    long = Usage(cache_write=1_000_000, cache_write_long=1_000_000)
+    mixed = Usage(cache_write=1_000_000, cache_write_long=400_000)
+    assert prices.cost(short, "m") == 2.5 and prices.cost(long, "m") == 4.0
+    assert prices.cost(mixed, "m") == round(0.6 * 2.5 + 0.4 * 4.0, 6)
+    # a site may set its own figure, for all models or for one
+    own = PriceTable.from_settings({**usage, "cache_write_long_multiplier": 3.0,
+                                    "models": {"small": {"price_input_per_mtok": 1.0,
+                                                         "cache_write_long_multiplier": 2.5}}})
+    assert own.cost(long, "m") == 6.0 and own.cost(long, "small-1") == 2.5
+    # the stored form says how many only when there were any, and reads back to the same
+    assert "cache_write_long_tokens" not in short.as_stored()
+    assert Usage.from_mapping(mixed.as_stored()) == mixed and (mixed + mixed).cache_write_long == 800_000

@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 13 November 2026, 04:30 UTC (session 1).
+Last updated: 13 November 2026, 15:30 UTC (session 1).
 
 ## Where things stand
 
@@ -10,7 +10,7 @@ Last updated: 13 November 2026, 04:30 UTC (session 1).
 |---|---|---|
 | 0. Prerequisites | Done | [`PHASE-0.md`](PHASE-0.md) |
 | 1. Converge the copies | **Done: five pull requests, all green**, and the charity repository's (drift list, baseline, ENGINE.md) | below; the drift report before and after is in [`study/`](study/) |
-| 1, the library upgrade | Pull request open and green; **needs an evaluation run before merging** | rj-mitchell/wherempsstand#43 |
+| 1, the library upgrade | **Merged on the owner's word, 13 November 2026** (the site's own evaluation run still needs the server's data) | rj-mitchell/wherempsstand#43 |
 | 1b. "Why use this rather than a chatbot?" | **Done: four pull requests** (the hub and three AI sites); screenshots in the charity repository's | below |
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
@@ -19,9 +19,9 @@ Last updated: 13 November 2026, 04:30 UTC (session 1).
 
 ## Pull requests
 
-**Sixteen of the first seventeen were merged on 13 November 2026, at the owner's request** (squash merges, as each
+**All seventeen were merged on 13 November 2026, at the owner's request** (squash merges, as each
 repository's history has them; a merge commit for this repository's design and for Where Lives Stand). Each
-branch was brought up to date with `main` and its checks re-run before it was merged. One is held.
+branch was brought up to date with `main` and its checks re-run before it was merged.
 
 | Repository | Step | Pull request | State |
 |---|---|---|---|
@@ -31,7 +31,7 @@ branch was brought up to date with `main` and its checks re-run before it was me
 | wherecouncilsstand | 1: ports | rj-mitchell/wherecouncilsstand#49 | merged |
 | wherelandlordsstand | 1: ports | rj-mitchell/wherelandlordsstand#17 | merged |
 | wheretheystand-charity | 1: drift list, baseline, ENGINE.md | rj-mitchell/wheretheystand-charity#28 | merged |
-| wherempsstand | 1: library versions | rj-mitchell/wherempsstand#43 | **open, held**: real briefings work on both sides of the upgrade on the sample data, but the site's own evaluation set needs the server's data. To merge on the owner's word |
+| wherempsstand | 1: library versions | rj-mitchell/wherempsstand#43 | merged (538 tests passed with `main` merged in; real briefings worked on both sides of the upgrade on the sample data; the site's own evaluation set was not run, as it needs the server's data) |
 | wheretheystand-charity | 1b: the hub, the glossary's wording, all screenshots | rj-mitchell/wheretheystand-charity#27 | merged; the hub published itself and shows the new text |
 | wherempsstand | 1b | rj-mitchell/wherempsstand#45 | merged |
 | wherecountriesstand | 1b | rj-mitchell/wherecountriesstand#32 | merged (the one-line conflict in `docs/DECISIONS.md` resolved by keeping both rows) |
@@ -43,8 +43,10 @@ branch was brought up to date with `main` and its checks re-run before it was me
 publish themselves on a merge.
 
 The drift check, run strict against the merged `main` branches
-([`study/drift-2026-11-13-main-after-merges.txt`](study/drift-2026-11-13-main-after-merges.txt)): one pair below
-the baseline, the DuckDB wrapper (0.77), which becomes 1.00 when #43 is merged.
+([`study/drift-2026-11-13-main-after-merges.txt`](study/drift-2026-11-13-main-after-merges.txt)): one pair was below
+the baseline, the DuckDB wrapper (0.77), until #43 was merged. Run again after it
+([`study/drift-2026-11-13-main-after-all-merges.txt`](study/drift-2026-11-13-main-after-all-merges.txt)): the strict
+check passes, with no pair further apart than the baseline.
 
 ## Phase 3: how it is being built
 
@@ -61,13 +63,13 @@ parity tests that import each site's own functions and compare results. I merge 
 | Module | Branch | Worktree | State |
 |---|---|---|---|
 | `checks` (verifier, loaded words, spelling, typography, balance) | `claude/wts-3-checks` | `/home/user/wt/core-checks` | **merged into the package branch** (264 tests; identical to each site's copy on generated briefings) |
-| `usage` (limiter, visitor code, prices, spending, caps, in progress, cache, saved briefings, failures) | `claude/wts-3-usage` | `/home/user/wt/core-usage` | building |
+| `usage` (limiter, visitor code, prices, spending, caps, in progress, cache, saved briefings, failures) | `claude/wts-3-usage` | `/home/user/wt/core-usage` | **merged** |
 | `ops`, `adapters.b2`, `adapters.duckdb` | `claude/wts-3-ops` | `/home/user/wt/core-ops` | **merged into the package branch** (compared with all four sites' own backup, restore, off-site and alert code) |
-| `replies` | `claude/wts-3-replies` | `/home/user/wt/core-replies` | building |
-| `adapters.anthropic`, `.hashing`, `.fastembed`, `.lancedb`; testing fakes and contracts | `claude/wts-3-adapters` | `/home/user/wt/core-adapters` | building |
-| `briefing` (the desk, stages, the streamer) | to start once `usage` and `checks` are merged | | |
-| `observe` (the briefing log, statistics, alerts) | after `briefing` | | |
-| `eval` (replay and live runs) | after `checks` and the adapters | | |
+| `replies` | `claude/wts-3-replies` | `/home/user/wt/core-replies` | **merged** (443 tests on its branch; compared with each site's own code; see [`AS-BUILT.md`](AS-BUILT.md)) |
+| `adapters.anthropic`, `.hashing`, `.fastembed`, `.lancedb`; testing fakes and contracts | `claude/wts-3-adapters` | `/home/user/wt/core-adapters` | **merged** (three real recordings made with the charity's key, about one US cent; see [`AS-BUILT.md`](AS-BUILT.md)) |
+| `briefing` (the desk, stages, the streamer) | `claude/wts-3-briefing` | `/home/user/wt/core-briefing` | building |
+| `observe` (the briefing log, statistics, alerts) | `claude/wts-3-observe` | `/home/user/wt/core-observe` | building |
+| `eval` (replay and live runs) | `claude/wts-3-eval` | `/home/user/wt/core-eval` | building |
 | `cli` (the shared commands) and the `/api/check` route | after `ops`, `replies`, `observe` | | |
 | `examples/minimal-site`, `docs/EXTENDING.md`, `docs/NEW-SITE.md` | last | | |
 | The public-interface snapshot test, then tag `v0.1.0` | last (the tag needs the pull requests merged first) | | |
@@ -76,10 +78,10 @@ The workers' brief is kept at `docs/study/package-worker-brief.md`.
 
 ## What could not be done, and why
 
-- **No evaluation run and no live briefing.** The API key in the build session is refused by Anthropic, and each
-  site's evaluation of briefings needs its own archive and index, which are on the server
-  (`NOTES/what-the-build-session-cannot-do.md`). This blocks: the before-and-after evaluation for Where MPs Stand's
-  library upgrade, and recording model streams as fixtures for the package.
+- **No full evaluation run.** Each site's evaluation of briefings needs its own archive and index, which are on
+  the server (`NOTES/what-the-build-session-cannot-do.md`). The API key works since 13 November, so real briefings
+  on Where MPs Stand's sample data and real recordings for the package's fixtures were made; the before-and-after
+  evaluation on a site's own question set still needs the server's data.
 - **Nothing on the server was looked at.** Two questions for the owner come from that: the front door's handling of
   `X-Forwarded-For` (MIGRATION 1.3), and whether Where MPs Stand's `restore` works across file systems in its
   container (fixed in phase 1 either way). A third, about Where Councils Stand's `usage` table, was settled from the
@@ -87,9 +89,10 @@ The workers' brief is kept at `docs/study/package-worker-brief.md`.
 
 ## Open, for the owner
 
-1. Whether to merge rj-mitchell/wherempsstand#43 as it stands, or after an evaluation run on the server.
-2. Running each site's `update.sh` on the server.
-3. The check token, when the nightly check is extended (ADR 0010); nothing is needed before then.
+1. Running each site's `update.sh` on the server.
+2. The check token, when the nightly check is extended (ADR 0010); nothing is needed before then.
+
+The owner has also said (13 November) to merge the package's own pull request when it is ready.
 
 The API key works since 13 November (`NOTES/what-the-build-session-cannot-do.md`); spend so far is under 25p.
 
@@ -98,6 +101,6 @@ right-of-reply questions were left to the maintainer and are decided in ADR 0008
 
 ## Next step
 
-Merge the five module branches as each finishes (checks first), apply the changes they ask for in the foundation
-files, then start `briefing`, `observe`, `eval`, `cli` and the example site. Then the interface snapshot, the
-package's pull request, and (once merged) the tag.
+Merge `briefing`, `observe` and `eval` as each finishes; then `cli` (the shared commands and the check route),
+the remaining testing helpers, the example site and the guides. Then the interface snapshot, the package's pull
+request, and (once merged) the tag. [`AS-BUILT.md`](AS-BUILT.md) lists what adoption must handle for each module.

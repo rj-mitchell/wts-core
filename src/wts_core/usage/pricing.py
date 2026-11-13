@@ -28,6 +28,15 @@ __all__ = ["PriceTable"]
 
 # the settings keys, in the order of ``Price``'s fields
 KEYS = ("price_input_per_mtok", "price_output_per_mtok", "price_cache_read_per_mtok", "cache_write_multiplier")
+# an optional fifth, for a site that turns the one-hour cache on: without it, ``Price``'s own figure stands
+LONG = "cache_write_long_multiplier"
+
+
+def _price(section: str, laid: Mapping[str, float], *given: Mapping[str, Any]) -> Price:
+    long = next((_number(section, LONG, g[LONG]) for g in reversed(given) if LONG in g), None)
+    price = Price(*(laid[k] for k in KEYS))
+    return price if long is None else Price(price.input, price.output, price.cache_read,
+                                            price.cache_write_multiplier, long)
 
 
 def _number(section: str, key: str, value: Any) -> float:
@@ -61,8 +70,8 @@ class PriceTable:
             if not isinstance(own, Mapping):
                 raise SettingsError(f"[{where}] must be a table of prices")
             laid = {**base, **{k: _number(where, k, own[k]) for k in KEYS if k in own}}
-            models.append((str(name), Price(*(laid[k] for k in KEYS))))
-        return cls(base=Price(*(base[k] for k in KEYS)), models=tuple(models))
+            models.append((str(name), _price(where, laid, usage, own)))
+        return cls(base=_price(section, base, usage), models=tuple(models))
 
     def _entry(self, model: str | None) -> Price | None:
         for name, price in self.models:
@@ -76,13 +85,15 @@ class PriceTable:
 
     def cost(self, usage: Usage | None, model: str | None) -> float:
         """Cost of one call in US dollars, rounded to six places. Cache writes cost the input price times the
-        multiplier; cache reads are priced separately; each token is priced once."""
+        multiplier (the one-hour cache's own multiplier for those written to it); cache reads are priced
+        separately; each token is priced once."""
         if usage is None:
             return 0.0
         p = self.price_for(model)
         return round(
             usage.input_uncached / 1e6 * p.input
-            + usage.cache_write / 1e6 * p.input * p.cache_write_multiplier
+            + (usage.cache_write - usage.cache_write_long) / 1e6 * p.input * p.cache_write_multiplier
+            + usage.cache_write_long / 1e6 * p.input * p.cache_write_long_multiplier
             + usage.output / 1e6 * p.output
             + usage.cache_read / 1e6 * p.cache_read,
             6,

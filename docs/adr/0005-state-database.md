@@ -38,7 +38,7 @@ still work on the database the new version leaves behind.**
 ## Decision: option 3
 
 - **Every table the package owns has a name starting `wts_`** (`wts_spending`, `wts_answer_cache`, `wts_briefings`,
-  `wts_briefing_log`, `wts_reports`, `wts_statements`, `wts_hidden`, `wts_corrections`, `wts_kv`, `wts_schema`).
+  `wts_briefing_log`, `wts_reports`, `wts_statements`, `wts_hidden`, `wts_kv`, `wts_schema`, and others as built).
   Everything else in the file is the site's. The prefix is the ownership line: the package never reads or writes a
   table without it, and a site never writes one with it except through the package.
 - **The package's tables are versioned.** `wts_schema` records which numbered migrations have run. Migrations only

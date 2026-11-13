@@ -124,6 +124,8 @@ class Usage:
     cache_write: int = 0
     cache_read: int = 0
     output: int = 0
+    # of ``cache_write``, how many went to the one-hour cache, which costs more to write (0 on every site today)
+    cache_write_long: int = 0
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> Usage:
@@ -139,16 +141,22 @@ class Usage:
             writes = int(u.get("cache_creation_input_tokens") or 0)
             uncached = int(u.get("input_tokens") or 0)
         return cls(input_uncached=uncached, cache_write=writes, cache_read=int(reads or 0),
-                   output=int(u.get("output_tokens") or 0))
+                   output=int(u.get("output_tokens") or 0),
+                   cache_write_long=min(writes, int(u.get("cache_write_long_tokens") or 0)))
 
     def as_stored(self) -> dict[str, int]:
-        """The sites' own form: ``input_tokens`` includes the cache writes."""
-        return {"input_tokens": self.input_uncached + self.cache_write, "output_tokens": self.output,
-                "cache_read_tokens": self.cache_read, "cache_write_tokens": self.cache_write}
+        """The sites' own form: ``input_tokens`` includes the cache writes. ``cache_write_long_tokens`` is there
+        only when there were any, so what the sites store today is unchanged."""
+        stored = {"input_tokens": self.input_uncached + self.cache_write, "output_tokens": self.output,
+                  "cache_read_tokens": self.cache_read, "cache_write_tokens": self.cache_write}
+        if self.cache_write_long:
+            stored["cache_write_long_tokens"] = self.cache_write_long
+        return stored
 
     def __add__(self, other: Usage) -> Usage:
         return Usage(self.input_uncached + other.input_uncached, self.cache_write + other.cache_write,
-                     self.cache_read + other.cache_read, self.output + other.output)
+                     self.cache_read + other.cache_read, self.output + other.output,
+                     self.cache_write_long + other.cache_write_long)
 
 
 @dataclass(frozen=True)
@@ -204,12 +212,15 @@ class ModelClient(Protocol):
 
 @dataclass(frozen=True)
 class Price:
-    """US dollars per million tokens; cache writes cost the input price times ``cache_write_multiplier``."""
+    """US dollars per million tokens; cache writes cost the input price times ``cache_write_multiplier``, and
+    writes to the one-hour cache the input price times ``cache_write_long_multiplier`` (twice the input price is
+    Anthropic's published rate; no site uses that cache today)."""
 
     input: float
     output: float
     cache_read: float
     cache_write_multiplier: float = 1.25
+    cache_write_long_multiplier: float = 2.0
 
 
 class UnknownModel(LookupError):
