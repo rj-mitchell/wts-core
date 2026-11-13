@@ -14,6 +14,15 @@ Nothing here imports an outside library, or anything from ``wts_core.replies`` o
 """
 
 from wts_core.observe.config import config_id
+from wts_core.observe.figures import (
+    PROPORTIONS,
+    ArmComparison,
+    Figures,
+    Headline,
+    Stats,
+    stats,
+    two_proportion_test,
+)
 from wts_core.observe.log import (
     OWNER_ACCEPTED,
     Retention,
@@ -25,18 +34,8 @@ from wts_core.observe.log import (
     save_week,
     weeks,
 )
-from wts_core.observe.logging import FIELDS, LOGGER, json_logging, log_event
+from wts_core.observe.logs import FIELDS, LOGGER, json_logging, log_event
 from wts_core.observe.report import ALERTS, MARGIN, proposed_thresholds, tidy_reports, tripped, weekly_report
-from wts_core.observe.stats import (
-    PROPORTIONS,
-    ArmComparison,
-    BriefingHistory,
-    Figures,
-    Headline,
-    Stats,
-    stats,
-    two_proportion_test,
-)
 
 __all__ = [
     "ALERTS",
@@ -46,7 +45,6 @@ __all__ = [
     "OWNER_ACCEPTED",
     "PROPORTIONS",
     "ArmComparison",
-    "BriefingHistory",
     "Figures",
     "Headline",
     "Retention",

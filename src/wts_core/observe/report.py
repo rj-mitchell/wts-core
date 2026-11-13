@@ -35,8 +35,8 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from wts_core.observe.figures import MARKS, Figures, Headline, Listed, Rate, Spread, Stats
 from wts_core.observe.log import Retention, months_before, save_week
-from wts_core.observe.stats import MARKS, Figures, Headline, Listed, Rate, Spread, Stats
 from wts_core.ports import SYSTEM_CLOCK, Clock
 from wts_core.settings import Site
 from wts_core.state import StateDB

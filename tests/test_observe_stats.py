@@ -14,7 +14,7 @@ import pytest
 from test_observe_log import record
 from wts_core import observe
 from wts_core.observe import SqliteBriefingLog, stats, two_proportion_test
-from wts_core.observe.stats import (
+from wts_core.observe.figures import (
     Asked,
     Headline,
     PromptCache,

@@ -91,6 +91,7 @@ def migrations() -> tuple[Migration, ...]:
             "package_version TEXT NOT NULL DEFAULT '', site_version TEXT NOT NULL DEFAULT '', experiment TEXT, "
             "arm TEXT, sources INTEGER NOT NULL DEFAULT 0, spread TEXT, input_tokens INTEGER NOT NULL DEFAULT 0, "
             "cache_read_tokens INTEGER NOT NULL DEFAULT 0, cache_write_tokens INTEGER NOT NULL DEFAULT 0, "
+            "cache_write_long_tokens INTEGER NOT NULL DEFAULT 0, "
             "output_tokens INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL DEFAULT 0, stop_reason TEXT, "
             "citations_total INTEGER, citations_invalid INTEGER, grounded_ratio REAL, unsupported INTEGER, "
             "quotes_unverified INTEGER, loaded_words INTEGER, t_parse INTEGER, t_search INTEGER, t_rank INTEGER, "

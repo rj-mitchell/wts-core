@@ -41,10 +41,10 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol
+from typing import Any
 
 from wts_core.observe.log import KINDS, OUTCOMES
-from wts_core.ports import SYSTEM_CLOCK, BriefingRecord, Clock, Embedder, Pricing, Usage
+from wts_core.ports import SYSTEM_CLOCK, BriefingLog, BriefingRecord, Clock, Embedder, Pricing, Usage
 from wts_core.settings import Site
 
 __all__ = [
@@ -52,7 +52,6 @@ __all__ = [
     "PROPORTIONS",
     "ArmComparison",
     "Asked",
-    "BriefingHistory",
     "Figures",
     "Headline",
     "Listed",
@@ -82,13 +81,6 @@ LEVEL = 0.05  # the level at which two arms are said to differ
 EXPECTED_MIN = 5  # the least each arm should expect of both answers for the test's approximation to hold
 TEST = ("a two-proportion z-test (pooled, two-sided) at the 5% level, made only when each arm would expect at "
         "least 5 briefings either way")
-
-
-class BriefingHistory(Protocol):
-    """What ``stats`` needs of a record of briefings: ``SqliteBriefingLog`` is one."""
-
-    def since(self, start: datetime, end: datetime | None = None,
-              kinds: Sequence[str] = ("reader",)) -> Sequence[BriefingRecord]: ...
 
 
 # ---- the small values -------------------------------------------------------------------------------------------
@@ -384,7 +376,7 @@ def _prompt_cache(rows: Sequence[BriefingRecord], pricing: Pricing | None) -> Pr
     for r in rows:
         if r.cache_read_tokens or r.cache_write_tokens:
             # the record has no count of writes to the one-hour cache yet: when it gains one, it is priced here
-            long = min(r.cache_write_tokens, int(getattr(r, "cache_write_long_tokens", 0) or 0))
+            long = min(r.cache_write_tokens, r.cache_write_long_tokens)
             by_model[r.model] = by_model.get(r.model, Usage()) + Usage(
                 cache_read=r.cache_read_tokens, cache_write=r.cache_write_tokens, cache_write_long=long)
     saved = extra = 0.0
@@ -572,7 +564,7 @@ def _themes(readers: Sequence[BriefingRecord], embedder: Embedder | None, simila
 # ---- the whole ---------------------------------------------------------------------------------------------------
 
 
-def stats(log: BriefingHistory, *, since: datetime | timedelta, until: datetime | None = None,
+def stats(log: BriefingLog, *, since: datetime | timedelta, until: datetime | None = None,
           compare_weeks: int = 4, embedder: Embedder | None = None, similarity: float | None = None,
           pricing: Pricing | None = None, decided_by: str | None = None, clock: Clock = SYSTEM_CLOCK) -> Stats:
     """The figures for the period from ``since`` (a time, or how long before ``until``) up to ``until`` (now, if
