@@ -261,51 +261,78 @@ class Failures:
 
 ## `wts_core.checks`
 
-```python
-class SourceText(Protocol):          # what the verifier needs of a site's source
-    n: int                           # its number, from 1
-    blocks: Sequence[str]            # its text, in passages
+**Built** (`src/wts_core/checks/`); this section is as built, and departs from the first sketch where the sites' code
+required it: quotations are also looked for in a source's title and heading, so `check_quotes` needs four fields of
+a source; the note-about-the-evidence pattern is a required argument, with both of today's forms exported; Where
+Countries Stand's curled quotes need `recheck(..., curled=True)`; and the three ranking functions take what the
+sites' own arithmetic takes, so that results are identical.
 
+```python
+class SourceText(Protocol):          # what verify() needs of a site's source
+    @property
+    def n(self) -> int: ...          # its number, from 1
+    @property
+    def blocks(self) -> Sequence[str]: ...
+
+class TitledSource(SourceText, Protocol):   # what check_quotes() needs as well: every site's Source fits
+    @property
+    def title(self) -> str: ...
+    @property
+    def meta(self) -> Mapping[str, Any]: ...
+
+type Status = Literal["cited", "connective", "unsupported", "invalid"]
 @dataclass
 class Segment: text: str; sources: list[int]; cited: list[dict]; status: Status; loaded: list[dict]; misquotes: list[dict]
-type Status = Literal["cited", "connective", "unsupported", "invalid"]
-
 @dataclass
 class Verification:
     segments: list[Segment]; no_records: bool; citations_total: int; citations_invalid: int
     unsupported_chars: int; cited_chars: int; quotes_total: int = 0; quotes_unverified: int = 0
+    rules: int = RULES_VERSION
     @property
     def grounded_ratio(self) -> float: ...
-    def to_dict(self) -> Answer: ...                         # today's keys, exactly
+    def markdown(self) -> str: ...
+    def to_dict(self) -> Answer: ...                         # today's keys, exactly, then "rules"
+
+RULES_VERSION = 1
+COMMON_HONORIFICS: tuple[str, ...]
+EVIDENCE_NOTES_WIDE: re.Pattern[str]      # Where MPs Stand's and Where Countries Stand's form today
+EVIDENCE_NOTES_STRICT: re.Pattern[str]    # Where Councils Stand's form today
 
 class Verifier:
-    def __init__(self, *, no_records: str, honorifics: Sequence[str] = COMMON_HONORIFICS,
-                 evidence_notes: Sequence[str] = ()) -> None: ...     # a site's extra patterns
+    rules_version: int
+    def __init__(self, *, no_records: str, evidence_notes: re.Pattern[str],
+                 honorifics: Sequence[str] = COMMON_HONORIFICS) -> None: ...
     def verify(self, blocks: Sequence[Mapping[str, Any]], sources: Sequence[SourceText]) -> Verification: ...
-    def check_quotes(self, report: Verification, sources: Sequence[SourceText]) -> int: ...
+    def check_quotes(self, report: Verification, sources: Sequence[TitledSource]) -> int: ...
     def drop_preambles(self, segments: list[Segment]) -> int: ...
-    rules_version: int                                               # stamped on every answer as `rules`
-    def recheck(self, answer: Answer | None) -> Answer | None: ...   # only answers written under older rules;
-                                                                     # never newly flags
+    def recheck(self, answer: Answer | None, *, curled: bool = False) -> Answer | None: ...
+        # only answers written under older rules (or with no stamp); never newly flags
 
-COMMON_HONORIFICS: tuple[str, ...]
 class LoadedWords:
     def __init__(self, pattern: re.Pattern[str]) -> None: ...
     def flag(self, segments: list[Segment]) -> int: ...
     def still_loaded(self, answer: Answer | None) -> Answer | None: ...
-COMMON_LOADED_WORDS: str             # the list all three sites share, for a site to extend
+COMMON_LOADED_WORDS: str             # the alternation all three sites share, for a site to extend
 
 def to_british(text: str) -> str: ...
 def britishise_segments(segments: list[Segment]) -> None: ...
 def outside_quotes(segments: Sequence[Segment]) -> list[tuple[int, int, str]]: ...
-def curl_answer(answer: Answer) -> Answer: ...               # Where Countries Stand's typography
+def curl_quotes(text: str) -> str: ...                       # Where Countries Stand's typography
+def curl_answer(answer: Answer) -> Answer: ...
+def curl_event(event: ReaderEvent) -> ReaderEvent: ...
 def curl_events(events: list[ReaderEvent]) -> list[ReaderEvent]: ...
 
 # wts_core.checks.balance: the three functions every site's ranking shares
-def round_robin[T](items: Sequence[T], group_of: Callable[[T], str], limit: int, caps: Mapping[str, int] | None = None) -> list[T]: ...
-def blend(word_score: float, meaning_score: float | None, weight: float) -> float: ...
-def recency_factor(age_days: float, half_life_days: float, floor: float) -> float: ...
+def blend(word_scores: Sequence[float], meaning_scores: Sequence[float | None], *, word_weight: float,
+          meaning_floor: float, meaning_ceiling: float) -> list[float]: ...
+def recency_factor(d: date, today: date, *, recency: float, floor: float, min_half_life_years: float) -> float: ...
+def round_robin[T](pool: Sequence[T], limit: int, *, group_of: Callable[[T], str], key_of: Callable[[T], str],
+                   score_of: Callable[[T], float], caps: Sequence[tuple[Callable[[T], str], int]] = (),
+                   seeds: Sequence[T] = ()) -> list[T]: ...
 ```
+
+`rules_version` covers the package's rules. A site that later changes its own pattern or honorifics in a way that
+should clear old flags raises the version it passes (an argument to add when the first site needs it).
 
 ## `wts_core.briefing`
 
