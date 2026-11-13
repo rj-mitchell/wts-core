@@ -253,6 +253,24 @@ def test_the_kept_database_has_writes_still_in_the_write_ahead_log(site, tmp_pat
     left_open.close()
 
 
+@sites_where(wal=False)
+def test_a_database_with_a_log_beside_it_keeps_the_log_whatever_its_spec_says(site, tmp_path):
+    """Found in review: a database switched to a write-ahead log by hand, on a site whose spec does not say so, lost
+    its newest writes from the kept copy. A log that is there is always kept with the copy."""
+    import sqlite3
+
+    db = data_folder(tmp_path, site, "before")
+    out = make_backup(db, tmp_path / "backups", site.spec, clock=at(DAYS[0]))
+    con = sqlite3.connect(db)
+    assert con.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+    con.close()
+    left_open = write(db, "after")  # in the log only
+    assert (db.parent / f"{db.name}-wal").stat().st_size > 0
+    kept = restore_backup(out, db, site.spec)
+    assert kept is not None and marker(kept) == "after" and marker(db) == "before"
+    left_open.close()
+
+
 @each_site
 def test_a_second_restore_never_writes_over_the_kept_copy(site, tmp_path):
     """Restoring the wrong day and then the right one once replaced the kept copy, and the database the site had been

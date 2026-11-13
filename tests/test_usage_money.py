@@ -310,3 +310,34 @@ def test_writes_to_the_one_hour_cache_are_costed_at_their_own_higher_rate():
     # the stored form says how many only when there were any, and reads back to the same
     assert "cache_write_long_tokens" not in short.as_stored()
     assert Usage.from_mapping(mixed.as_stored()) == mixed and (mixed + mixed).cache_write_long == 800_000
+
+
+def test_a_visitors_code_is_kept_only_for_its_own_day(tmp_path):
+    """Found in review: with the code left on every row for good, a visitor's day could be gathered from the
+    spending record, and through each row's time and token counts tied to the new record of each briefing. The
+    code is for the daily limit, so it is kept for its day and then forgotten; each day's number of visitors is
+    kept, so the owner's reports say what they said."""
+    clock = FixedClock("2026-11-12T10:00:00+00:00")
+    db = StateDB(tmp_path / "state.db", migrations=usage.migrations(), clock=clock)
+    prices = PriceTable.from_settings({"price_input_per_mtok": 2.0, "price_output_per_mtok": 10.0,
+                                       "price_cache_read_per_mtok": 0.2, "cache_write_multiplier": 1.25})
+    spending = Spending(db, prices, clock=clock)
+    for visitor, account in (("a" * 24, None), ("a" * 24, None), ("b" * 24, None), ("c" * 24, 7), (None, None)):
+        spending.add("answer", "m", Usage(input_uncached=1000), visitor=visitor, account=account)
+    before = (spending.totals("2026-11"), spending.by_account("2026-11"), spending.by_day("2026-11"))
+    assert before[0].visitors == 3 and spending.briefings_today(visitor="a" * 24) == 2
+
+    def codes() -> list[str | None]:
+        with db.connect() as con:
+            return [r[0] for r in con.execute("SELECT visitor FROM wts_spending ORDER BY id")]
+
+    assert spending.forget_visitors() == 0 and codes()[:4] == ["a" * 24, "a" * 24, "b" * 24, "c" * 24]  # still today
+    clock.advance(days=1)
+    spending.add("answer", "m", Usage(input_uncached=1000), visitor="d" * 24)  # the first call of the new day
+    assert codes() == ["", "", "", "", None, "d" * 24]
+    after = (spending.totals("2026-11"), spending.by_account("2026-11"), spending.by_day("2026-11"))
+    assert after[0].visitors == 4 and after[0].calls == 6
+    assert {(a.account, a.public): a.visitors for a in after[1]} == {(None, True): 3, (7, False): 1, (None, False): 0}
+    assert {(a.account, a.public): a.visitors for a in before[1]} == {(None, True): 2, (7, False): 1, (None, False): 0}
+    assert spending.totals("2026-11-13").visitors == 1 and spending.forget_visitors() == 0  # twice changes nothing
+    assert spending.totals("2026-11").visitors == 4

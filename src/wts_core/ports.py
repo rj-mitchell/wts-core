@@ -142,7 +142,7 @@ class Usage:
             uncached = int(u.get("input_tokens") or 0)
         return cls(input_uncached=uncached, cache_write=writes, cache_read=int(reads or 0),
                    output=int(u.get("output_tokens") or 0),
-                   cache_write_long=min(writes, int(u.get("cache_write_long_tokens") or 0)))
+                   cache_write_long=max(0, min(writes, int(u.get("cache_write_long_tokens") or 0))))
 
     def as_stored(self) -> dict[str, int]:
         """The sites' own form: ``input_tokens`` includes the cache writes. ``cache_write_long_tokens`` is there

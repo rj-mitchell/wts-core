@@ -131,3 +131,14 @@ brief's 3.7). The package enforces the policy's principle 6:
   no third-party analytics.
 - **Link each row to the visitor code** to study sessions. Rejected: new data about readers.
 - **One row per briefing, written by the desk, with nothing about the reader (chosen).**
+
+## Added while building (13 November 2026)
+
+An independent review showed that "no visitor code in the record" was not enough on its own: the record's time and
+token counts match rows of the spending record, which held the day's visitor code for good, so a visitor's day of
+questions could have been pieced together. The spending record now keeps a code for its own day only (it is there
+for the daily limit); after that the code is replaced by an empty text and the day's number of different visitors
+is kept, so the owner's reports are unchanged. This is stricter than the sites were, and no reader sees it. The
+structured log's `event` and `stage` are from fixed lists, and its id of one fixed shape, so an address or a code
+cannot be written there by mistake. See `docs/NOTES/independent-review-of-the-package.md`.
+

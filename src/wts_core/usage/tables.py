@@ -47,4 +47,10 @@ def migrations() -> tuple[Migration, ...]:
             "CREATE TABLE IF NOT EXISTS wts_failures (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, "
             "kind TEXT NOT NULL, question TEXT, error TEXT NOT NULL)",
         )),
+        # how many different visitors each past day had, kept when their codes are forgotten (``Spending.
+        # forget_visitors``): ``who`` is "*" for the whole day, "" for the public, or a signed-in account's number
+        Migration(14, "visitor_days", (
+            "CREATE TABLE IF NOT EXISTS wts_visitor_days (day TEXT NOT NULL, who TEXT NOT NULL, "
+            "visitors INTEGER NOT NULL, PRIMARY KEY (day, who))",
+        )),
     )

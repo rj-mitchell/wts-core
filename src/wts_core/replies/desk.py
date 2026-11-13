@@ -266,11 +266,12 @@ class Replies:
         """Delete the confirming address of every statement declined, withdrawn or removed more than three calendar
         months ago (the privacy notices), and anything else that would tie the statement to its sender: the address
         is taken out of the log's notes and the recorded reason too, should the owner have written it there.
-        Returns how many addresses were deleted."""
+        A row with no closing time (one a site's import brought across without it) is judged by when the statement
+        was sent, so it cannot be kept for ever. Returns how many addresses were deleted."""
         cutoff = months_before(self.clock.now(), self.rules.email_kept_months).isoformat(timespec="seconds")
         with self.db.connect() as con:
             due = con.execute("SELECT id, email FROM wts_statements WHERE email IS NOT NULL AND email != '' AND "
-                              f"status IN ({', '.join('?' * len(_ENDED))}) AND closed_at < ?",
+                              f"status IN ({', '.join('?' * len(_ENDED))}) AND coalesce(closed_at, at) < ?",
                               (*_ENDED, cutoff)).fetchall()
             for row in due:
                 self._forget(con, row["id"], row["email"])
@@ -426,6 +427,7 @@ class Replies:
     # ---- for the owner, the update report and the nightly check --------------------------------------------------
 
     def waiting(self) -> Waiting:
+        self.forget_old_counts()  # the nightly check asks this every night, so no code outlives its day by much
         with self.db.connect() as con:
             reports, first_report = con.execute("SELECT count(*), min(at) FROM wts_reports "
                                                 "WHERE closed_at IS NULL").fetchone()
@@ -441,6 +443,14 @@ class Replies:
     def _tidy(self) -> None:
         self.forget_old_emails()
         self.lapse_undecided()
+        self.forget_old_counts()
+
+    def forget_old_counts(self) -> int:
+        """Empty the daily counts of every day but today, and say how many rows went. The visitor codes in them
+        change at midnight, so yesterday's are of no use to anyone. This runs on every submission, report and
+        owner's listing; a site's nightly update calls it too, so that a quiet site holds no old code either."""
+        with self.db.connect() as con:
+            return con.execute("DELETE FROM wts_reply_counts WHERE day != ?", (today(self.clock),)).rowcount
 
     def _get(self, con: sqlite3.Connection, sid: int, *allowed: str) -> sqlite3.Row:
         row: sqlite3.Row | None = con.execute("SELECT * FROM wts_statements WHERE id = ?", (sid,)).fetchone()
@@ -491,8 +501,7 @@ class Replies:
             raise Refused(words, f"daily_{what}s")
 
     def _count(self, con: sqlite3.Connection, what: str, visitor: str | None) -> None:
-        """One more from this visitor code today. Earlier days are emptied first: the codes change at midnight,
-        and yesterday's are of no use to anyone."""
+        """One more from this visitor code today (earlier days are emptied by ``forget_old_counts``)."""
         day = today(self.clock)
         con.execute("DELETE FROM wts_reply_counts WHERE day != ?", (day,))
         if visitor:

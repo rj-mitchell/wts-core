@@ -377,7 +377,7 @@ class StatsNames
     stats: str | None = ...
     weekly_report: str | None = ...
     tidy: str | None = ...
-def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
 
 ## wts_core.eval
 Case: from wts_core.eval.cases
@@ -573,6 +573,7 @@ def to_reader(event: 'TextDelta | CitationDelta') -> 'TextEvent | CitationEvent'
 ## wts_core.observe
 ALERTS = tuple of 5
 ArmComparison: from wts_core.observe.figures
+EVENTS = tuple of 10
 FIELDS = tuple of 8
 Figures: from wts_core.observe.figures
 Headline: from wts_core.observe.figures
@@ -581,6 +582,7 @@ MARGIN = 0.25
 OWNER_ACCEPTED: from wts_core.observe.log
 PROPORTIONS = tuple of 6
 Retention: from wts_core.observe.log
+STAGE_NAMES = tuple of 8
 SqliteBriefingLog: from wts_core.observe.log
 Stats: from wts_core.observe.figures
 Tidied: from wts_core.observe.log
@@ -752,9 +754,11 @@ def save_week(db: 'StateDB', week: 'str', config_id: 'str', figures: 'Mapping[st
 def weeks(db: 'StateDB', since: 'str' = '') -> 'dict[str, dict[str, dict[str, Any]]]'
 
 ## wts_core.observe.logs
+EVENTS = tuple of 10
 FIELDS = tuple of 8
 LOGGER = 'wts.briefings'
-def json_logging(path: 'Path', *, site: 'Site', max_bytes: 'int', keep: 'int', days: 'int', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'logging.Handler'
+STAGE_NAMES = tuple of 8
+def json_logging(path: 'Path', *, site: 'Site', max_bytes: 'int', keep: 'int', days: 'int', events: 'Collection[str]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'logging.Handler'
 def log_event(event: 'str', *, briefing: 'str | None' = None, stage: 'str | None' = None, ms: 'int | None' = None, error_type: 'str | None' = None, level: 'int' = 20) -> 'None'
 
 ## wts_core.observe.report
@@ -1021,6 +1025,7 @@ class Replies
     def close(self, rid: 'int', *, outcome: 'str', note: 'str | None' = None, public_note: 'str | None' = None) -> 'None'
     def corrections(self, limit: 'int' = 100, *, withdrawn: 'Iterable[Mapping[str, Any]] | Callable[[], Iterable[Mapping[str, Any]]]' = (), removed: 'bool' = False) -> 'list[dict[str, Any]]'
     def decline(self, sid: 'int', reason: 'str') -> 'None'
+    def forget_old_counts(self) -> 'int'
     def forget_old_emails(self) -> 'int'
     def hidden(self, item: 'str') -> 'dict[str, Any] | None'
     def hide(self, item: 'str', note: 'str') -> 'None'
@@ -1313,6 +1318,7 @@ alphabet_id: from wts_core.usage.briefings
 busy_refusal: from wts_core.usage.caps
 cache_key: from wts_core.usage.cache
 client_address: from wts_core.usage.visitor
+forget_visitors: from wts_core.usage.spending
 migrations: from wts_core.usage.tables
 network_of: from wts_core.usage.visitor
 token_id: from wts_core.usage.briefings
@@ -1438,8 +1444,10 @@ class Spending
     def briefings_today(self, *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'int'
     def by_account(self, since: 'str') -> 'list[AccountSpending]'
     def by_day(self, since: 'str') -> 'list[DaySpending]'
+    def forget_visitors(self) -> 'int'
     def spent_since(self, since: 'str') -> 'float'
     def totals(self, since: 'str') -> 'SpendingTotals'
+def forget_visitors(db: 'StateDB', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'int'
 
 ## wts_core.usage.tables
 def migrations() -> 'tuple[Migration, ...]'

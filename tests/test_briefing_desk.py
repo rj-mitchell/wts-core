@@ -770,3 +770,44 @@ def test_the_cost_of_reading_the_question_on_a_sources_only_request_reaches_its_
     r = told.record
     assert (r.outcome, r.input_tokens, r.output_tokens) == ("sources_only", row["input_tokens"], row["output_tokens"])
     assert r.cost_usd == round(row["cost_usd"], 6) > 0
+
+
+def test_each_briefing_leaves_its_lines_in_the_structured_log_where_a_site_has_one(site, tmp_path):  # noqa: F811
+    """ADR 0012: one line for each stage reached and one for how the briefing ended. Each holds the record's id, a
+    stage, milliseconds and an error's class name: never the question, the visitor's code or any text."""
+    import json
+    import logging
+
+    from wts_core import observe
+    from wts_core.briefing import desk as desk_module
+    from wts_core.ports import SystemRandom
+    from wts_core.settings import Site
+
+    told = Told(site, tmp_path, random=SystemRandom())  # ids as a real site's are: the log takes no other shape
+    assert desk_module._lines_log.name == observe.LOGGER
+    path = tmp_path / "logs" / "briefings.jsonl"
+    handler = observe.json_logging(path, site=Site(name="Where Parks Stand", package="parks", env_prefix="PARKS",
+                                                   root=tmp_path), max_bytes=1_000_000, keep=1, days=14,
+                                   clock=told.clock)
+    logger = logging.getLogger(observe.LOGGER)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    try:
+        told.run(cache_key="n" * 64)  # a fresh briefing
+        told.run(cache_key="e" * 64, write=told.written(fail=RuntimeError(f"{Q} {VISITOR}")))
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+    text = path.read_text()
+    lines = [json.loads(line) for line in text.splitlines()]
+    fresh, failed = told.log.records
+    mine = [line for line in lines if line["briefing"] == fresh.id]
+    assert [(line["event"], line["stage"], line["ms"]) for line in mine] == [
+        ("briefing.stage", "parsed", fresh.t_parse), ("briefing.stage", "searched", fresh.t_search),
+        ("briefing.stage", "ranked", fresh.t_rank), ("briefing.stage", "sources_sent", fresh.t_sources_sent),
+        ("briefing.stage", "first_token", fresh.t_first_token), ("briefing.stage", "written", fresh.t_written),
+        ("briefing.stage", "checked", fresh.t_checked), ("briefing.completed", None, fresh.t_total)]
+    ended = [line for line in lines if line["briefing"] == failed.id][-1]
+    assert (ended["event"], ended["level"], ended["error_type"]) == ("briefing.error", "ERROR", "RuntimeError")
+    assert Q not in text and VISITOR not in text and all(set(line) == set(observe.FIELDS) for line in lines)
