@@ -17,35 +17,34 @@ Last updated: 13 November 2026, 04:30 UTC (session 1).
 | 3. Build the package | **Under way** (the owner accepted the design on 13 November 2026) | branch `claude/wts-3-package`; see "Phase 3" below |
 | 4 to 7 | Not started | |
 
-## Pull requests (17, none merged)
+## Pull requests
 
-| Repository | Step | Branch | Pull request |
+**Sixteen of the first seventeen were merged on 13 November 2026, at the owner's request** (squash merges, as each
+repository's history has them; a merge commit for this repository's design and for Where Lives Stand). Each
+branch was brought up to date with `main` and its checks re-run before it was merged. One is held.
+
+| Repository | Step | Pull request | State |
 |---|---|---|---|
-| wts-core | 0 and 2: the design | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wts-core#1 |
-| wherempsstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherempsstand#44 |
-| wherecountriesstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherecountriesstand#31 |
-| wherecouncilsstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherecouncilsstand#49 |
-| wherelandlordsstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherelandlordsstand#17 |
-| wheretheystand-charity | 1: drift list, baseline, ENGINE.md | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wheretheystand-charity#28 |
-| wherempsstand | 1: library versions | `claude/wts-1-library-versions` | rj-mitchell/wherempsstand#43 (not before an evaluation run) |
-| wheretheystand-charity | 1b: the hub, the glossary's wording, all screenshots | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wheretheystand-charity#27 (merging publishes the hub) |
-| wherempsstand | 1b | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wherempsstand#45 |
-| wherecountriesstand | 1b | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wherecountriesstand#32 |
-| wherecouncilsstand | 1b | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wherecouncilsstand#50 |
-| wherempsstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherempsstand#42 |
-| wherecountriesstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherecountriesstand#30 |
-| wherecouncilsstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherecouncilsstand#48 |
-| wherelandlordsstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherelandlordsstand#16 |
-| wherelivesstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherelivesstand#21 |
-| wheretheystand-charity | 1c (and `family/TOOLCHAIN.md`) | `claude/wts-1c-toolchain` | rj-mitchell/wheretheystand-charity#26 |
+| wts-core | 0 and 2: the design | rj-mitchell/wts-core#1 | merged |
+| wherempsstand | 1: ports | rj-mitchell/wherempsstand#44 | merged |
+| wherecountriesstand | 1: ports | rj-mitchell/wherecountriesstand#31 | merged |
+| wherecouncilsstand | 1: ports | rj-mitchell/wherecouncilsstand#49 | merged |
+| wherelandlordsstand | 1: ports | rj-mitchell/wherelandlordsstand#17 | merged |
+| wheretheystand-charity | 1: drift list, baseline, ENGINE.md | rj-mitchell/wheretheystand-charity#28 | merged |
+| wherempsstand | 1: library versions | rj-mitchell/wherempsstand#43 | **open, held**: real briefings work on both sides of the upgrade on the sample data, but the site's own evaluation set needs the server's data. To merge on the owner's word |
+| wheretheystand-charity | 1b: the hub, the glossary's wording, all screenshots | rj-mitchell/wheretheystand-charity#27 | merged; the hub published itself and shows the new text |
+| wherempsstand | 1b | rj-mitchell/wherempsstand#45 | merged |
+| wherecountriesstand | 1b | rj-mitchell/wherecountriesstand#32 | merged (the one-line conflict in `docs/DECISIONS.md` resolved by keeping both rows) |
+| wherecouncilsstand | 1b | rj-mitchell/wherecouncilsstand#50 | merged |
+| the six repositories | 1c | wherempsstand#42, wherecountriesstand#30, wherecouncilsstand#48, wherelandlordsstand#16, wherelivesstand#21, wheretheystand-charity#26 | merged |
 
-**A suggested order for merging:** the six toolchain pull requests (independent of everything); the four ports;
-the four "why" pull requests; then the charity repository's drift pull request (#28, after the ports, so its
-baseline matches `main`); the design (#1) whenever it has been reviewed; Where MPs Stand's library versions (#43)
-only after an evaluation run. Checked by merging every open branch of each repository onto `main` together in a throwaway copy: all merge
-cleanly, with one exception. In Where Countries Stand, the ports (#31) and the "why" pull request (#32) both change
-the last rows of the table in `docs/DECISIONS.md`. Merge one, then on the other choose "Resolve conflicts" and keep
-both rows (row 16 as #31 words it, and row 17).
+**Nothing is deployed on the shared server until the owner runs each site's `update.sh`** (`/opt/hansardgpt`,
+`/opt/wherecountriesstand`, `/opt/wherecouncilsstand`, `/opt/wherelandlordsstand`). The hub and Where Lives Stand
+publish themselves on a merge.
+
+The drift check, run strict against the merged `main` branches
+([`study/drift-2026-11-13-main-after-merges.txt`](study/drift-2026-11-13-main-after-merges.txt)): one pair below
+the baseline, the DuckDB wrapper (0.77), which becomes 1.00 when #43 is merged.
 
 ## Phase 3: how it is being built
 
@@ -88,11 +87,11 @@ The workers' brief is kept at `docs/study/package-worker-brief.md`.
 
 ## Open, for the owner
 
-1. A working API key. `HANSARD_ANTHROPIC_API_KEY` was changed in the environment's settings on 13 November, but the
-   running session still held a value Anthropic refuses; test it again at the start of the next session
-   (`NOTES/what-the-build-session-cannot-do.md`), before any evaluation run.
-2. Merging the 17 open pull requests, in the order given above, and running each site's `update.sh`.
+1. Whether to merge rj-mitchell/wherempsstand#43 as it stands, or after an evaluation run on the server.
+2. Running each site's `update.sh` on the server.
 3. The check token, when the nightly check is extended (ADR 0010); nothing is needed before then.
+
+The API key works since 13 November (`NOTES/what-the-build-session-cannot-do.md`); spend so far is under 25p.
 
 Decided by the owner on 13 November 2026: the design is accepted; the privacy notice changes are accepted; the four
 right-of-reply questions were left to the maintainer and are decided in ADR 0008.
