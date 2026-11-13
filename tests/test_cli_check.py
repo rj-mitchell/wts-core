@@ -110,7 +110,8 @@ def test_the_figures_and_the_backups_ages_are_passed_on_when_a_site_gives_them()
 
 def test_only_numbers_pass_from_what_a_site_gives():
     figures = {"briefings": 41, "commonest_question": "What did the minister say about bins?",
-               "themes": {"bins": 3, "What did Cllr Houghton say?": 2, "council tax": 1, "nested": {"who": "A. Reader"}},
+               "themes": {"bins": 3, "What did Cllr Houghton say?": 2, "council tax": 1,
+                          "nested": {"who": "A. Reader"}},
                "questions": ["Why?", 3, {"q": "Why?"}], "rate": float("nan"), "ok": False, 7: 1, "x" * 41: 1,
                "p95_seconds": 18.4, "t_first_token": 900, "9f2c4e7a1b3d5f60a1b2c3d4": 4, "a3f9c0d1e2b4a6c8d0e1f2a3": 4}
     _, body = check_route(SITE, token=TOKEN, figures=lambda: figures, backups=lambda: {"newest": "a-file-name.gz"},

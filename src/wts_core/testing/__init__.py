@@ -1,7 +1,10 @@
 """Fakes, recorded fixtures and the contract tests each adapter and each site must pass.
 
-Shipped with the package so a site's own tests can use them: a clock that stands still, chance that is fixed, and
-(in the modules beside this one) a scripted model, a recording embedder, an index in memory.
+Shipped with the package so a site's own tests can use them: a clock that stands still, chance that is fixed, an
+off-site store in memory, the two checks of what is kept about readers and where statements may go, and the
+comparison with a stored file; and, in the modules beside this one, a scripted model (``models``), a recording
+embedder and an index in memory (``index``), and the contract tests (``contracts``, which needs pytest and so is
+not imported here).
 """
 
 from __future__ import annotations
@@ -9,7 +12,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
-__all__ = ["FixedClock", "FixedRandom"]
+from wts_core.testing.golden import golden
+from wts_core.testing.offsite import MemoryOffsiteStore
+from wts_core.testing.privacy import assert_no_reader_data, assert_statements_stay_out
+
+__all__ = ["FixedClock", "FixedRandom", "MemoryOffsiteStore", "assert_no_reader_data", "assert_statements_stay_out",
+           "golden"]
 
 
 class FixedClock:

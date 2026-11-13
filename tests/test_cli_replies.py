@@ -29,7 +29,16 @@ from typing import Any
 
 import pytest
 
-from cli_sites import REPLIES, Said, logging_left_as_it_was, mounted, options, run, stop_their_clock, their_modules  # noqa: F401
+from cli_sites import (  # noqa: F401
+    REPLIES,
+    Said,
+    logging_left_as_it_was,
+    mounted,
+    options,
+    run,
+    stop_their_clock,
+    their_modules,
+)
 from test_ops_sites import COUNCILS, COUNTRIES, LANDLORDS, MPS
 from test_replies_sites import BARNSLEY, SITES, Open, site_fixture
 from wts_core.cli import RepliesCommands, replies_commands
@@ -293,8 +302,8 @@ def plain_commands(d: Desk, tmp_path: Path, *, lists: str, reports: str, about: 
     # reports: listed, closed (the contact is deleted), and a closed one is not closed twice
     rid = d.report()
     listed = d.same([reports])
-    assert listed.stdout.startswith(f"#{rid}  2026-11-12T09:30:00+00:00  ") and "    reply to: reader@example.org\n" in \
-        listed.stdout
+    assert listed.stdout.startswith(f"#{rid}  2026-11-12T09:30:00+00:00  ")
+    assert "    reply to: reader@example.org\n" in listed.stdout
     d.next_day()
     assert d.same(["close-report", rid]) == Said(0, "closed\n", "", None)
     assert d.same([reports]) == Said(0, "", "", None)
@@ -366,7 +375,8 @@ def test_where_landlords_stands_commands(landlords, tmp_path):
         "Not done: say how you confirmed who sent it (checked), for the log"
     d.next_day()
     note = "replied from the landlord's own address, 14 Nov"
-    done = d.same(["statements", "--publish", "1", "--checked", note], ["statements", "publish", "1", "--checked", note])
+    done = d.same(["statements", "--publish", "1", "--checked", note],
+                  ["statements", "publish", "1", "--checked", note])
     assert lines(done) == [{"id": 1, "status": "published", "name": "Jane Example",
                             "page": "landlords/example-housing/", "part": "", "landlord": "example-housing",
                             "email": "jane@example-housing.org.uk", "pages_changed": 0, "shown": 1}]

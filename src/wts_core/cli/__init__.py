@@ -3,7 +3,7 @@
 A site keeps its own Typer app, with its own commands for its own record, and adds the shared ones to it::
 
     app.add_typer(ops_commands(SITE, load_settings, SPEC, OPS_WORDING))          # backup, restore, offsite, …
-    app.add_typer(replies_commands(replies, REPLIES_COMMANDS, REPLIES_WORDING))  # reports …, statements …, hide, …
+    app.add_typer(replies_commands(replies, REPLIES_COMMANDS, REPLIES_WORDING))  # reports …, statements …, hide
 
 Every name and every printed line is the site's own, passed in: ``OpsWording`` and its parts, ``RepliesCommands``
 and ``RepliesWording``. The package prints nothing of its own but the reason an owner's request could not be

@@ -1,7 +1,7 @@
 """What every adapter must do, as tests: one class for each port, which an adapter's own tests subclass (ADR 0002).
 
-A new model provider, embedding model or vector store is accepted when its adapter passes. Each class needs one
-fixture, which builds the adapter::
+A new model provider, embedding model, vector store or off-site store is accepted when its adapter passes. Each
+class needs one fixture, which builds the adapter::
 
     class TestMyIndex(VectorIndexContract):
         @pytest.fixture
@@ -15,16 +15,28 @@ it), from the recorded streams that ship with the package.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from typing import Any, Self
 
 import pytest
 
 from wts_core.events import CitationDelta, Completed, ModelEvent, TextDelta
-from wts_core.ports import Document, Embedder, IndexOutOfDate, ModelClient, ModelRequest, Usage, VectorIndex
+from wts_core.ports import (
+    Document,
+    Embedder,
+    IndexOutOfDate,
+    ModelClient,
+    ModelRequest,
+    OffsiteStore,
+    StoredFile,
+    Usage,
+    VectorIndex,
+)
 from wts_core.testing.index import RecordingEmbedder
 from wts_core.testing.models import _RECORDED, load_documents, load_stream
 
-__all__ = ["EmbedderContract", "ModelClientContract", "ModelFactory", "Reading", "VectorIndexContract"]
+__all__ = ["EmbedderContract", "ModelClientContract", "ModelFactory", "OffsiteStoreContract", "Reading",
+           "VectorIndexContract"]
 
 SUPPORTS = frozenset({"caching", "long_cache", "fallbacks", "effort", "citations"})
 
@@ -286,3 +298,63 @@ class VectorIndexContract:
             open_index(RecordingEmbedder(embedder.dimension, id="another-model"))
         # nothing was added and nothing lost: the index is as its own embedder left it
         assert self.ids_by_meaning(open_index(embedder), embedder) == ["p0", "p1", "p2"]
+
+
+class OffsiteStoreContract:
+    """What every off-site store must do for ``wts_core.ops`` to keep a site's backups in it. The fixture to give
+    is ``store``: the store, with nothing in it."""
+
+    @pytest.fixture
+    def store(self) -> OffsiteStore:
+        raise NotImplementedError("give a `store` fixture")
+
+    @staticmethod
+    def backup(folder: Path, name: str, content: bytes = b"a backup") -> Path:
+        path = folder / name
+        path.write_bytes(content)
+        return path
+
+    def test_it_has_a_name_for_messages(self, store: OffsiteStore) -> None:
+        assert isinstance(store.name, str) and store.name
+
+    def test_an_empty_store_lists_nothing(self, store: OffsiteStore) -> None:
+        assert store.list("") == [] and store.list("wcs-state-") == []
+
+    def test_a_file_is_stored_under_its_own_name_with_its_size(self, store: OffsiteStore, tmp_path: Path) -> None:
+        stored = store.put(self.backup(tmp_path, "wcs-state-2026-11-12.sqlite.gz", b"twelve bytes"))
+        assert isinstance(stored, StoredFile) and stored.name == "wcs-state-2026-11-12.sqlite.gz"
+        listed = store.list("wcs-state-")
+        assert [(f.name, f.size) for f in listed] == [("wcs-state-2026-11-12.sqlite.gz", 12)]
+
+    def test_only_files_whose_names_start_with_the_prefix_are_listed(self, store: OffsiteStore,
+                                                                    tmp_path: Path) -> None:
+        """The charity's sites can share one bucket: each lists, and so deletes, only its own."""
+        for name in ("wcs-state-2026-11-12.sqlite.gz", "councils-state-2026-11-12.sqlite.gz", "notes.txt"):
+            store.put(self.backup(tmp_path, name))
+        assert [f.name for f in store.list("wcs-state-")] == ["wcs-state-2026-11-12.sqlite.gz"]
+        assert [f.name for f in store.list("councils-state-")] == ["councils-state-2026-11-12.sqlite.gz"]
+        assert store.list("landlords-state-") == []
+
+    def test_files_are_listed_oldest_first_by_name(self, store: OffsiteStore, tmp_path: Path) -> None:
+        for day in ("2026-11-12", "2026-11-10", "2026-11-11"):
+            store.put(self.backup(tmp_path, f"wcs-state-{day}.sqlite.gz"))
+        assert [f.name for f in store.list("wcs-state-")] == [f"wcs-state-2026-11-{d}.sqlite.gz" for d in (10, 11, 12)]
+
+    def test_a_file_stored_again_is_listed_once_as_it_now_is(self, store: OffsiteStore, tmp_path: Path) -> None:
+        store.put(self.backup(tmp_path, "wcs-state-2026-11-12.sqlite.gz", b"first"))
+        store.put(self.backup(tmp_path, "wcs-state-2026-11-12.sqlite.gz", b"the second"))
+        assert [(f.name, f.size) for f in store.list("wcs-state-")] == [("wcs-state-2026-11-12.sqlite.gz", 10)]
+
+    def test_a_deleted_file_is_gone_and_the_others_stay(self, store: OffsiteStore, tmp_path: Path) -> None:
+        for day in (10, 11, 12):
+            store.put(self.backup(tmp_path, f"wcs-state-2026-11-{day}.sqlite.gz"))
+        store.delete(store.list("wcs-state-")[0])  # as listed: a store may need the file's own id to delete it
+        assert [f.name for f in store.list("wcs-state-")] == [f"wcs-state-2026-11-{d}.sqlite.gz" for d in (11, 12)]
+
+    def test_it_can_be_used_again_after_it_is_closed(self, store: OffsiteStore, tmp_path: Path) -> None:
+        store.put(self.backup(tmp_path, "wcs-state-2026-11-11.sqlite.gz"))
+        store.close()
+        store.close()  # twice is no harm
+        store.put(self.backup(tmp_path, "wcs-state-2026-11-12.sqlite.gz"))
+        assert len(store.list("wcs-state-")) == 2
+        store.close()
