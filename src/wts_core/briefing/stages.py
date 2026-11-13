@@ -1,11 +1,11 @@
 """How long each stage of a briefing took, measured from the question's arrival (ADR 0012).
 
 The briefing desk starts a ``Stages`` for every question and marks what it can see for itself: the question read
-(the ``plan`` event), the sources sent, the first words of the briefing, the checked briefing. What happens inside
-a site's pipeline (the search, the ranking, the model finishing) only the pipeline knows, so it marks those itself:
-``current_stages().mark("searched")``. It is handed nothing: the desk makes its ``Stages`` the current ones, in a
-context variable, whenever the pipeline's code runs. Outside a desk (a test of the pipeline alone, a command) the
-marks go nowhere.
+(the ``plan`` event), the sources sent, the model's first words (text or a citation), the checked briefing. What
+happens inside a site's pipeline (the search, the ranking, the model finishing) only the pipeline knows, so it
+marks those itself: ``current_stages().mark("searched")``. It is handed nothing: the desk makes its ``Stages`` the
+current ones, in a context variable, whenever the pipeline's code runs. Outside a desk (a test of the pipeline
+alone, a command) the marks go nowhere.
 
 A stage is marked once: the first mark stands, so a pipeline that marks a stage itself is not overruled by the
 desk's own, later, mark.

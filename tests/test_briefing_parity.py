@@ -67,7 +67,7 @@ def both(site: SiteFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # n
             assert ours_written[table] == written[table], table
         assert theirs.pipeline.calls == ours.pipeline.calls
         code = visitor_code(ours.db, "testclient", clock=clock)
-        assert SALT == ours.db.get(f"visitor_salt:{START[:10]}")
+        assert ours.db.get(f"visitor_salt:{START[:10]}") == SALT
         assert ours.briefings_today(code) == theirs.briefings_today(code)
         # one record for every question the desk was handed, and never the visitor's code in it
         asked = sum(1 for status, _ in sent_by_desk if status == 200)

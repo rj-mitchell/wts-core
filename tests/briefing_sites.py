@@ -25,7 +25,7 @@ import types
 from collections.abc import Callable, Iterator
 from datetime import date, datetime
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -301,8 +301,9 @@ class ScriptedPipeline:
             self.entered.set()
             assert self.gate.wait(20)
         tick(1.5)
-        yield {"type": "text", "text": "Kenya said that climate finance "}
+        # as the model really sends them: a citation comes before the text of the block it belongs to
         yield {"type": "citation", "search_result_index": 0, "cited_text": "climate finance for adaptation is too slow"}
+        yield {"type": "text", "text": "Kenya said that climate finance "}
         if play == "raises":
             raise RuntimeError("the model's stream broke")
         if play == "left":  # the reader goes while the briefing is being written
@@ -316,6 +317,8 @@ class ScriptedPipeline:
                 self.closed.set()
             raise AssertionError("the pipeline was not stopped when the reader left")
         yield {"type": "text", "text": "was \"too slow\"."}
+        yield {"type": "citation", "search_result_index": 1, "cited_text": "climate finance must reach small islands"}
+        yield {"type": "text", "text": " Fiji warned that finance must reach small islands."}
         if mps:
             yield {"type": "interests", "interests": [{"member": "A Member", "interest": "A directorship"}]}
         tick(2.0)

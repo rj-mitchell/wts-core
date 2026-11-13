@@ -349,7 +349,8 @@ class BriefingDesk:
 
     def _passed(self, run: _Run, events: Iterator[Event], *, replay: bool = False) -> Iterator[Event]:
         """Every event on its way to the reader, whichever way the briefing went: the desk sees the question read,
-        the sources sent and the first words, and that no words go before the sources."""
+        the sources sent and the model's first words (text or a citation, whichever comes first), and that no text
+        goes before the sources."""
         try:
             for event in events:
                 kind = event.get("type")
@@ -362,6 +363,9 @@ class BriefingDesk:
                 elif kind == "text":
                     if not run.sources_seen:
                         self._text_before_sources(run)
+                    run.stages.mark("first_token")
+                elif kind == "citation":
+                    # the model's first word may be a citation: it sends one before the text it belongs to
                     run.stages.mark("first_token")
                 elif kind == "final" and run.final is None:
                     run.final = event  # a cached answer's: its address and what the checks found, for the record
