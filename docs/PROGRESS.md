@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 13 November 2026, 15:30 UTC (session 1).
+Last updated: 13 November 2026, 21:45 UTC (session 1).
 
 ## Where things stand
 
@@ -14,8 +14,9 @@ Last updated: 13 November 2026, 15:30 UTC (session 1).
 | 1b. "Why use this rather than a chatbot?" | **Done: four pull requests** (the hub and three AI sites); screenshots in the charity repository's | below |
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
-| 3. Build the package | **Done: merged** (rj-mitchell/wts-core#2, every CI job green). The release `v0.1.0` is made by the release workflow, started from the Actions page | `main`; see "Phase 3" below |
-| 4 to 7 | Not started | |
+| 3. Build the package | **Done and released: `v0.1.0`** (rj-mitchell/wts-core#2 and #3 merged; the release has the wheel, sha256 `29d6f59d…2572`) | https://github.com/rj-mitchell/wts-core/releases/tag/v0.1.0 |
+| 4. Adopt, one site at a time | **Under way**: Where Landlords Stand first (branch `claude/wts-4-adopt-core` in its repository, worktree `/home/user/wt/landlords-adopt`); in parallel the package's 0.2.0 (branch `claude/wts-4-builder`, worktree `/home/user/wt/core-builder`), which closes the rough edges below before the AI sites adopt | the adoption workers' brief: `docs/study/adoption-worker-brief.md` |
+| 5 to 7 | Not started | |
 
 ## Pull requests
 
@@ -127,6 +128,14 @@ right-of-reply questions were left to the maintainer and are decided in ADR 0008
 
 ## Next step
 
-Merge `briefing`, `observe` and `eval` as each finishes; then `cli` (the shared commands and the check route),
-the remaining testing helpers, the example site and the guides. Then the interface snapshot, the package's pull
-request, and (once merged) the tag. [`AS-BUILT.md`](AS-BUILT.md) lists what adoption must handle for each module.
+1. When the Where Landlords Stand worker hands back: check its work, open its pull request with every behaviour
+   change listed, merge when its CI is green (the owner has asked for this work's pull requests to be merged). Its
+   CI and Docker build are the first real proof that a site installs the released wheel by its address.
+2. When the 0.2.0 worker hands back: review, pull request, merge, release `v0.2.0` from the Actions page
+   (`CONTRIBUTING.md`, "Releasing": the build session cannot push a tag).
+3. Then Where Councils Stand on 0.2.0, Where Countries Stand, Where MPs Stand, each with the adoption brief; then
+   phases 5 to 7.
+
+Checked on 13 November: `uv lock` and `uv sync --frozen` against the wheel's address work, and the hash in the
+lock file is the release's. (A bare `uv pip install <address>` fails inside the build session only: its proxy
+answers a HEAD request for that address with 401.)
