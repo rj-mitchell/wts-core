@@ -45,7 +45,10 @@ __all__ = ["backup_ages", "check_route"]
 # what a missing address answers on every site (FastAPI's own words), so that a site with no token set answers
 # this address exactly as it answers one that was never there
 _NOT_THERE: tuple[int, dict[str, Any]] = (404, {"detail": "Not Found"})
-_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,48}")
+# A key that may leave in the answer is the plain name of a figure, as written in code: lower-case words joined by
+# underscores ("briefings", "p95_seconds", "by_outcome"). A visitor's code, an address, a question or a person's
+# name used as a key is not one, and is left out with whatever it counted.
+_KEY = re.compile(r"(?=.{1,40}$)[a-z]+[0-9]{0,3}(_[a-z0-9]+)*")
 
 
 def check_route(site: Site, *, token: str | None, replies: Replies | Callable[[], Replies] | None = None,
@@ -121,8 +124,8 @@ def _token(presented: str | None) -> str:
 
 
 def _numbers_only(value: Any) -> Any:
-    """What may leave in the check's answer: numbers, yes or no, nothing, and lists and tables of those under
-    plain keys. Any text is left out, with its key: counts and ages only."""
+    """What may leave in the check's answer: numbers, yes or no, nothing, and lists and tables of those under the
+    plain names of figures. Any text is left out, with its key: counts and ages only."""
     if isinstance(value, Mapping):
         kept = {str(k): _numbers_only(v) for k, v in value.items()
                 if isinstance(k, str) and _KEY.fullmatch(k) and _passes(v)}
