@@ -1,0 +1,72 @@
+[project]
+name = "wts-core"
+version = "0.1.0"
+description = "The shared foundation for the Where They Stand sites: settings, limits, the checks on briefings, the briefing flow, reports and the right of reply, backup, and the record of each briefing."
+readme = "README.md"
+license = "AGPL-3.0-only"
+requires-python = ">=3.12"
+# The base install needs nothing but Python (ADR 0001). Extras bring the libraries a site actually uses.
+# Each range begins at the version the sites lock today (November 2026): that is what is tested, in CI's "ranges"
+# job, at its lowest and its highest. An older version may work; nobody has tried it.
+dependencies = []
+
+[project.optional-dependencies]
+# the shared commands a site adds to its own command line
+cli = ["typer>=0.27"]
+# off-site copies of backups: Backblaze's own HTTP interface, spoken with httpx
+offsite = ["httpx>=0.28"]
+# the thread-safe DuckDB wrapper
+duckdb = ["duckdb>=2.0,<3"]
+# the adapters behind the model, embedder and index interfaces
+ai = [
+    "anthropic>=2.3,<3",
+    "fastembed>=0.9,<1",
+    "lancedb>=0.40,<1",
+    "numpy>=2.5",
+    "pyarrow>=26",
+]
+
+[dependency-groups]
+dev = [
+    "duckdb>=2.0,<3",
+    "fastapi>=0.162",
+    "httpx>=0.28",
+    # the tools the checks are run with: the versions in use, since an older linter finds different things
+    "mypy>=2.4",
+    "pytest>=9.1",
+    "ruff>=0.17.5",
+    "typer>=0.27",
+    "uvicorn>=0.54",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wts_core"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+# line length is kept to 120 by hand, as in the sites: long SQL and prose strings are clearer unbroken
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/wts_core"]
+
+[[tool.mypy.overrides]]
+# outside libraries the adapters wrap; each adapter is the only module that imports its library
+module = ["anthropic.*", "fastembed.*", "lancedb.*", "duckdb.*", "pyarrow.*", "numpy.*", "httpx.*", "typer.*"]
+ignore_missing_imports = true

@@ -69,8 +69,11 @@ without the model.
 - that exactly one line is written to the briefing log for every question, with its outcome and stage timings
   (ADR 0012), whichever way it ended;
 - that nothing meant for one reader (step `for_this_reader`) can reach the cache or the saved copy;
-- that the cache key always includes the model, the instructions' version, the data's stamp and, in an experiment,
-  the version being tried;
+- that in an experiment the version being tried is part of the cache key. (As first written, this said the desk
+  also guaranteed the model, the instructions' version and the data's stamp were in the key. As built, the site
+  makes the key, with `usage.cache_key` over its own parts, so that each site's key is the one it has today and
+  nothing cached is lost at adoption; the desk is handed the finished key and cannot see inside it. So those
+  three are each site's to keep, and each site's adoption has a test that its key changes with each of them);
 - that a failure never leaves the reader waiting: an `error` event with the site's wording.
 
 **What stays the site's:** the route, its request body, the pipeline, how sources are found, every message a reader

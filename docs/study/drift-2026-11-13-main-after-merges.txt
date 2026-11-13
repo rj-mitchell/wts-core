@@ -1,0 +1,80 @@
+Shared-engine drift (family/ENGINE.md)
+
+  Where MPs Stand        /tmp/claude-0/-home-user/f179e100-a34c-5060-92ea-406e40867d63/scratchpad/mains/wherempsstand (77bec6a, 2026-11-13)
+  Where Countries Stand  /tmp/claude-0/-home-user/f179e100-a34c-5060-92ea-406e40867d63/scratchpad/mains/wherecountriesstand (54df925, 2026-11-13)
+  Where Councils Stand   /tmp/claude-0/-home-user/f179e100-a34c-5060-92ea-406e40867d63/scratchpad/mains/wherecouncilsstand (d8026e5, 2026-11-13)
+  Where Landlords Stand  /tmp/claude-0/-home-user/f179e100-a34c-5060-92ea-406e40867d63/scratchpad/mains/wherelandlordsstand (7f8f2df, 2026-11-13)
+
+Module                                      Upstream   Pair                   Alike  Change  Functions that differ
+------------------------------------------  ---------  ---------------------  -----  ------  ---------------------
+The embedder                                MPs        MPs ↔ Countries        0.99          (module level)
+                                                       MPs ↔ Councils         0.99          (module level)
+                                                       Countries ↔ Councils   0.99          (module level)
+British spelling                            MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.99          (module level)
+                                                       Countries ↔ Councils   0.99          (module level)
+The citation verifier                       MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.98          _classify_uncited, _is_lead_in_piece, and 2 more
+                                                       Countries ↔ Councils   0.98          _classify_uncited, _is_lead_in_piece, and 2 more
+The loaded-words check                      MPs        MPs ↔ Countries        0.92          (module level)
+                                                       MPs ↔ Councils         0.82          still_loaded, (module level)
+                                                       Countries ↔ Councils   0.76          still_loaded, (module level)
+The Claude client and streaming             Countries  MPs ↔ Countries        0.97          Answerer.stream, (module level)
+                                                       Countries ↔ Councils   0.95          Answerer.stream, api_key, and 2 more
+                                                       MPs ↔ Councils         0.94          Answerer.stream, api_key, and 2 more
+The briefing streamer (sse)                 MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         1.00          none
+                                                       Countries ↔ Councils   1.00          none
+The rate limiter                            MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.86          RateLimiter, RateLimiter.__init__, and 1 more
+                                                       MPs ↔ Landlords        0.57          RateLimiter, RateLimiter.__init__, and 1 more
+                                                       Countries ↔ Councils   0.86          RateLimiter, RateLimiter.__init__, and 1 more
+                                                       Countries ↔ Landlords  0.57          RateLimiter, RateLimiter.__init__, and 1 more
+                                                       Councils ↔ Landlords   0.57          RateLimiter, RateLimiter.__init__, and 1 more
+The visitor key                             MPs        MPs ↔ Countries        0.71          network_of, visitor_key
+                                                       MPs ↔ Councils         0.65          network_of, visitor_key
+                                                       Countries ↔ Councils   0.72          network_of, visitor_key
+Cost accounting                             MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.95          cost_usd
+                                                       Countries ↔ Councils   0.95          cost_usd
+Spending caps and briefings in progress *   MPs        MPs ↔ Countries        0.63          check_caps, InFlight, and 1 more
+                                                       MPs ↔ Councils         0.59          check_caps, InFlight
+                                                       Countries ↔ Councils   0.61          check_caps, InFlight, and 1 more
+The answer cache *                          MPs        MPs ↔ Countries        1.00          none
+                                                       MPs ↔ Councils         0.07          cache_key, cached_events, and 1 more
+                                                       Countries ↔ Councils   0.07          cache_key, cached_events, and 1 more
+The thread-safe DuckDB wrapper              MPs        MPs ↔ Countries        0.77! −0.23   SharedConnection.__getattr__, (module level)
+Backup *                                    MPs        MPs ↔ Countries        0.48          make_backup, restore_backup, and 1 more
+                                                       MPs ↔ Councils         0.33          make_backup, restore_backup (only MPs), and 1 more
+                                                       MPs ↔ Landlords        0.15          make_backup, restore_backup (only MPs), and 1 more
+                                                       Countries ↔ Councils   0.61          make_backup, restore_backup (only Countries), and 1 more
+                                                       Countries ↔ Landlords  0.24          make_backup, restore_backup (only Countries), and 1 more
+                                                       Councils ↔ Landlords   0.37          make_backup, (module level) (only Councils)
+Config loading *                            MPs        MPs ↔ Countries        0.98          load_settings
+                                                       MPs ↔ Councils         0.98          load_settings
+                                                       MPs ↔ Landlords        0.45          load_settings
+                                                       Countries ↔ Councils   1.00          none
+                                                       Countries ↔ Landlords  0.46          load_settings
+                                                       Councils ↔ Landlords   0.46          load_settings
+Off-site copies to B2                       MPs        MPs ↔ Countries        0.93          backup_alerts, check, and 1 more
+                                                       MPs ↔ Councils         0.97          backup_alerts, check, and 1 more
+                                                       MPs ↔ Landlords        0.89          backup_alerts (only MPs), check, and 1 more
+                                                       Countries ↔ Councils   0.94          backup_alerts, check
+                                                       Countries ↔ Landlords  0.89          backup_alerts (only Countries), check, and 1 more
+                                                       Councils ↔ Landlords   0.89          backup_alerts (only Councils), check, and 1 more
+Statements under the right of reply *       MPs        MPs ↔ Countries        0.24          _change (only Countries), _row (only Countries), and 30 more
+                                                       MPs ↔ Councils         0.12          add_statement (only MPs), check (only MPs), and 33 more
+                                                       MPs ↔ Landlords        0.20          _get (only Landlords), _h1 (only Landlords), and 31 more
+                                                       Countries ↔ Councils   0.30          _change (only Countries), _row (only Countries), and 27 more
+                                                       Countries ↔ Landlords  0.15          _change (only Countries), _get (only Landlords), and 41 more
+                                                       Councils ↔ Landlords   0.10          _get (only Landlords), _h1 (only Landlords), and 39 more
+Readers' reports and the corrections log *  MPs        MPs ↔ Countries        0.08          add_report, close_report, and 4 more
+                                                       MPs ↔ Councils         0.00          add_report, close_report, and 4 more
+                                                       MPs ↔ Landlords        0.00          add_report, close_report, and 4 more
+                                                       Countries ↔ Councils   0.00          add_report, close_report, and 2 more
+                                                       Countries ↔ Landlords  0.00          add_report, close_report, and 2 more
+                                                       Councils ↔ Landlords   0.06          add_report, close_report, and 1 more
+
+Alike: 1.00 is identical apart from the package name. Change: since drift-baseline.json.
+! marks a pair that has moved further apart than accepted, or a missing file.
+* is done differently by some sites on purpose: its copies converge when each site adopts wts-core, not before.

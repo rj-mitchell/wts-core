@@ -1,0 +1,75 @@
+# Shared by every Where They Stand Python repository: lint, type check (where the repository has one) and tests,
+# with the family's toolchain. A site calls it from its own ci.yml:
+#
+#   jobs:
+#     python:
+#       uses: rj-mitchell/wts-core/.github/workflows/python.yml@v0.1.0
+#       with:
+#         sync-args: "--extra embed"
+#         lint-paths: "src tests scripts"
+name: Python checks
+
+on:
+  workflow_call:
+    inputs:
+      python:
+        type: string
+        default: "3.12"
+      uv:
+        type: string
+        default: "0.11.32"
+      working-directory:
+        type: string
+        default: "."
+      sync-args:
+        description: Extra arguments for uv sync (extras, groups)
+        type: string
+        default: ""
+      resolution:
+        description: "locked (uv sync --frozen, what a site deploys), or lowest-direct / highest (a library's ranges)"
+        type: string
+        default: "locked"
+      lint-paths:
+        description: What ruff checks
+        type: string
+        default: "."
+      type-check:
+        description: A type-check command (for example "uv run mypy"); empty for none
+        type: string
+        default: ""
+      test-command:
+        type: string
+        default: "uv run pytest"
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ inputs.uv }}
+      - run: uv python install ${{ inputs.python }}
+      - name: Install (as locked)
+        if: inputs.resolution == 'locked'
+        run: uv sync --frozen --python ${{ inputs.python }} ${{ inputs.sync-args }}
+      - name: Install (${{ inputs.resolution }} versions the ranges allow)
+        if: inputs.resolution != 'locked'
+        run: uv sync --python ${{ inputs.python }} --resolution ${{ inputs.resolution }} --upgrade ${{ inputs.sync-args }}
+      - name: Lint
+        run: uv run --no-sync ruff check ${{ inputs.lint-paths }}
+      - name: Type check
+        if: inputs.type-check != ''
+        run: ${{ inputs.type-check }}
+        env:
+          UV_NO_SYNC: "1"
+      - name: Tests
+        run: ${{ inputs.test-command }}
+        env:
+          UV_NO_SYNC: "1"

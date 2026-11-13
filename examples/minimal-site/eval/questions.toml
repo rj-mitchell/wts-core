@@ -1,0 +1,34 @@
+# Where Parks Stand's test questions: what an evaluation run asks (`parks eval run`).
+#
+# Each [[q]] has an id, a question and a category. `expect` holds the filters a careful reader would choose
+# (here only the park: "" means the question is about no one park). Beside it: `include` (parks the evidence
+# must hold a minute from), `no_records` (finding nothing is the right answer) and `note`.
+#
+# With the scripted model, a question's id is also the name of its recording in data_static/recordings/.
+
+today = 2026-11-13
+
+[[q]]
+id = "dogs"
+question = "What have park committees decided about dogs?"
+category = "across parks"
+include = ["Alder Park", "Birchfield Common", "Canal Gardens"]
+[q.expect]
+park = ""
+
+[[q]]
+id = "opening-hours"
+question = "When do the parks open and close?"
+category = "across parks"
+include = ["Alder Park", "Canal Gardens"]
+note = "Its recording has one unsupported sentence with a loaded word, so the run shows what the checks mark."
+[q.expect]
+park = ""
+
+[[q]]
+id = "parking"
+question = "Have any committees decided to charge for parking?"
+category = "nothing in the record"
+no_records = true
+[q.expect]
+park = ""

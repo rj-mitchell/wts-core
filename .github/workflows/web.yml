@@ -1,0 +1,56 @@
+# Shared by every Where They Stand repository with a web front end (Where MPs Stand, Where Councils Stand, Where
+# Lives Stand): install, type check, tests, build.
+#
+#   jobs:
+#     web:
+#       uses: rj-mitchell/wts-core/.github/workflows/web.yml@v0.1.0
+#       with:
+#         working-directory: web
+name: Web checks
+
+on:
+  workflow_call:
+    inputs:
+      node:
+        type: string
+        default: "22"
+      working-directory:
+        type: string
+        default: "."
+      type-check:
+        description: The type-check command; empty where the build does it
+        type: string
+        default: "npm run typecheck"
+      test-command:
+        type: string
+        default: "npm test"
+      build-command:
+        type: string
+        default: "npm run build"
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      - run: npm ci
+      - name: Type check
+        if: inputs.type-check != ''
+        run: ${{ inputs.type-check }}
+      - name: Tests
+        if: inputs.test-command != ''
+        run: ${{ inputs.test-command }}
+      - name: Build
+        if: inputs.build-command != ''
+        run: ${{ inputs.build-command }}

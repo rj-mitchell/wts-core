@@ -176,7 +176,7 @@ hundred lines beneath it are deleted.
 | The error text when a briefing fails | "…The sources found are shown above…" | the same | "…Any sources found are shown above…" |
 | Who reads the question when a limit has been reached, or only sources were asked for | the model, while the budget lasts | the free rules | the free rules over a limit; the model for "sources only" (with the caps checked, from phase 1) |
 | Follow-ups cached | yes | no | yes |
-| A cached answer's flags re-judged on replay | yes (from phase 1) | yes, with curly quotes | yes |
+| A cached answer's flags re-judged on replay | no: replayed as stored (the phase 1 port was withdrawn, as it would have weakened flags; see 1.6). At adoption its `on_cached` may recheck answers written under older rules, which changes bytes for those | yes, with curly quotes | yes |
 | Fields only this site adds to `final` | `interests`, `briefing_key`, `support_reminder` (this reader only), `prepared_at`, `records_up_to` | none | none |
 | A cached answer with no address yet is given one | yes | no | no |
 

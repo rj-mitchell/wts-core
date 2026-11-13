@@ -1,0 +1,45 @@
+{
+ "segments": [
+  {
+   "text": "Northbridge's Cabinet agreed a food waste service: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "The Cabinet agreed that weekly collections of food waste would begin in April 2026.",
+   "sources": [
+    1
+   ],
+   "cited": [
+    {
+     "source": 1,
+     "cited_text": "The Cabinet agreed that weekly collections of food waste would begin in April 2026."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": " This makes Northbridge the first council in the county to do so.\n",
+   "sources": [],
+   "cited": [],
+   "status": "unsupported",
+   "loaded": [],
+   "misquotes": []
+  }
+ ],
+ "markdown": "Northbridge's Cabinet agreed a food waste service: The Cabinet agreed that weekly collections of food waste would begin in April 2026. [Source 1] This makes Northbridge the first council in the county to do so.\n",
+ "no_records": false,
+ "citations_total": 1,
+ "citations_invalid": 0,
+ "grounded_ratio": 0.557,
+ "unsupported_segments": 1,
+ "loaded_words": 0,
+ "quotes_total": 0,
+ "quotes_unverified": 0,
+ "rules": 1
+}

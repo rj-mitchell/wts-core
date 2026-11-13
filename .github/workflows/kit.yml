@@ -1,0 +1,42 @@
+# Shared by every site that carries the family kit (the binding: endorsement, footer shelf, fonts, tokens). While the
+# kit lives in the charity's private repository, a site can't compare its copy with the kit itself, so this checks
+# the stamp the kit's sync writes: the copy is the version the site says it synced, for this site.
+#
+#   jobs:
+#     kit:
+#       uses: rj-mitchell/wts-core/.github/workflows/kit.yml@v0.1.0
+#       with:
+#         version: "1.4.0"
+#         site: countries
+#         path: web/site/family
+name: Family kit check
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The kit version the site last synced
+        type: string
+        required: true
+      site:
+        description: The site's id in the charity's projects.json (mps, councils, countries, landlords, lives)
+        type: string
+        required: true
+      path:
+        description: The folder the kit was synced into
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The copy is kit ${{ inputs.version }}, synced for ${{ inputs.site }}
+        run: |
+          stamp="${{ inputs.path }}/VERSION"
+          grep -qx "kit ${{ inputs.version }}" "$stamp" || { echo "$stamp is not kit ${{ inputs.version }}:"; cat "$stamp"; exit 1; }
+          grep -qx "site ${{ inputs.site }}" "$stamp" || { echo "$stamp was not synced for ${{ inputs.site }}:"; cat "$stamp"; exit 1; }

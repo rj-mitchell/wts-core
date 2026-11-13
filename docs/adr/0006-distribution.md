@@ -46,6 +46,9 @@ Not PyPI, as the brief says: the name would need guarding, and nothing here need
   build on every pull request, so a broken build is caught before a tag.
 - Dependency-update tools don't raise direct-address dependencies by themselves. `docs/UPGRADING.md` gives the
   two-line change, and the drift check (phase 5) fails a site that is more than one minor version behind.
+- **Found while building the example site:** all four sites build with hatchling, which refuses a dependency
+  given by its address unless the site's `pyproject.toml` says `[tool.hatch.metadata]` `allow-direct-references =
+  true`. Each site's adoption adds that line; `docs/NEW-SITE.md` and the example carry it.
 - **To verify in phase 3, before any site adopts:** a site's `uv lock` and `uv sync --frozen` with the wheel
   address, inside `python:3.12.15-slim` with no `git`, and in GitHub Actions. If it fails for a reason not seen
   here, fall back to A and add `git` to the three images, recorded in this ADR.

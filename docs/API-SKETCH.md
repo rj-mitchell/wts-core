@@ -1,5 +1,7 @@
 # The public interface, sketched
 
+**Where this page and the package differ, the code and [`AS-BUILT.md`](AS-BUILT.md) are the reference.**
+
 13 November 2026. Part of the design for review: names and signatures, not code. The public interface is what each
 module's `__all__` exports ([ADR 0007](adr/0007-versioning.md)); this page is its first draft. Signatures use
 Python 3.12 syntax. `...` bodies are omitted. Anything not listed here is private.
@@ -211,32 +213,55 @@ def backup_before_first_import(db: StateDB) -> Path | None: ...
 
 ## `wts_core.usage`
 
+**Built** (`src/wts_core/usage/`); this section is as built, and departs from the first sketch where the sites' code
+required it: a model with no entry of its own takes the base prices, as today, and `require` is the start-up check a
+site asks for; prices and limits are read from the `[usage]` mapping; saved briefings are kept here
+(`BriefingArchive`), with the interfaces `ports` does not have; the spending record also gives the figures for the
+owner's reports; and the limiter's size and the way a briefing's id is made have no default.
+
 ```python
-class RateLimiter:                                             # implements ports.Limiter
-    def __init__(self, per_minute: int, *, forget_over: int = 50_000, clock: Clock = SYSTEM_CLOCK) -> None: ...
+class RateLimiter:                                             # implements ports.Limiter; in memory, one process
+    def __init__(self, per_minute: int, *, forget_over: int, clock: Clock = SYSTEM_CLOCK) -> None: ...
+    def allow(self, key: str) -> bool: ...
 
 def network_of(address: str | None) -> str: ...               # IPv4 address, or an IPv6 /64
 def client_address(headers: Mapping[str, str], peer: str | None, *, behind_proxy: bool,
                    trust_forwarded_first: bool) -> str | None: ...
-def visitor_code(kv: KeyValue, address: str | None, *, day: str | None = None,
+def visitor_code(kv: KeyValue, address: str | None, *, day: str | None = None, forget_undated_salt: bool = False,
                  clock: Clock = SYSTEM_CLOCK, random: Random = SYSTEM_RANDOM) -> str: ...
 
+@dataclass(frozen=True)
 class PriceTable:                                              # implements ports.Pricing
+    base: Price; models: tuple[tuple[str, Price], ...] = ()
     @classmethod
-    def from_settings(cls, settings: Settings) -> PriceTable: ...
-    def require(self, models: Iterable[str]) -> None: ...      # raises UnknownModel at start-up
+    def from_settings(cls, usage: Mapping[str, Any], *, section: str = "usage") -> PriceTable: ...
+    def price_for(self, model: str | None) -> Price: ...       # the base prices where the model has no entry
+    def cost(self, usage: Usage | None, model: str | None) -> float: ...     # US dollars, 6 places
+    def require(self, models: Iterable[str | None], *, base_counts: bool) -> None: ...   # raises UnknownModel
 
-class Spending:                                                # implements ports.SpendingRecord
-    def add(self, kind: str, model: str | None, usage: Usage | None, *, visitor: str | None = None,
-            account: int | None = None) -> float: ...          # writes nothing when there is no usage
+class Spending:                                                # implements ports.SpendingRecord, SpendingFigures
+    def __init__(self, db: StateDB, pricing: Pricing, *, clock: Clock = SYSTEM_CLOCK) -> None: ...
+    def add(self, kind: str, model: str | None, usage: Usage | Mapping[str, Any] | None, *,
+            visitor: str | None = None, account: int | None = None) -> float: ...   # no row when there is no usage
     def spent_since(self, since: str) -> float: ...
     def briefings_today(self, *, visitor: str | None = None, account: int | None = None) -> int: ...
+    def totals(self, since: str) -> SpendingTotals: ...
+    def by_day(self, since: str) -> list[DaySpending]: ...
+    def by_account(self, since: str) -> list[AccountSpending]: ...
+
+class SpendingFigures(Protocol): ...   # totals, by_day, by_account
+@dataclass(frozen=True)
+class SpendingTotals: spent_usd: float; calls: int; briefings: int; visitors: int
+@dataclass(frozen=True)
+class DaySpending: day: str; spent_usd: float; calls: int; briefings: int
+@dataclass(frozen=True)
+class AccountSpending: account: int | None; public: bool; spent_usd: float; calls: int; visitors: int
 
 @dataclass(frozen=True)
 class Limits:
     per_visitor_daily: int; per_account_daily: int | None; daily_cap_usd: float; monthly_cap_usd: float
     @classmethod
-    def from_settings(cls, usage: Mapping[str, Any]) -> Limits: ...
+    def from_settings(cls, usage: Mapping[str, Any], *, section: str = "usage") -> Limits: ...
 
 class Caps:
     def __init__(self, spending: SpendingRecord, limits: Limits, messages: Messages, clock: Clock = SYSTEM_CLOCK) -> None: ...
@@ -245,67 +270,134 @@ class Caps:
 
 @dataclass(frozen=True)
 class Refusal: kind: Literal["visitor_limit", "account_limit", "daily_cap", "monthly_cap", "busy_visitor", "busy_site"]; message: str
+def busy_refusal(busy: Busy, messages: Messages) -> Refusal: ...
 
-class BriefingsInProgress:                                     # implements ports.InProgress
+class BriefingsInProgress:                                     # implements ports.InProgress; in memory, one process
     def __init__(self, per_key: int, total: int, estimate_usd: float) -> None: ...
+    @property
+    def running(self) -> dict[str, int]: ...
+    def start(self, key: str) -> Busy | None: ...
+    def finish(self, key: str) -> None: ...
+    def pending_usd(self, besides: int = 0) -> float: ...
 
 def cache_key(parts: Mapping[str, Any], *, length: int = 64) -> str: ...
 class SqliteAnswerCache:                                       # implements ports.AnswerCache
-    def get(self, key: str, max_hours: float) -> list[ReaderEvent] | None: ...
-    def put(self, key: str, events: list[ReaderEvent], max_hours: float) -> None: ...
+    def __init__(self, db: StateDB, *, clock: Clock = SYSTEM_CLOCK) -> None: ...
+    def get(self, key: str, max_hours: float) -> list[dict[str, Any]] | None: ...
+    def put(self, key: str, events: list[dict[str, Any]], max_hours: float) -> None: ...
 
-class Failures:
+class FailureLog(Protocol): ...        # note, recent
+class Failures:                                                # implements FailureLog
+    def __init__(self, db: StateDB, *, clock: Clock = SYSTEM_CLOCK) -> None: ...
     def note(self, kind: str, question: str | None, error: str) -> None: ...
-    def recent(self, limit: int = 20) -> list[dict[str, Any]]: ...
+    def recent(self, limit: int | None = 20, *, since: str | None = None) -> list[dict[str, Any]]: ...
+
+@dataclass(frozen=True)
+class SavedBriefing:
+    id: str; created_at: str; question: str; options: dict[str, Any]; events: list[dict[str, Any]]
+    extra: dict[str, Any] = {}; withdrawn_at: str | None = None; withdrawn_reason: str | None = None
+@dataclass(frozen=True)
+class BriefingListing: id: str; created_at: str; question: str; withdrawn_at: str | None; withdrawn_reason: str | None
+class SavedBriefings(Protocol): ...    # new_id, save, get, withdraw, withdrawn, recent
+class BriefingArchive:                                         # implements SavedBriefings
+    def __init__(self, db: StateDB, *, new_id: Callable[[], str], clock: Clock = SYSTEM_CLOCK) -> None: ...
+    def new_id(self) -> str: ...
+    def save(self, question: str, options: Mapping[str, Any], events: Sequence[Mapping[str, Any]], *,
+             id: str | None = None, extra: Mapping[str, Any] | None = None) -> SavedBriefing: ...
+    def get(self, id: str) -> SavedBriefing | None: ...
+    def withdraw(self, id: str, reason: str) -> bool: ...
+    def withdrawn(self) -> list[BriefingListing]: ...
+    def recent(self, limit: int = 50) -> list[BriefingListing]: ...
+def token_id(nbytes: int, *, random: Random = SYSTEM_RANDOM) -> str: ...                   # Countries, Councils
+def alphabet_id(alphabet: str, length: int, *, random: Random = SYSTEM_RANDOM) -> str: ... # MPs
+
+def migrations() -> tuple[Migration, ...]: ...   # wts_spending, wts_answer_cache, wts_briefings, wts_failures
 ```
 
 ## `wts_core.checks`
 
+**Built** (`src/wts_core/checks/`); this section is as built, and departs from the first sketch where the sites' code
+required it: quotations are also looked for in a source's title and heading, so `check_quotes` needs four fields of
+a source; the note-about-the-evidence pattern is a required argument, with both of today's forms exported; Where
+Countries Stand's curled quotes need `recheck(..., curled=True)`; the three ranking functions take what the
+sites' own arithmetic takes, so that results are identical; and `check_briefing` runs the checks in their one order.
+
 ```python
-class SourceText(Protocol):          # what the verifier needs of a site's source
-    n: int                           # its number, from 1
-    blocks: Sequence[str]            # its text, in passages
+class SourceText(Protocol):          # what verify() needs of a site's source
+    @property
+    def n(self) -> int: ...          # its number, from 1
+    @property
+    def blocks(self) -> Sequence[str]: ...
 
-@dataclass
-class Segment: text: str; sources: list[int]; cited: list[dict]; status: Status; loaded: list[dict]; misquotes: list[dict]
+class TitledSource(Protocol):        # what check_quotes() needs: the two above, a title and meta["heading"]
+    @property
+    def n(self) -> int: ...
+    @property
+    def blocks(self) -> Sequence[str]: ...
+    @property
+    def title(self) -> str: ...
+    @property
+    def meta(self) -> Mapping[str, Any]: ...
+
 type Status = Literal["cited", "connective", "unsupported", "invalid"]
-
+@dataclass
+class Segment:                       # only text is required: the lists start empty, status as "cited"
+    text: str; sources: list[int]; cited: list[dict]; status: Status; loaded: list[dict]; misquotes: list[dict]
+    def to_dict(self) -> dict[str, Any]: ...
 @dataclass
 class Verification:
     segments: list[Segment]; no_records: bool; citations_total: int; citations_invalid: int
     unsupported_chars: int; cited_chars: int; quotes_total: int = 0; quotes_unverified: int = 0
+    rules: int = RULES_VERSION
     @property
     def grounded_ratio(self) -> float: ...
-    def to_dict(self) -> Answer: ...                         # today's keys, exactly
+    def markdown(self) -> str: ...
+    def to_dict(self) -> Answer: ...                         # today's keys, exactly, then "rules"
+
+RULES_VERSION = 1
+COMMON_HONORIFICS: tuple[str, ...]
+EVIDENCE_NOTES_WIDE: re.Pattern[str]      # Where MPs Stand's and Where Countries Stand's form today
+EVIDENCE_NOTES_STRICT: re.Pattern[str]    # Where Councils Stand's form today
 
 class Verifier:
-    def __init__(self, *, no_records: str, honorifics: Sequence[str] = COMMON_HONORIFICS,
-                 evidence_notes: Sequence[str] = ()) -> None: ...     # a site's extra patterns
+    rules_version: int
+    def __init__(self, *, no_records: str, evidence_notes: re.Pattern[str],
+                 honorifics: Sequence[str] = COMMON_HONORIFICS) -> None: ...
     def verify(self, blocks: Sequence[Mapping[str, Any]], sources: Sequence[SourceText]) -> Verification: ...
-    def check_quotes(self, report: Verification, sources: Sequence[SourceText]) -> int: ...
+    def check_quotes(self, report: Verification, sources: Sequence[TitledSource]) -> int: ...
     def drop_preambles(self, segments: list[Segment]) -> int: ...
-    rules_version: int                                               # stamped on every answer as `rules`
-    def recheck(self, answer: Answer | None) -> Answer | None: ...   # only answers written under older rules;
-                                                                     # never newly flags
+    def recheck(self, answer: Answer | None, *, curled: bool = False) -> Answer | None: ...
+        # only answers written under older rules (or with no stamp); never newly flags
 
-COMMON_HONORIFICS: tuple[str, ...]
 class LoadedWords:
     def __init__(self, pattern: re.Pattern[str]) -> None: ...
     def flag(self, segments: list[Segment]) -> int: ...
     def still_loaded(self, answer: Answer | None) -> Answer | None: ...
-COMMON_LOADED_WORDS: str             # the list all three sites share, for a site to extend
+COMMON_LOADED_WORDS: str             # the alternation all three sites share, for a site to extend
 
 def to_british(text: str) -> str: ...
-def britishise_segments(segments: list[Segment]) -> None: ...
+def britishise_segments(segments: Sequence[Segment]) -> None: ...
 def outside_quotes(segments: Sequence[Segment]) -> list[tuple[int, int, str]]: ...
-def curl_answer(answer: Answer) -> Answer: ...               # Where Countries Stand's typography
+def curl_quotes(text: str) -> str: ...                       # Where Countries Stand's typography
+def curl_answer(answer: Answer | None) -> Answer | None: ...
+def curl_event(event: ReaderEvent) -> ReaderEvent: ...
 def curl_events(events: list[ReaderEvent]) -> list[ReaderEvent]: ...
 
+# every check in the one order the sites run them; the answer as it is sent and saved
+def check_briefing(blocks: Sequence[Mapping[str, Any]], sources: Sequence[TitledSource], verifier: Verifier,
+                   loaded_words: LoadedWords, *, curled: bool = False) -> Answer: ...
+
 # wts_core.checks.balance: the three functions every site's ranking shares
-def round_robin[T](items: Sequence[T], group_of: Callable[[T], str], limit: int, caps: Mapping[str, int] | None = None) -> list[T]: ...
-def blend(word_score: float, meaning_score: float | None, weight: float) -> float: ...
-def recency_factor(age_days: float, half_life_days: float, floor: float) -> float: ...
+def blend(word_scores: Sequence[float | None], meaning_scores: Sequence[float | None], *, word_weight: float,
+          meaning_floor: float, meaning_ceiling: float) -> list[float]: ...
+def recency_factor(d: date, today: date, *, recency: float, floor: float, min_half_life_years: float) -> float: ...
+def round_robin[T](pool: Sequence[T], limit: int, *, group_of: Callable[[T], str], key_of: Callable[[T], str],
+                   score_of: Callable[[T], float], caps: Sequence[tuple[Callable[[T], str], int]] = (),
+                   seeds: Sequence[T] = ()) -> list[T]: ...
 ```
+
+`rules_version` covers the package's rules. A site that later changes its own pattern or honorifics in a way that
+should clear old flags raises the version it passes (an argument to add when the first site needs it).
 
 ## `wts_core.briefing`
 
@@ -468,26 +560,46 @@ def replay(fixtures: Iterable[Fixture], verifier: Verifier, loaded: LoadedWords)
 
 ## `wts_core.ops`
 
+**Built** (`src/wts_core/ops/`, with `adapters/b2.py` and `adapters/duckdb.py`, listed under the adapters below);
+this section is as built, and departs from the first sketch where the sites' code required it: a `BackupSpec` is
+given by keyword and is passed to each function (it is not a field of `Site`), with no default for how many to keep
+or for the tables a backup must have; `wal` says whether a kept copy carries a write-ahead log; a refusal says why
+in one word; and the alerts' wording is the site's.
+
 ```python
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class BackupSpec:
     prefix: str                                   # "wcs-state-"
     stamp: str = "%Y-%m-%d"                       # Landlords: "%Y%m%d-%H%M%S"
     format: Literal["gzip", "tar"] = "gzip"       # MPs: "tar"
-    member: str = "state.db"                      # the database's name inside a tar
+    member: str = "state.db"                      # the database's name inside a tar; MPs: "state.sqlite"
     extra_files: tuple[str, ...] = ()             # MPs: ("settings.local.toml",)
-    keep: int = 14
-    required_tables: tuple[str, ...] = ()
+    keep: int
+    required_tables: tuple[str, ...]
+    wal: bool = False                             # MPs: True
+    @property
+    def suffix(self) -> str: ...                  # ".sqlite.gz" or ".tar.gz"
+    def archives(self, folder: Path) -> list[Path]: ...
 
 def make_backup(state_db: Path, dest: Path, spec: BackupSpec, *, keep: int | None = None,
                 clock: Clock = SYSTEM_CLOCK) -> Path | None: ...          # None: nothing to back up yet
 def restore_backup(archive: Path, state_db: Path, spec: BackupSpec) -> Path | None: ...   # the replaced file's copy
-class RestoreRefused(RuntimeError): ...
+class RestoreRefused(RuntimeError):
+    def __init__(self, message: str, *, why: str) -> None: ...
+    why: str      # "kept-copy", "unreadable", "foreign", "not-a-database", "damaged" or "swap-failed"
 
-def send_offsite(archive: Path, store: OffsiteStore | None, spec: BackupSpec, *, keep: int = 60) -> dict[str, Any]: ...
-def check_offsite(store: OffsiteStore | None, spec: BackupSpec) -> dict[str, Any]: ...
+@dataclass(frozen=True)
+class Alert: level: Literal["error", "warning"]; text: str
+@dataclass(frozen=True)
+class AlertWording:                               # every field required
+    no_backups: str; backup_stale: str; server_only: str; no_offsite_yet: str; offsite_failed: str; offsite_stale: str
+
+def send_offsite(archive: Path, store: OffsiteStore | None, spec: BackupSpec, *, keep: int = 60,
+                 clock: Clock = SYSTEM_CLOCK) -> dict[str, Any]: ...
+def check_offsite(store: OffsiteStore | None, spec: BackupSpec, *, how_to_set_up: str | None = None) -> dict[str, Any]: ...
 def backup_alerts(folder: Path, spec: BackupSpec, *, offsite_set_up: bool, wording: AlertWording,
                   stale_hours: int = 50, clock: Clock = SYSTEM_CLOCK) -> list[Alert]: ...
+OffsiteError, OffsiteUnavailable                  # from wts_core.ports, exported here too
 ```
 
 ## `wts_core.adapters`
@@ -500,9 +612,14 @@ adapters.anthropic.api_key(site: Site, settings: Settings, env: Mapping[str, str
 adapters.fastembed.FastEmbedEmbedder(model: str, cache_dir: Path, threads: int | None = None, batch_size: int = 64)
 adapters.hashing.HashingEmbedder(dim: int = 256)             # needs numpy only; tests and sample data
 adapters.lancedb.LanceIndex(path: Path, embedder: Embedder, *, schema, scalar_columns: Sequence[str])
-adapters.b2.B2Store(bucket: str, key_id: str, application_key: str, client=None)
-adapters.b2.configured(site: Site, env: Mapping[str, str]) -> B2Store | None
-adapters.duckdb.SharedConnection, adapters.duckdb.shared(con=None)
+# adapters.b2 and adapters.duckdb are as built
+adapters.b2.B2Store(bucket: str, key_id: str, application_key: str, client: httpx.Client | None = None, *,
+                    env_prefix: str | None = None)             # implements ports.OffsiteStore
+adapters.b2.configured(site: Site, env: Mapping[str, str] | None = None, *,
+                       client: httpx.Client | None = None) -> B2Store | None
+adapters.b2.how_to_set_up(site: Site) -> str
+adapters.duckdb.SharedConnection(con: duckdb.DuckDBPyConnection | None = None)   # and .cursor_for_thread()
+adapters.duckdb.shared(con: duckdb.DuckDBPyConnection | SharedConnection | None = None) -> SharedConnection
 def model_client(settings: Settings, site: Site, env: Mapping[str, str]) -> ModelClient   # reads [answer] provider
 ```
 

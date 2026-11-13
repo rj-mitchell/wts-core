@@ -1,0 +1,37 @@
+# The accessibility check every site runs: its own scripts/a11y.mjs (axe, WCAG 2.2 AA, light and dark, desktop and
+# phone) against an address the site's job has already started. Each site starts itself in its own way (a Docker
+# image on sample data, an empty data folder, real files), which is why this is a step and not a whole workflow.
+#   - uses: rj-mitchell/wts-core/.github/actions/a11y@v0.1.0
+#     with: { url: "http://localhost:8000" }
+name: Accessibility check
+description: Run the site's scripts/a11y.mjs with Playwright and axe at the family's versions.
+inputs:
+  url:
+    description: Where the site is being served
+    required: true
+  script:
+    description: The site's check script
+    default: scripts/a11y.mjs
+  node:
+    description: Node version
+    default: "22"
+  playwright:
+    description: Playwright version
+    default: "1.63.0"
+  axe-core:
+    description: axe-core version
+    default: "4.14.0"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node }}
+    - shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/a11y" && cp "${{ inputs.script }}" "$RUNNER_TEMP/a11y/a11y.mjs"
+        cd "$RUNNER_TEMP/a11y"
+        npm init -y > /dev/null
+        npm install --no-audit --no-fund "playwright@${{ inputs.playwright }}" "axe-core@${{ inputs.axe-core }}"
+        npx playwright install --with-deps chromium
+        node a11y.mjs "${{ inputs.url }}"
