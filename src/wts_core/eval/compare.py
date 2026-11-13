@@ -8,7 +8,9 @@ the file is caught by none of that site's older patterns (``*-plans-*``, ``*-sou
 readable by the site's own code.
 
 ``compare`` sets two runs side by side, figure by figure and question by question, and says of each which way it
-went. "Better" and "worse" are always the second run against the first.
+went. "Better" and "worse" are always the second run against the first. A question that ended differently in
+the two runs (a briefing in one, an error or "no records" in the other) is compared on how it ended and nothing
+else.
 
 ``check_thresholds`` holds a run to the site's thresholds: each is ``min_`` or ``max_`` and the name of one of
 the summary's figures (``min_grounded_ratio``, ``max_invalid_citations``, ``max_unsupported_rate``,
@@ -183,8 +185,8 @@ class Comparison:
                  f"questions. The second, {b}, was made on {_day(self.b)} and asked "
                  f"{_number(self.b.summary.get('questions', 0))}. \"Better\" and \"worse\" are the second against "
                  "the first.", "", "## Overall", "", f"| Figure | {a} | {b} | |", "|---|---|---|---|"]
-        lines += [f"| {_LABELS.get(c.figure, c.figure)} | {_number(c.a)} | {_number(c.b)} | "
-                  f"{'' if c.verdict == 'unchanged' else c.verdict} |" for c in self.figures]
+        lines += [f"| {_LABELS.get(c.figure, c.figure)} | {_number(c.a)} | {_number(c.b)} |"
+                  + ("" if c.verdict == "unchanged" else f" {c.verdict}") + " |" for c in self.figures]
         lines += ["", "## Question by question", "",
                   f"Of {len(self.questions)} questions asked in both runs: {len(self.better)} better, "
                   f"{len(self.worse)} worse, {len(self.unchanged)} neither."]
@@ -216,11 +218,13 @@ def compare(a: Run, b: Run, *, same_within: float = 0.0) -> Comparison:
         rb = second.get(qid)
         if rb is None:
             continue
-        changes: list[Change] = []
         if ra.outcome != rb.outcome:
             went: Verdict = ("better" if rb.outcome == "completed" and ra.outcome == "error"
                              else "worse" if rb.outcome == "error" else "changed")
-            changes.append(Change("outcome", ra.outcome, rb.outcome, went))
+            # a briefing's time and cost are not set against an error's or a "no records" answer's
+            questions[qid] = (Change("outcome", ra.outcome, rb.outcome, went),)
+            continue
+        changes: list[Change] = []
         for name, label, better in _BY_QUESTION:
             x, y = getattr(ra, name), getattr(rb, name)
             if x is not None or y is not None:
