@@ -35,7 +35,9 @@ __all__ = [
     "Limiter",
     "ModelClient",
     "ModelRequest",
+    "OffsiteError",
     "OffsiteStore",
+    "OffsiteUnavailable",
     "Price",
     "Pricing",
     "Random",
@@ -280,8 +282,18 @@ class StoredFile:
     size: int = 0
 
 
+class OffsiteError(RuntimeError):
+    """An off-site copy could not be stored, listed or deleted. What every ``OffsiteStore`` raises, with the reason
+    in words for the owner (never the key)."""
+
+
+class OffsiteUnavailable(OffsiteError):
+    """The store could not be reached, or did not answer as it should: not a refusal of one request. A store that
+    refuses to delete an old copy leaves the new one stored all the same; one that cannot be reached does not."""
+
+
 class OffsiteStore(Protocol):
-    """Somewhere away from the server that keeps copies of backups."""
+    """Somewhere away from the server that keeps copies of backups. It raises ``OffsiteError``."""
 
     name: str  # the bucket, for messages
 
@@ -292,6 +304,10 @@ class OffsiteStore(Protocol):
         ...
 
     def delete(self, file: StoredFile) -> None: ...
+
+    def close(self) -> None:
+        """Give up any connection held. Called after each use; the next use may start another."""
+        ...
 
 
 # ---- limits ----------------------------------------------------------------------------------------------------

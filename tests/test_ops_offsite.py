@@ -196,27 +196,6 @@ def test_an_outcome_that_cannot_be_written_down_is_not_an_error(tmp_path):
     assert out["ok"] and out["stored"] == 1
 
 
-def test_a_store_with_nothing_to_close_is_used_as_it_is(tmp_path):
-    class Bare:
-        name = "elsewhere"
-
-        def __init__(self) -> None:
-            self.files: list[str] = []
-
-        def put(self, path: Path) -> StoredFile:
-            self.files.append(path.name)
-            return StoredFile(path.name)
-
-        def list(self, prefix: str) -> list[StoredFile]:
-            return [StoredFile(n) for n in self.files]
-
-        def delete(self, file: StoredFile) -> None:
-            self.files.remove(file.name)
-
-    site, store = SITES[3], Bare()
-    out = send_offsite(archive(tmp_path, site, "2026-10-12"), store, site.spec, clock=FixedClock(NOW))
-    assert out["bucket"] == "elsewhere" and check_offsite(store, site.spec)["backups"] == 1
-
 
 # ---- alerts ------------------------------------------------------------------------------------------------------
 

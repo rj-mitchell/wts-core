@@ -14,7 +14,7 @@ B2. Nothing here ever prints the key.
 Two things differ from the sites' class, and they change nothing a site does. The key is offered to Backblaze when
 the store is first used, not when it is made, so that a store can be made from settings before anything is sent and
 a refused key is recorded as a failed copy; ``close()`` ends that session, and the next use starts another. And
-httpx's own errors (no network, an answer that is no answer) are raised as ``ops.OffsiteUnavailable`` with httpx's
+httpx's own errors (no network, an answer that is no answer) are raised as ``ports.OffsiteUnavailable`` with httpx's
 words, so that ``wts_core.ops`` needn't know httpx to record them.
 """
 
@@ -29,8 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from wts_core.ops.offsite import OffsiteError, OffsiteUnavailable
-from wts_core.ports import StoredFile
+from wts_core.ports import OffsiteError, OffsiteUnavailable, StoredFile
 from wts_core.settings import Site
 
 if TYPE_CHECKING:

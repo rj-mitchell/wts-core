@@ -26,6 +26,7 @@ ai = [
 
 [dependency-groups]
 dev = [
+    "duckdb>=2.0,<3",
     "fastapi>=0.143",
     "httpx>=0.27",
     "mypy>=1.13",

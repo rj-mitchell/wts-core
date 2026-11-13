@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from wts_core.ops.backup import BackupSpec
-from wts_core.ports import SYSTEM_CLOCK, Clock, OffsiteStore, StoredFile
+from wts_core.ports import SYSTEM_CLOCK, Clock, OffsiteError, OffsiteStore, OffsiteUnavailable, StoredFile
 
 __all__ = ["Alert", "AlertWording", "OffsiteError", "OffsiteUnavailable", "backup_alerts", "check_offsite",
            "send_offsite"]
@@ -31,16 +31,6 @@ __all__ = ["Alert", "AlertWording", "OffsiteError", "OffsiteUnavailable", "backu
 _log = logging.getLogger(__name__)
 
 _STATUS_FILE = "offsite.json"
-
-
-class OffsiteError(RuntimeError):
-    """An off-site copy could not be stored, listed or deleted. What every ``ports.OffsiteStore`` raises, with the
-    reason in words for the owner (never the key)."""
-
-
-class OffsiteUnavailable(OffsiteError):
-    """The store could not be reached, or did not answer as it should: not a refusal of one request. A store that
-    refuses to delete an old copy leaves the new one stored all the same; one that cannot be reached does not."""
 
 
 @dataclass(frozen=True)
@@ -83,7 +73,7 @@ def send_offsite(archive: Path, store: OffsiteStore | None, spec: BackupSpec, *,
                 pruned = 0
             stored = len(store.list(spec.prefix))
         finally:
-            _close(store)
+            store.close()
     except OffsiteError as exc:
         _write_status(archive.parent, {"ok": False, "when": when, "error": str(exc)[:300]})
         raise OffsiteError(str(exc)) from exc
@@ -103,7 +93,7 @@ def check_offsite(store: OffsiteStore | None, spec: BackupSpec, *, how_to_set_up
     try:
         files = _oldest_first(store, spec.prefix)
     finally:
-        _close(store)
+        store.close()
     return {"ok": True, "bucket": store.name, "backups": len(files), "newest": files[-1].name if files else None}
 
 
@@ -153,11 +143,6 @@ def _prune(store: OffsiteStore, prefix: str, keep: int) -> int:
     return len(old)
 
 
-def _close(store: OffsiteStore) -> None:
-    """Let a store that holds a connection give it up (``adapters.b2.B2Store.close``); the interface asks for none."""
-    close = getattr(store, "close", None)
-    if callable(close):
-        close()
 
 
 def _write_status(dest: Path, status: dict[str, Any]) -> None:
