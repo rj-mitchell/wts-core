@@ -69,4 +69,5 @@ both rows (row 16 as #31 words it, and row 17).
 After the owner's review of the design: phase 3, the package, starting with the proof that a site can install a
 release's wheel in a slim image with no `git` (ADR 0006), then the modules in the order of ARCHITECTURE.md's
 section 4, with the example site growing beside them. Before that, worth doing if there is time: a second reviewer
-with fresh context on the design, and on each site's ports (done for Where MPs Stand).
+with fresh context on the design, and on each site's ports. It was done for Where MPs Stand's ports and found a
+real fault (`NOTES/a-second-pass-must-be-as-strict-as-the-first.md`), so it is worth the cost for the others too.

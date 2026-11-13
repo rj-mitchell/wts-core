@@ -98,7 +98,7 @@ configuration, worth ten minutes before phase 4.
 | Part | From | Each site's own | Difference |
 |---|---|---|---|
 | The citation verifier | Where MPs Stand's copy, now the fullest (it has everything Where Countries Stand's has, and the lead-in handling on recheck) | honorifics whose full stop ends no sentence (Councils adds `Cllr`, `Rev`, `Revd`, `Hon`); the "no records" opening words; the site's `Source` type, through a two-field interface (`n`, `blocks`) | None after phase 1 |
-| Recheck of saved and cached briefings | the same, with the phase 1 fix (never clears a flag for shortness alone) | | **R, stricter, phase 1:** a short flagged sentence stays flagged when a briefing is shown again |
+| Recheck of saved and cached briefings | the same, with the phase 1 fixes (never clears a flag for shortness, nor takes a whole line or a closed sentence for a lead-in), and one thing more: see below | | **R, stricter, phase 1:** a flag that used to clear when a briefing was shown again can now stay |
 | The "note about the evidence" rule | see below | | see below |
 | Quotation check | identical in all three | | None |
 | Loaded words | the mechanism, identical in all three | each site's whole word list, as today (Countries' "regime", "the West"…; Councils' 22 more) | None |
@@ -113,6 +113,16 @@ narrow form (negated, and about records, votes, lists or data), a pattern each s
 is flagged on Where MPs Stand and Where Countries Stand (R, stricter) and removes some false flags on Where Councils
 Stand (R).** It is therefore made as its own change at each site's adoption, with replay fixtures and the site's
 evaluation run before and after, and is not folded silently into the move.
+
+**Judging a briefing again, done properly.** A saved briefing keeps its segments but not the blocks the model wrote,
+so judging it again can never repeat exactly what the verifier did the first time. Phase 1 made the recheck strict
+enough that it clears a flag in 17 of 150,000 fuzzed briefings (it was 8,163). The package removes the question:
+every answer is stamped with the version of the checking rules that wrote it (a new, optional key, `rules`; the
+event format's first version allows unknown keys), and `Verifier.recheck` leaves alone any answer written under the
+current rules. Only a briefing saved under older rules is judged again, which is what the recheck was for. A
+property test in the package's CI asserts that rechecking anything today's verifier has just written changes
+nothing. Until a site adopts the package, Where MPs Stand does not recheck cached answers at all (as on its `main`),
+and the other two do, as they did.
 
 - **Parity:** every test the three sites have for these modules (the study lists 60 or so, and which cases only
   one site covers) runs against the package with each site's inputs; golden reports for a set of recorded blocks

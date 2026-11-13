@@ -33,8 +33,8 @@ the event format ([0003](adr/0003-event-format.md)), how a site plugs in its own
 
 | What | Where | What has been done |
 |---|---|---|
-| **A check weakens today.** When a saved or cached briefing is shown again, a flagged sentence of 60 characters or fewer loses its flag | all three AI sites | Fixed in each site's phase 1 pull request, with a test |
-| **Where MPs Stand's `restore` can replace the live database with an empty one,** and is likely to fail part-way in the container | MPs | Where Countries Stand's safer restore is ported in phase 1 |
+| **A check weakens today.** When a saved or cached briefing is shown again, its flags are judged again without the block they were written in, and a real flag can be lost: a short sentence, a line above a lead-in, a sentence ending in a question mark. The study found the first; an independent review of the ports found the rest | all three AI sites | Fixed in each site's phase 1 pull request, with tests: in a fuzz of 150,000 briefings the recheck cleared a flag in 8,163 before and 17 after. The package closes the rest by design (MIGRATION 1.4) |
+| **Where MPs Stand's `restore` can replace the live database with an empty one,** and is likely to fail part-way in the container. And on both sites that have a restore, a second one overwrote the only copy of the database the first replaced | MPs, Countries | Where Countries Stand's safer restore is ported to MPs in phase 1, and both now refuse to overwrite the kept copy |
 | **Where Councils Stand's "Sources only" calls the model with no check of the spending caps;** its follow-up history is unbounded and saved with the briefing | Councils | Fixed in phase 1 |
 | **A model refusal is saved as an empty briefing** with a perfect score | Countries, Councils | MPs' handling ported in phase 1 |
 | **DuckDB 2 would have broken live requests on Where MPs Stand** after the library upgrade (one test caught one path) | MPs | Fixed in the upgrade pull request, in the shared connection wrapper |

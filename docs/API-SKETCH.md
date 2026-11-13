@@ -284,7 +284,9 @@ class Verifier:
     def verify(self, blocks: Sequence[Mapping[str, Any]], sources: Sequence[SourceText]) -> Verification: ...
     def check_quotes(self, report: Verification, sources: Sequence[SourceText]) -> int: ...
     def drop_preambles(self, segments: list[Segment]) -> int: ...
-    def recheck(self, answer: Answer | None) -> Answer | None: ...   # never newly flags; never clears for shortness
+    rules_version: int                                               # stamped on every answer as `rules`
+    def recheck(self, answer: Answer | None) -> Answer | None: ...   # only answers written under older rules;
+                                                                     # never newly flags
 
 COMMON_HONORIFICS: tuple[str, ...]
 class LoadedWords:
