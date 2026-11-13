@@ -156,6 +156,10 @@ class StateDB:
         with self.connect() as con:
             con.execute("INSERT OR IGNORE INTO wts_kv (key, value) VALUES (?, ?)", (key, value))
 
+    def delete(self, key: str) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM wts_kv WHERE key = ?", (key,))
+
     def delete_like(self, pattern: str, *, keep: str | None = None) -> None:
         with self.connect() as con:
             if keep is None:

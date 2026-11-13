@@ -76,6 +76,6 @@ def visitor_code(kv: KeyValue, address: str | None, *, day: str | None = None, f
         kv.set_if_absent(name, random.token_hex(16))
         kv.delete_like(f"{SALT}:%", keep=name)
         if forget_undated_salt:
-            kv.delete_like(SALT)
+            kv.delete(SALT)
         salt = kv.get(name)
     return hashlib.sha256(f"{salt}|{network_of(address)}".encode()).hexdigest()[:24]

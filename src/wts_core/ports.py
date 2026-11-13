@@ -24,6 +24,8 @@ __all__ = [
     "SYSTEM_CLOCK",
     "SYSTEM_RANDOM",
     "AnswerCache",
+    "BriefingLog",
+    "BriefingRecord",
     "Busy",
     "Clock",
     "Document",
@@ -38,6 +40,7 @@ __all__ = [
     "OffsiteError",
     "OffsiteStore",
     "OffsiteUnavailable",
+    "Outcome",
     "Price",
     "Pricing",
     "Random",
@@ -342,20 +345,99 @@ class KeyValue(Protocol):
 
     def set_if_absent(self, key: str, value: str) -> None: ...
 
+    def delete(self, key: str) -> None: ...
+
     def delete_like(self, pattern: str, *, keep: str | None = None) -> None:
         """Delete keys matching an SQL LIKE pattern, except ``keep``."""
         ...
 
 
 class SpendingRecord(Protocol):
-    def add(self, kind: str, model: str | None, usage: Usage | None, *, visitor: str | None = None,
-            account: int | None = None) -> float:
-        """Record one model call and return its cost. Nothing is written when there is no usage."""
+    def add(self, kind: str, model: str | None, usage: Usage | Mapping[str, Any] | None, *,
+            visitor: str | None = None, account: int | None = None) -> float:
+        """Record one model call and return its cost. ``usage`` may be a ``Usage`` or the token counts in either of
+        the forms the sites store today. Nothing is written when there is no usage."""
         ...
 
     def spent_since(self, since: str) -> float: ...
 
     def briefings_today(self, *, visitor: str | None = None, account: int | None = None) -> int: ...
+
+
+# ---- the record of each briefing (ADR 0012) ---------------------------------------------------------------------
+
+type Outcome = Literal["completed", "cached", "no_records", "sources_only", "paused_cap", "paused_limit", "busy",
+                       "left", "error"]
+
+
+@dataclass
+class BriefingRecord:
+    """How one briefing went: written once, by the briefing desk, however it ended. Nothing in it identifies the
+    reader: no visitor code, no address, nothing from the request's headers. Times are milliseconds from the
+    question's arrival; a stage that was not reached is None."""
+
+    id: str
+    at: str  # ISO 8601, UTC, to the second
+    outcome: Outcome
+    kind: Literal["reader", "check", "eval"] = "reader"
+    # what was asked
+    question: str = ""
+    follow_up: bool = False
+    mode: str = "summary"
+    filters_set: tuple[str, ...] = ()  # which filters the reader set, never their values
+    # the configuration it ran with
+    config_id: str = ""
+    model: str | None = None
+    parse_model: str | None = None
+    instructions: str = ""
+    package_version: str = ""
+    site_version: str = ""
+    experiment: str | None = None
+    arm: str | None = None
+    # what went in and what came out
+    sources: int = 0
+    spread: Mapping[str, int] | None = None  # sources per group (party, region, body)
+    input_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    stop_reason: str | None = None
+    # what the checks found
+    citations_total: int | None = None
+    citations_invalid: int | None = None
+    grounded_ratio: float | None = None
+    unsupported: int | None = None
+    quotes_unverified: int | None = None
+    loaded_words: int | None = None
+    # how long each stage took
+    t_parse: int | None = None
+    t_search: int | None = None
+    t_rank: int | None = None
+    t_sources_sent: int | None = None
+    t_first_token: int | None = None
+    t_written: int | None = None
+    t_checked: int | None = None
+    t_total: int | None = None
+    # how it ended, beyond the outcome
+    left_at: str | None = None  # the stage the reader left at
+    error_type: str | None = None  # the exception's class name, never its message
+    # what happened next, filled in later by the routes that already receive these signals
+    briefing_id: str | None = None
+    useful: bool | None = None
+    reported: bool = False
+    corrected: bool = False
+    followed_up: bool = False
+
+
+class BriefingLog(Protocol):
+    def write(self, record: BriefingRecord) -> None: ...
+
+    def mark(self, briefing_id: str, *, useful: bool | None = None, reported: bool = False, corrected: bool = False,
+             followed_up: bool = False) -> None:
+        """Note what a reader did after a briefing, on that briefing's record. A later question is never linked to
+        an earlier one: ``followed_up`` is a yes or no on the earlier briefing."""
+        ...
 
 
 class AnswerCache(Protocol):
