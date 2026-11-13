@@ -14,8 +14,8 @@ How the figures are worked out, kept to throughout:
   stages ran at once. The time to serve an answer from the cache is given on its own (``cached_total``).
 - **A rate** is a count over what it could have been counted in (``Rate``: ``count``, ``of`` and ``rate``, which
   is None when there was nothing to count in). Check failures are over the briefings whose checks ran; "not
-  useful" over the briefings readers rated; what readers did next over saved briefings; the rest over all
-  readers' questions.
+  useful" over the briefings readers rated; what readers did next over saved briefings (each once: not its
+  replays from the cache); the rest over all readers' questions.
 - **Cost a day** is the period's cost over its length in days, so a quiet day counts.
 - **The earlier period** is the ``compare_weeks`` weeks ending where the period begins. Its counts and costs are
   for the whole of those weeks: ``Stats.scale`` is what to multiply them by to compare like with like.
@@ -393,7 +393,7 @@ def _figures(rows: Sequence[BriefingRecord], start: datetime, end: datetime, pri
     written = [r for r in readers if r.outcome == "completed"]
     checked = [r for r in readers if _checked(r)]
     rated = [r for r in readers if r.useful is not None]
-    saved = [r for r in readers if r.briefing_id]
+    saved = [r for r in fresh if r.briefing_id]  # each saved briefing once: not its replays from the cache
     days = (end - start).total_seconds() / 86400
     cost = round(sum(r.cost_usd for r in readers), 6)
     by_day: dict[str, float] = {}

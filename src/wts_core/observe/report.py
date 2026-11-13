@@ -69,8 +69,11 @@ def _rate(rate: Rate) -> str:
     return "none to count" if rate.rate is None else f"{_percent(rate.rate)} ({rate.count} of {rate.of})"
 
 
-def _usd(usd: float | None, places: int = 2) -> str:
-    return "none" if usd is None else f"${usd:.{places}f}"
+def _usd(usd: float | None, places: int | None = None) -> str:
+    """Dollars, as the AI service prices them: to the cent, or to a hundredth of a cent for sums under a dollar."""
+    if usd is None:
+        return "none"
+    return f"${usd:.{(2 if abs(usd) >= 1 else 4) if places is None else places}f}"
 
 
 def _number(n: float) -> str:

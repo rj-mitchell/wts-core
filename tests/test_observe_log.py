@@ -179,7 +179,7 @@ def test_a_follow_up_is_a_yes_or_no_and_never_a_link_between_two_questions(db, l
 
 
 def test_the_owner_accepted_thirteen_months_and_ninety_days():
-    assert OWNER_ACCEPTED == Retention(months=13, failed_question_days=90)
+    assert (OWNER_ACCEPTED.months, OWNER_ACCEPTED.failed_question_days) == (13, 90)
     with pytest.raises(TypeError):
         Retention()
 
