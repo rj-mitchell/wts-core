@@ -9,28 +9,40 @@ Last updated: 13 November 2026, 04:30 UTC (session 1).
 | Phase | State | Evidence |
 |---|---|---|
 | 0. Prerequisites | Done | [`PHASE-0.md`](PHASE-0.md) |
-| 1. Converge the copies | Under way | See "Pull requests" below. The verifier fix is committed in all three AI sites; one worker per site is porting the rest |
-| 1, the library upgrade | Pull request open; **needs an evaluation run before merging** | rj-mitchell/wherempsstand#43 |
-| 1b. "Why use this rather than a chatbot?" | Under way: one worker per repository, stopped twice by usage limits, to be resumed after the ports | worktrees `/home/user/wt/{charity,mps,councils,countries}-1b` |
+| 1. Converge the copies | **Done: five pull requests, all green**, and the charity repository's (drift list, baseline, ENGINE.md) | below; the drift report before and after is in [`study/`](study/) |
+| 1, the library upgrade | Pull request open and green; **needs an evaluation run before merging** | rj-mitchell/wherempsstand#43 |
+| 1b. "Why use this rather than a chatbot?" | **Done: four pull requests** (the hub and three AI sites); screenshots in the charity repository's | below |
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
 | 3 to 7 | Not started. Phase 3 waits for the owner's review of the design | |
 
-## Pull requests
+## Pull requests (17, none merged)
 
-| Repository | Step | Branch | Pull request | State |
-|---|---|---|---|---|
-| wts-core | 0 and 2: the design | `claude/gallant-cerf-xxy2ge` | (this one) | for review |
-| wherempsstand | 1: library versions | `claude/wts-1-library-versions` | #43 | open; 523 tests pass locally; not to merge before an evaluation run |
-| wherempsstand | 1c | `claude/wts-1c-toolchain` | #42 | green |
-| wherecountriesstand | 1c | `claude/wts-1c-toolchain` | #30 | green |
-| wherecouncilsstand | 1c | `claude/wts-1c-toolchain` | #48 | green |
-| wherelandlordsstand | 1c | `claude/wts-1c-toolchain` | #16 | green |
-| wherelivesstand | 1c | `claude/wts-1c-toolchain` | #21 | green |
-| wheretheystand-charity | 1c (and `family/TOOLCHAIN.md`) | `claude/wts-1c-toolchain` | #26 | green |
-| the four sites | 1: ports | `claude/gallant-cerf-xxy2ge` | not opened yet | workers running |
-| three AI sites and the hub | 1b | `claude/wts-1b-why-not-a-chatbot` | not opened yet | workers paused |
-| wheretheystand-charity | 1: drift manifest, baseline, ENGINE.md | to do | | after the ports |
+| Repository | Step | Branch | Pull request |
+|---|---|---|---|
+| wts-core | 0 and 2: the design | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wts-core#1 |
+| wherempsstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherempsstand#44 |
+| wherecountriesstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherecountriesstand#31 |
+| wherecouncilsstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherecouncilsstand#49 |
+| wherelandlordsstand | 1: ports | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wherelandlordsstand#17 |
+| wheretheystand-charity | 1: drift list, baseline, ENGINE.md | `claude/gallant-cerf-xxy2ge` | rj-mitchell/wheretheystand-charity#28 |
+| wherempsstand | 1: library versions | `claude/wts-1-library-versions` | rj-mitchell/wherempsstand#43 (not before an evaluation run) |
+| wheretheystand-charity | 1b: the hub, the glossary's wording, all screenshots | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wheretheystand-charity#27 (merging publishes the hub) |
+| wherempsstand | 1b | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wherempsstand#45 |
+| wherecountriesstand | 1b | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wherecountriesstand#32 |
+| wherecouncilsstand | 1b | `claude/wts-1b-why-not-a-chatbot` | rj-mitchell/wherecouncilsstand#50 |
+| wherempsstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherempsstand#42 |
+| wherecountriesstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherecountriesstand#30 |
+| wherecouncilsstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherecouncilsstand#48 |
+| wherelandlordsstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherelandlordsstand#16 |
+| wherelivesstand | 1c | `claude/wts-1c-toolchain` | rj-mitchell/wherelivesstand#21 |
+| wheretheystand-charity | 1c (and `family/TOOLCHAIN.md`) | `claude/wts-1c-toolchain` | rj-mitchell/wheretheystand-charity#26 |
+
+**A suggested order for merging:** the six toolchain pull requests (independent of everything); the four ports;
+the four "why" pull requests; then the charity repository's drift pull request (#28, after the ports, so its
+baseline matches `main`); the design (#1) whenever it has been reviewed; Where MPs Stand's library versions (#43)
+only after an evaluation run. In each site the three or four pull requests touch different files, with one
+exception to watch: in Where MPs Stand, #42 and #43 both touch what CI installs, so merge #42 first.
 
 ## What could not be done, and why
 
@@ -52,6 +64,7 @@ Last updated: 13 November 2026, 04:30 UTC (session 1).
 
 ## Next step
 
-Finish and open the ports' pull requests; finish 1b; then the charity repository's phase 1 pull request (the drift
-manifest with the right-of-reply modules, the new baseline, ENGINE.md corrected in the five places the study
-found). After the owner's review: phase 3.
+After the owner's review of the design: phase 3, the package, starting with the proof that a site can install a
+release's wheel in a slim image with no `git` (ADR 0006), then the modules in the order of ARCHITECTURE.md's
+section 4, with the example site growing beside them. Before that, worth doing if there is time: a second reviewer
+with fresh context on the design, and on each site's ports (done for Where MPs Stand).
