@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 import pytest
+
 from test_replies_sites import (
     BARNSLEY,
     SITES,
@@ -20,7 +21,6 @@ from test_replies_sites import (
     one_site,
     site_fixture,
 )
-
 from wts_core.replies import PUBLIC_FIELDS, Item, NotDone, Refused
 
 site = site_fixture()

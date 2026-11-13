@@ -14,9 +14,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from test_replies_sites import Open, site_fixture
 
 import wts_core.replies
+from test_replies_sites import Open, site_fixture
 from wts_core.replies import PUBLIC_FIELDS, Refused, months_before, statement_html
 
 site = site_fixture()
