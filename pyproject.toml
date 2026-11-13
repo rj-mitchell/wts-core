@@ -6,13 +6,15 @@ readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.12"
 # The base install needs nothing but Python (ADR 0001). Extras bring the libraries a site actually uses.
+# Each range begins at the version the sites lock today (November 2026): that is what is tested, in CI's "ranges"
+# job, at its lowest and its highest. An older version may work; nobody has tried it.
 dependencies = []
 
 [project.optional-dependencies]
 # the shared commands a site adds to its own command line
-cli = ["typer>=0.15"]
+cli = ["typer>=0.27"]
 # off-site copies of backups: Backblaze's own HTTP interface, spoken with httpx
-offsite = ["httpx>=0.27"]
+offsite = ["httpx>=0.28"]
 # the thread-safe DuckDB wrapper
 duckdb = ["duckdb>=2.0,<3"]
 # the adapters behind the model, embedder and index interfaces
@@ -20,20 +22,21 @@ ai = [
     "anthropic>=2.3,<3",
     "fastembed>=0.9,<1",
     "lancedb>=0.40,<1",
-    "numpy>=1.26",
-    "pyarrow>=17",
+    "numpy>=2.5",
+    "pyarrow>=26",
 ]
 
 [dependency-groups]
 dev = [
     "duckdb>=2.0,<3",
-    "fastapi>=0.143",
-    "httpx>=0.27",
-    "mypy>=1.13",
-    "pytest>=8.3",
-    "ruff>=0.6",
-    "typer>=0.15",
-    "uvicorn>=0.30",
+    "fastapi>=0.162",
+    "httpx>=0.28",
+    # the tools the checks are run with: the versions in use, since an older linter finds different things
+    "mypy>=2.4",
+    "pytest>=9.1",
+    "ruff>=0.17.5",
+    "typer>=0.27",
+    "uvicorn>=0.54",
 ]
 
 [build-system]
