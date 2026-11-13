@@ -1,11 +1,23 @@
-# A release: when a tag v<version> is pushed, the tests run once more, the wheel and source archive are built and
-# attached to a GitHub release. Sites install the wheel by its address there, with its hash in their uv.lock
-# (docs/adr/0006-distribution.md).
+# A release: the tests run once more, the wheel and source archive are built and attached to a GitHub release.
+# Sites install the wheel by its address there, with its hash in their uv.lock (docs/adr/0006-distribution.md).
+#
+# Two ways to start one, which do the same thing:
+#   - push a tag v<version>; or
+#   - on the Actions page, "Run workflow" on main with the version (0.1.0): the tag is then made here, on the
+#     commit the workflow runs on. This needs no git on the releaser's machine, and nothing but the right to
+#     run a workflow.
+# Either way the version must already be the one in pyproject.toml, in the package and in CHANGELOG.md.
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release, as pyproject.toml has it (for example 0.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -19,10 +31,24 @@ jobs:
         with:
           version: "0.11.32"
       - run: uv python install 3.12
+      - name: Which tag this is
+        id: tag
+        env:
+          ASKED: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$GITHUB_REF_NAME" = "main" || { echo "a release is made from main, not from $GITHUB_REF_NAME"; exit 1; }
+            echo "$ASKED" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "'$ASKED' is not a version like 0.1.0"; exit 1; }
+            echo "name=v$ASKED" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          fi
       - name: The tag is the version in pyproject.toml and in the package
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
         run: |
           version="$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
-          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, but pyproject.toml says $version"; exit 1; }
+          test "v$version" = "$TAG" || { echo "tag $TAG, but pyproject.toml says $version"; exit 1; }
           grep -q "^__version__ = \"$version\"$" src/wts_core/__init__.py || { echo "wts_core.__version__ is not $version"; exit 1; }
           grep -q "^## $version " CHANGELOG.md || { echo "CHANGELOG.md has no entry for $version"; exit 1; }
       - run: uv sync --frozen --all-extras
@@ -33,4 +59,7 @@ jobs:
       - name: Publish the release with the wheel and the source archive
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes "See CHANGELOG.md for what changed and what a site must do."
+          TAG: ${{ steps.tag.outputs.name }}
+        # --target makes the tag on this commit when it is not there yet (a run started from the Actions page);
+        # a release that already exists is an error, never written over
+        run: gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" --notes "See CHANGELOG.md for what changed and what a site must do."

@@ -16,3 +16,11 @@ value it started with; the new one arrived when the session's worker restarted, 
 changed environment variable is therefore tested after a restart, not straight away. With it, three real briefings
 were run on Where MPs Stand's sample data on each side of its library upgrade (`study/smoke-2026-11-13/`): about
 10p. The secure form for credentials refuses Anthropic's own hosts, so the environment variable is the only route.
+
+## It cannot push a tag
+
+Found on 13 November 2026, releasing `v0.1.0`: the build session may push its own branches and nothing else, so
+`git push origin v0.1.0` is refused (the remote hangs up). The release workflow can therefore also be started from
+the Actions page, where it makes the tag itself on `main`'s commit (`CONTRIBUTING.md`, "Releasing"). That is also
+the easier way for the owner: no git needed.
+

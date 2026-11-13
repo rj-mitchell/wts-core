@@ -56,3 +56,13 @@ How code in this package is written, so that every module reads as if one person
 One logical piece per commit, message in the sites' style (what and why, in sentences), ending with the two
 attribution lines used throughout this repository's history. Never name an AI model in a file, commit or pull
 request.
+
+## Releasing
+
+1. In a pull request: set the version in `pyproject.toml` and `src/wts_core/__init__.py`, head the changelog's
+   entry `## <version> (<date>)` with its `api:` line (`tests/test_public_api.py` says how), and run `uv lock`
+   here and in `examples/minimal-site`.
+2. When it is merged, on GitHub: Actions, "Release", "Run workflow" on `main`, with the version. The workflow
+   checks the three places agree, runs the tests, builds the wheel, makes the tag `v<version>` on that commit and
+   attaches the wheel to a release. (Pushing the tag by hand starts the same workflow.)
+3. A release is never changed. A fix is a new version.

@@ -14,7 +14,7 @@ Last updated: 13 November 2026, 15:30 UTC (session 1).
 | 1b. "Why use this rather than a chatbot?" | **Done: four pull requests** (the hub and three AI sites); screenshots in the charity repository's | below |
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
-| 3. Build the package | **Built; pull request open** (rj-mitchell/wts-core#2). To merge when its checks are green, then tag `v0.1.0` | branch `claude/wts-3-package`; see "Phase 3" below |
+| 3. Build the package | **Done: merged** (rj-mitchell/wts-core#2, every CI job green). The release `v0.1.0` is made by the release workflow, started from the Actions page | `main`; see "Phase 3" below |
 | 4 to 7 | Not started | |
 
 ## Pull requests
@@ -50,7 +50,7 @@ check passes, with no pair further apart than the baseline.
 
 ## Phase 3: how it is being built
 
-The package branch is `claude/wts-3-package` (stacked on the design branch until rj-mitchell/wts-core#1 is merged).
+The package branch was `claude/wts-3-package`, merged as rj-mitchell/wts-core#2 on 13 November 2026.
 The foundation is on it: `ports`, `events`, `settings`, `state`, `testing` (clock and chance), the wall tests, the
 toolchain file and its test, the shared workflows and the package's own CI, `CONTRIBUTING.md`, `CHANGELOG.md`.
 Proved locally: the wheel builds, installs alone with `git` off the PATH, and every base module imports with
