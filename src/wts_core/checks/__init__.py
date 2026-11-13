@@ -9,7 +9,7 @@ These must never be weaker than the strictest site's copy, case for case (CONTRI
 site's own is passed in and has no default here: its "no records" words, its honorifics, its form of the "note
 about the evidence" rule (``Verifier``), and its whole list of loaded words (``LoadedWords``).
 
-A site's pipeline runs them in this order, as all three do today::
+A site's pipeline runs them through ``check_briefing``, which keeps the order all three sites run them in today::
 
     report = verifier.verify(blocks, sources)
     verifier.drop_preambles(report.segments)
@@ -29,6 +29,7 @@ from __future__ import annotations
 from wts_core.checks.balance import blend, recency_factor, round_robin
 from wts_core.checks.british import britishise_segments, outside_quotes, to_british
 from wts_core.checks.neutral import COMMON_LOADED_WORDS, LoadedWords
+from wts_core.checks.report import check_briefing
 from wts_core.checks.typography import curl_answer, curl_event, curl_events, curl_quotes
 from wts_core.checks.verify import (
     COMMON_HONORIFICS,
@@ -58,6 +59,7 @@ __all__ = [
     "Verifier",
     "blend",
     "britishise_segments",
+    "check_briefing",
     "curl_answer",
     "curl_event",
     "curl_events",

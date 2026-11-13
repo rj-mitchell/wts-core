@@ -38,7 +38,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from wts_core.checks import LoadedWords, Verifier, britishise_segments, curl_answer
+from wts_core.checks import LoadedWords, Verifier, check_briefing
 from wts_core.events import Answer, Block, Completed, blocks_as_today
 from wts_core.ports import Document, Usage
 from wts_core.testing.models import load_documents, load_header, load_stream, record_stream
@@ -101,13 +101,7 @@ def checked(blocks: Sequence[Block], documents: Sequence[Document], verifier: Ve
     sources = [_Source(d.number, d.title, d.passages, {"heading": headings[i]} if headings else {})
                for i, d in enumerate(documents)]
     as_today = blocks_as_today(Completed(tuple(blocks), "", None, Usage()))
-    report = verifier.verify(as_today, sources)
-    verifier.drop_preambles(report.segments)  # "Across the records retrieved, ..." openers
-    britishise_segments(report.segments)  # the model's own words only; quotations stay verbatim
-    loaded_words.flag(report.segments)  # judgemental words in its own voice are highlighted, not hidden
-    verifier.check_quotes(report, sources)  # quotations not found word for word in their sources are marked
-    answer = report.to_dict()
-    return cast(Answer, curl_answer(answer)) if curled else answer
+    return check_briefing(as_today, sources, verifier, loaded_words, curled=curled)
 
 
 # ---- fixtures on disk ------------------------------------------------------------------------------------------

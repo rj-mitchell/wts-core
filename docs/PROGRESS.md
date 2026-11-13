@@ -68,9 +68,9 @@ parity tests that import each site's own functions and compare results. I merge 
 | `replies` | `claude/wts-3-replies` | `/home/user/wt/core-replies` | **merged** (443 tests on its branch; compared with each site's own code; see [`AS-BUILT.md`](AS-BUILT.md)) |
 | `adapters.anthropic`, `.hashing`, `.fastembed`, `.lancedb`; testing fakes and contracts | `claude/wts-3-adapters` | `/home/user/wt/core-adapters` | **merged** (three real recordings made with the charity's key, about one US cent; see [`AS-BUILT.md`](AS-BUILT.md)) |
 | `briefing` (the desk, stages, the streamer) | `claude/wts-3-briefing` | `/home/user/wt/core-briefing` | building |
-| `observe` (the briefing log, statistics, alerts) | `claude/wts-3-observe` | `/home/user/wt/core-observe` | building |
-| `eval` (replay and live runs) | `claude/wts-3-eval` | `/home/user/wt/core-eval` | building |
-| `cli` (the shared commands) and the `/api/check` route | after `ops`, `replies`, `observe` | | |
+| `observe` (the briefing log, statistics, alerts) | `claude/wts-3-observe` | `/home/user/wt/core-observe` | **merged** |
+| `eval` (replay and live runs) | `claude/wts-3-eval` | `/home/user/wt/core-eval` | **merged** (replays the shipped recordings against golden reports; reads each site's real question file) |
+| `cli` (the shared commands) and the `/api/check` route; the remaining testing helpers | `claude/wts-3-cli` | `/home/user/wt/core-cli` | building |
 | `examples/minimal-site`, `docs/EXTENDING.md`, `docs/NEW-SITE.md` | last | | |
 | The public-interface snapshot test, then tag `v0.1.0` | last (the tag needs the pull requests merged first) | | |
 

@@ -117,6 +117,74 @@ entry comes from the hand-back of the worker that built the module, checked agai
 - Each site's own methods stay its own, as functions over the index: Where MPs Stand's `similarities`, Where
   Countries Stand's `group_rows` and `set_groups`.
 
+## `wts_core.observe` (the record of each briefing, statistics, the weekly report, alerts)
+
+### Differs from the sketch
+
+- The modules are `observe.log`, `observe.config`, `observe.logs` (the JSON log lines), `observe.figures` (the
+  statistics; `observe.stats` is the function) and `observe.report`.
+- `config_id(parts)` takes a mapping the site builds, not the site and its settings.
+- `tidy(retention) -> Tidied(deleted, blanked)`: the retention is a required argument (`OWNER_ACCEPTED` is the
+  13 months and 90 days the owner accepted on 13 November 2026).
+- `json_logging(path, *, site, max_bytes, keep, days)` has no defaults: ADR 0012's "14 days or 50 MB, whichever is
+  less" needs both, so the handler also starts a new file each UTC day and deletes files older than `days`.
+- `stats(log, *, since, until, compare_weeks, embedder, similarity, pricing, decided_by, clock)`. `similarity` is
+  required with an embedder: the right figure depends on each site's embedding model.
+- `weekly_report(stats, folder, *, site, week, db, …)` writes `2026-W46.md` and `.json` and the week's totals.
+- `ports.BriefingLog` gained `since`; `ports.BriefingRecord` gained `cache_write_long_tokens`.
+
+### Decided while building
+
+- Figures are for readers' questions only; the nightly check's and the evaluation harness's rows are counted by
+  kind and nowhere else.
+- The median is the usual one; p95 is by nearest rank. Times leave out answers served from the cache.
+- "Time to the full briefing" is the time the writing ended (`t_written`); its alert is `p95_full_briefing_ms`.
+  The other alerts are `error_rate`, `check_failure_rate`, `not_useful_rate`, `daily_cost_usd`. A figure trips only
+  when it is over its threshold; an unknown name in `[alerts]` stops the command, naming it.
+- A question is quoted in a report only if its briefing is saved and has not been corrected; never from a failed
+  briefing. A theme needs at least two questions.
+- Two arms of an experiment are compared by a pooled two-proportion z-test at 5%, with no correction for looking
+  more than once or for several arms: read a near-miss with care.
+- A log line can hold only the named fields, each of the right shape, so a question passed to it by mistake is not
+  written; a failed write prints nothing of the call.
+
+### At adoption
+
+- **The weekly report files quote questions that found no records, and themes.** `tidy_reports(folder,
+  retention)` deletes report files older than the retention; each site's nightly update must call it (and
+  `SqliteBriefingLog.tidy`).
+- `wts_counts` (daily totals with no visitor code) is kept indefinitely.
+- The prompt-cache figure prices a record's cache tokens at that record's model; if a site records its
+  question-reading model's tokens in the same row they are priced at the briefing model's rates.
+
+## `wts_core.eval` (the evaluation harness)
+
+### Differs from the sketch
+
+- `run(site, config, *, config_id, pricing, clock, only, limit, max_cost_usd, record_fixtures, progress)`.
+  `max_cost_usd` stops the run cleanly once spending reaches it.
+- A site's optional parts are separate interfaces: `Judges.judge`, `Scores.score` (what the site's own
+  expectations measure, as met or not) and `Records.recording` (the documents and the model's raw blocks, for
+  fixtures: reader events do not carry them).
+- `check_briefing` in `wts_core.checks` is new: every check in the one order the sites run them. The harness and
+  a site's pipeline both call it.
+- `mark_passed(run, thresholds, folder)` writes the line the experiment guard reads; it refuses a run that failed,
+  one held to no thresholds, and one that did not ask the whole set. `has_passed(folder, config_id, thresholds)`
+  checks the recorded figures against today's thresholds.
+- Run files are named `<date>-<time>-eval-<config id>.json`.
+- `Case.expect` holds a question's `expect` table and its other keys together (`category`, `no_records`,
+  `include`, `history`, `note`).
+
+### At adoption
+
+- **Where Countries Stand and Where Councils Stand ignore all of `eval/runs/` in git**, so `passed.jsonl` would
+  never reach the server where the experiment guard reads it. Each needs an exception.
+- Where MPs Stand's old run files are plans, graded sources and comparisons, not briefing runs: they stay
+  readable by its own code only. Its plan-only runs, graded sources (`judgments.jsonl` is read by
+  `load_judgements`) and blind side-by-side judging stay the site's, behind its own `EvalSite`.
+- The harness cannot see a judge's own model calls, or Where MPs Stand's interests check, so the budget stop
+  under-counts those.
+
 ## `wts_core.checks`, `wts_core.usage`, `wts_core.ops`
 
 To be filled in from the code and each worker's notes before v0.1.0 (the checks section of `API-SKETCH.md` was
