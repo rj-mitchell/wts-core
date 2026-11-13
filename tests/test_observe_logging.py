@@ -130,6 +130,36 @@ def test_log_event_gives_other_handlers_nothing_to_print_either(log):
     assert seen == ["briefing event"]
 
 
+def test_a_line_that_cannot_be_written_is_reported_without_the_calls_words(path, clock, capsys):
+    """The standard library reports a failed write by printing the call's message and arguments."""
+    handler = json_logging(path, site=SITE, max_bytes=1_000_000, keep=1, days=14, clock=clock)
+    logger = logging.getLogger("wts.test.full-disk")
+    logger.addHandler(handler)
+    logger.propagate = False
+
+    class FullDisk:
+        def write(self, text: str) -> None:
+            raise OSError(28, "No space left on device")
+
+        def tell(self) -> int:
+            return 1
+
+        def flush(self) -> None: ...
+
+        def close(self) -> None: ...
+
+    handler.stream.close()
+    handler.stream = FullDisk()  # type: ignore[assignment]
+    try:
+        logger.error("a question was asked: %s", MARKER, extra={"event": "briefing.asked"})
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+    said = capsys.readouterr().err
+    assert said == "wts-core: a line of the structured log could not be written (OSError)\n"
+    assert "CANARY" not in said
+
+
 def test_only_numbers_are_times(log, path):
     for ms in (310, 0, 12.5, True, float("nan"), float("inf"), "310"):
         log.info("x", extra={"event": "briefing.stage", "ms": ms})

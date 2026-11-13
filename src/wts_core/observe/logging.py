@@ -12,7 +12,9 @@ that a sentence does not fit:
 
 Anything else is left out: the message of an ordinary ``log.info("… %s", question)`` call is never written, nor an
 exception's text or traceback, nor an extra field with another name, nor a named field of the wrong shape. A
-careless call leaves a line with empty fields, and nothing of the reader's.
+careless call leaves a line with empty fields, and nothing of the reader's. The same holds when a line cannot be
+written at all: the handler reports the failure by the error's class, not by printing the call as the standard
+library would.
 
 The files are kept for a stated time and size (ADR 0012: 14 days or 50 MB a site, whichever is less). The handler
 is the standard library's ``RotatingFileHandler`` with one addition: it also starts a new file each day, and at
@@ -22,10 +24,12 @@ whose files never fill. The most a site's logs can take is ``max_bytes × (keep 
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
 import re
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -111,6 +115,16 @@ class _DailyRotatingFile(RotatingFileHandler):
         super().emit(record)
         if self._day is None:
             self._day = today(self._clock)
+
+    def handleError(self, record: logging.LogRecord) -> None:  # noqa: N802  (the standard library's name)
+        """Say that a line could not be written (a full disk, say) and why, by the error's class alone. The
+        standard library's version prints the log call's message and arguments to the error stream, where a
+        careless call's question would land in the server's journal."""
+        failed = sys.exc_info()[0]
+        if logging.raiseExceptions and sys.stderr is not None:
+            with contextlib.suppress(OSError):
+                sys.stderr.write("wts-core: a line of the structured log could not be written "
+                                 f"({failed.__name__ if failed else 'no reason given'})\n")
 
 
 def json_logging(path: Path, *, site: Site, max_bytes: int, keep: int, days: int,
