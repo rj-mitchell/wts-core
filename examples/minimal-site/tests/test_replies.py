@@ -8,10 +8,13 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from wts_core.replies import PUBLIC_FIELDS, NotDone
+from wts_core.testing import FixedClock, FixedRandom, assert_statements_stay_out
+from wts_core.testing.index import MemoryIndex, RecordingEmbedder
+from wts_core.testing.models import ScriptedModel
 
 from conftest import DOGS, ask, final_of, rows
-from parks.app import Parks
-from parks.site import REPLY_MESSAGES
+from parks.app import Parks, build, create_app
+from parks.site import REPLY_MESSAGES, ParksSettings
 
 WORDS = "The committee's decision on dogs was taken after a full consultation.\n\nWe stand by it."
 
@@ -132,12 +135,20 @@ def test_a_withdrawn_briefing_says_so_at_its_address(client: TestClient, parks: 
     assert client.get("/b/nosuchbriefing").status_code == 404
 
 
-def test_a_statement_never_reaches_the_model(client: TestClient, parks: Parks, briefing: str,
-                                             model: Callable[..., Any]) -> None:
-    # TODO(wts_core.cli): replace with wts_core.testing.assert_statements_stay_out once it is on the package branch;
-    # it also reads the embedder, the index, every wts_ table and the log.
-    client.post("/api/statements", json=statement(briefing, text="A statement with the marker word zebracrossing."))
-    parks.replies.publish(parks.replies.statements("pending")[0]["id"], checked="Confirmed by telephone.")
-    events = ask(client, "What have park committees decided about dogs on leads?")
-    assert "zebracrossing" not in str(events)
-    assert "zebracrossing" not in repr(model.requests) + repr(model.structured_requests)  # type: ignore[attr-defined]
+def test_a_statement_never_reaches_the_model_the_index_or_the_record(
+        settings: ParksSettings, model: ScriptedModel, clock: FixedClock, log_lines: Callable[[], list[str]]) -> None:
+    # the site's real pipeline and routes, over the package's recording fakes
+    embedder = RecordingEmbedder()
+    index = MemoryIndex(embedder)
+    parks = build(settings, model=model, embedder=embedder, index=index, clock=clock, random=FixedRandom(), env={})
+    client = TestClient(create_app(parks))
+    beside = f"/b/{final_of(ask(client, DOGS))['briefing_id']}"
+
+    # The package's own check (docs/adr/0008): it publishes a statement carrying a marker beside the briefing,
+    # asks a question about the same subject, and fails if the marker is in any request to the model, any text
+    # given to the embedder, the index, an event sent, any table but the right of reply's own, or a log line.
+    assert_statements_stay_out(
+        replies=parks.replies, ask=lambda question: ask(client, question), model=model, embedder=embedder,
+        index=index, state=parks.db, log_lines=log_lines, item=beside,
+        question="Which park committees have made rules about dogs on leads?")
+    assert "wtsmarker" in client.get(beside).text  # and yet the statement is shown, beside the briefing

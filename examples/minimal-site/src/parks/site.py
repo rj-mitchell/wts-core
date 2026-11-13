@@ -16,11 +16,11 @@ from urllib.parse import urlsplit
 from wts_core import Messages, Settings, Site, load_settings, observe, replies, usage
 from wts_core.checks import COMMON_HONORIFICS, COMMON_LOADED_WORDS, EVIDENCE_NOTES_STRICT, LoadedWords, Verifier
 from wts_core.ops import AlertWording, BackupSpec
-from wts_core.ports import SYSTEM_CLOCK, Clock
+from wts_core.ports import SYSTEM_CLOCK, SYSTEM_RANDOM, Clock, Random
 from wts_core.replies import Item, Refused, Replies, ReplyMessages, ReplyRules
 from wts_core.settings import EnvSetting, require
 from wts_core.state import Import, Migration, StateDB
-from wts_core.usage import Limits, PriceTable, SavedBriefings
+from wts_core.usage import BriefingArchive, Limits, PriceTable, SavedBriefings, token_id
 
 from parks import __version__
 
@@ -88,10 +88,8 @@ REQUIRED: Mapping[str, tuple[str, ...]] = {
     "usage": ("requests_per_minute", "forget_idle_visitors_over", "answer_cache_hours", "briefing_estimate_usd",
               "briefings_at_once_per_visitor", "briefings_at_once"),
     "server": ("behind_proxy", "trust_forwarded_first"),
-    "backup": ("keep", "offsite_keep"),
     "logs": ("max_bytes", "keep", "days"),
-    "stats": ("theme_similarity",),
-    "eval": ("max_cost_usd", "thresholds"),
+    "eval": ("thresholds",),
 }
 
 
@@ -107,6 +105,13 @@ def load(config_path: str | Path | None = None, env: Mapping[str, str] | None = 
     prices.require([settings.answer["model"], settings.answer["query_parse_model"]], base_counts=False)
     return settings
 
+
+# Two figures the package's commands take when they are built, before any settings are read, so they are fixed here
+# and not in settings.toml. What one evaluation run may spend, in US dollars, unless --max-cost says otherwise:
+EVAL_MAX_COST_USD = 1.0
+# How alike two questions must be to count as one theme in the statistics (cosine similarity). It belongs to the
+# embedding model, so it changes when [embedding] does.
+THEME_SIMILARITY = 0.5
 
 # ---- every word of the briefing flow that a reader can be shown --------------------------------------------------
 
@@ -218,9 +223,13 @@ class ParksItems:
 
 BACKUPS = BackupSpec(
     prefix="parks-state-",  # parks-state-2026-11-13.sqlite.gz: what marks a backup, here and off site, as this site's
-    keep=14,  # the default; [backup] keep in settings overrides it when a backup is made
+    keep=14,  # how many stay on the server; `parks backup --keep` says otherwise for one run
     required_tables=("wts_schema", "wts_spending", "wts_briefings", "wts_reports", "wts_statements"),
 )
+
+# How many nightly copies are kept off site (the package's figure: wts_core.ops.send_offsite), and so about how
+# many days a deleted address can remain in a backup. Nothing else that holds old data may be kept longer.
+BACKUPS_KEPT_DAYS = 60
 
 BACKUP_ALERTS = AlertWording(
     no_backups="No backups have been made yet.",
@@ -260,6 +269,12 @@ def open_state(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> StateDB:
     return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock)
 
 
-def open_replies(db: StateDB, briefings: SavedBriefings, clock: Clock = SYSTEM_CLOCK) -> Replies:
+def open_archive(db: StateDB, clock: Clock = SYSTEM_CLOCK, random: Random = SYSTEM_RANDOM) -> BriefingArchive:
+    """Saved briefings, each at an address nobody could guess: /b/ and eleven characters."""
+    return BriefingArchive(db, new_id=lambda: token_id(8, random=random), clock=clock)
+
+
+def open_replies(db: StateDB, clock: Clock = SYSTEM_CLOCK) -> Replies:
     """Reports and statements, for the routes and for the owner's commands alike."""
-    return Replies(db, items=ParksItems(briefings), rules=REPLY_RULES, messages=REPLY_MESSAGES, clock=clock)
+    return Replies(db, items=ParksItems(open_archive(db, clock)), rules=REPLY_RULES, messages=REPLY_MESSAGES,
+                   clock=clock)

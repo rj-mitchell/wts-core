@@ -8,6 +8,7 @@ from collections.abc import Callable
 
 from fastapi.testclient import TestClient
 from wts_core.observe import FIELDS
+from wts_core.testing import assert_no_reader_data
 
 from conftest import ask, rows
 from parks.app import Parks
@@ -26,15 +27,14 @@ def test_the_structured_log_holds_stages_and_times_and_never_the_question(client
     assert "xylophonecanary" not in "\n".join(log_lines())
 
 
-def test_nothing_from_the_request_is_stored_but_the_days_code_and_the_question(client: TestClient, parks: Parks,
-                                                                              log_lines: Callable[[], list[str]]) -> None:
-    # TODO(wts_core.cli): replace with wts_core.testing.assert_no_reader_data once it is on the package branch.
+def test_nothing_about_the_reader_is_kept_but_the_days_code_and_the_question(client: TestClient, parks: Parks,
+                                                                            log_lines: Callable[[], list[str]]) -> None:
     ask(client, CANARY, headers={"User-Agent": "a-browser-like-no-other"})
-    kept = {table: str(rows(parks, f"SELECT * FROM {table}")) for table in sorted(parks.db.tables())}
-    everything = "\n".join(kept.values()) + "\n".join(log_lines())
-
-    assert "testclient" not in everything and "a-browser-like-no-other" not in everything  # no address, no header
-    assert {table for table, held in kept.items() if "xylophonecanary" in held} \
-        == {"wts_briefing_log", "wts_briefings"}
     (code,) = {r["visitor"] for r in rows(parks, "SELECT visitor FROM wts_spending")}
-    assert {table for table, held in kept.items() if code in held} == {"wts_spending"}
+
+    # The package's own check: the address is in no table and no log line; the day's code only beside the
+    # spending; the question only where the privacy notice says a question is kept (docs/adr/0012).
+    assert_no_reader_data(parks.db, log_lines(), question=CANARY, address="testclient", visitor=code)
+    # and nothing else the request carried was stored either
+    everything = "".join(str(rows(parks, f"SELECT * FROM {table}")) for table in sorted(parks.db.tables()))
+    assert "a-browser-like-no-other" not in everything

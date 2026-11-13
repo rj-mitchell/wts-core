@@ -19,10 +19,11 @@ from pathlib import Path
 from types import EllipsisType
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from wts_core.briefing import Ask, BriefingDesk, Event, Hooks, TooManyRequests, sse
+from wts_core.cli import backup_ages, check_route, last_day_figures
 from wts_core.observe import LOGGER, SqliteBriefingLog, json_logging
 from wts_core.ports import SYSTEM_CLOCK, SYSTEM_RANDOM, Clock, Embedder, ModelClient, Random, VectorIndex
 from wts_core.replies import Refused, Replies, statement_html
@@ -39,7 +40,6 @@ from wts_core.usage import (
     SqliteAnswerCache,
     cache_key,
     client_address,
-    token_id,
     visitor_code,
 )
 
@@ -52,6 +52,7 @@ from parks.pipeline import (
     new_index,
 )
 from parks.site import (
+    BACKUPS,
     LOADED_WORDS,
     MESSAGES,
     REPLY_MESSAGES,
@@ -59,6 +60,7 @@ from parks.site import (
     VERIFIER,
     ParksSettings,
     load,
+    open_archive,
     open_replies,
     open_state,
 )
@@ -140,7 +142,7 @@ def build(settings: ParksSettings | None = None, *, model: ModelClient | None | 
     limits = Limits.from_settings(cfg)
     spending = Spending(db, PriceTable.from_settings(cfg), clock=clock)
     caps = Caps(spending, limits, MESSAGES, clock)
-    archive = BriefingArchive(db, new_id=lambda: token_id(8, random=random), clock=clock)
+    archive = open_archive(db, clock, random)
     log = SqliteBriefingLog(db, clock=clock)
 
     embedder = embedder or embedder_from_settings(settings)
@@ -170,7 +172,7 @@ def build(settings: ParksSettings | None = None, *, model: ModelClient | None | 
         random=random,
     )
     return Parks(settings=settings, db=db, spending=spending, caps=caps, archive=archive, log=log,
-                 replies=open_replies(db, archive, clock), pipeline=pipeline, desk=desk, config=config, clock=clock,
+                 replies=open_replies(db, clock), pipeline=pipeline, desk=desk, config=config, clock=clock,
                  random=random, check_token=SITE.env("CHECK_TOKEN", env))
 
 
@@ -280,7 +282,7 @@ def create_app(parks: Parks | None = None) -> FastAPI:
         # change any of them and an answer written before is not served again.
         key = cache_key({"question": question.lower(), "mode": body.mode, "park": body.park,
                          "model": settings.answer["model"], "instructions": SITE.instructions_version,
-                         "data": data_stamp(settings.minutes_file)})
+                         "data": data_stamp(settings.minutes_file)}, length=64)
         events = desk.handle(Ask(
             question=question,
             visitor=visitor,
@@ -365,5 +367,18 @@ def create_app(parks: Parks | None = None) -> FastAPI:
         if body.briefing_id:
             parks.log.mark(body.briefing_id, reported=True)  # what happened next, on that briefing's record
         return {"received": True}
+
+    # ---- the nightly family check (docs/adr/0010) ------------------------------------------------------------
+
+    # Counts, ages and versions for whoever holds the family's check token, and for no one else: 404 with no
+    # token set on this site, 401 for a wrong one. Never a question, a name or a word of a report.
+    check = check_route(SITE, token=parks.check_token, replies=replies,
+                        backups=lambda: backup_ages(settings.backups_dir, BACKUPS, clock=parks.clock),
+                        figures=lambda: last_day_figures(parks.log, clock=parks.clock), clock=parks.clock)
+
+    @app.get("/api/check")
+    def api_check(authorization: str | None = Header(None)) -> JSONResponse:
+        status_code, body = check(authorization)
+        return JSONResponse(body, status_code=status_code)
 
     return app

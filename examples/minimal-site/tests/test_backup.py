@@ -7,8 +7,16 @@ import stat
 
 import pytest
 from fastapi.testclient import TestClient
-from wts_core.ops import RestoreRefused, backup_alerts, make_backup, restore_backup
-from wts_core.testing import FixedClock
+from wts_core.ops import (
+    OffsiteError,
+    OffsiteUnavailable,
+    RestoreRefused,
+    backup_alerts,
+    make_backup,
+    restore_backup,
+    send_offsite,
+)
+from wts_core.testing import FixedClock, MemoryOffsiteStore
 
 from conftest import DOGS, HOURS, ask, final_of, rows
 from parks.app import Parks
@@ -19,8 +27,7 @@ def test_a_backup_is_made_under_the_sites_own_name_and_put_back(client: TestClie
                                                                 clock: FixedClock) -> None:
     settings = parks.settings
     first = final_of(ask(client, DOGS))["briefing_id"]
-    archive = make_backup(settings.state_db, settings.backups_dir, BACKUPS,
-                          keep=int(settings.section("backup")["keep"]), clock=clock)
+    archive = make_backup(settings.state_db, settings.backups_dir, BACKUPS, clock=clock)
 
     assert archive is not None and archive.name == "parks-state-2026-11-13.sqlite.gz"
     assert stat.S_IMODE(archive.stat().st_mode) == 0o600  # it holds reports and contact details: its owner only
@@ -65,12 +72,32 @@ def test_a_file_that_is_not_this_sites_backup_is_refused(client: TestClient, par
     assert len(rows(parks, "SELECT 1 FROM wts_briefing_log")) == 1  # nothing was touched
 
 
-def test_the_owner_is_told_in_the_sites_words_when_backups_have_stopped(parks: Parks, client: TestClient,
-                                                                       clock: FixedClock) -> None:
+def test_a_copy_goes_off_site_and_the_owner_is_told_when_backups_stop(parks: Parks, client: TestClient,
+                                                                      clock: FixedClock) -> None:
     folder = parks.settings.backups_dir
     folder.mkdir(parents=True)
     said = backup_alerts(folder, BACKUPS, offsite_set_up=False, wording=BACKUP_ALERTS, clock=clock)
     assert [(a.level, a.text) for a in said] == [("warning", "No backups have been made yet."),
                                                  ("warning", BACKUP_ALERTS.server_only)]
-    # TODO(wts_core.cli): send a backup off site with wts_core.testing.MemoryOffsiteStore once it is on the
-    # package branch, and read the alerts again.
+
+    # an off-site store in memory stands in for the real one: any ports.OffsiteStore will do
+    ask(client, DOGS, sources_only=True)
+    store = MemoryOffsiteStore("parks-backups")
+    store.files["councils-state-2026-11-01.sqlite.gz"] = b"another site's backup, in the same bucket"
+    for _ in range(3):
+        archive = make_backup(parks.settings.state_db, folder, BACKUPS, clock=clock)
+        assert archive is not None
+        sent = send_offsite(archive, store, BACKUPS, keep=2, clock=clock)
+        clock.advance(days=1)
+    assert sent == {"ok": True, "when": "2026-11-15T12:00:00+00:00", "file": "parks-state-2026-11-15.sqlite.gz",
+                    "bucket": "parks-backups", "stored": 2, "deleted": 1}
+    # only this site's old copies are deleted: another site's in the same bucket is left alone
+    assert sorted(store.files) == ["councils-state-2026-11-01.sqlite.gz", "parks-state-2026-11-14.sqlite.gz",
+                                   "parks-state-2026-11-15.sqlite.gz"]
+
+    store.fail["put"] = OffsiteUnavailable("the store did not answer")
+    with pytest.raises(OffsiteError):
+        send_offsite(archive, store, BACKUPS, clock=clock)
+    said = backup_alerts(folder, BACKUPS, offsite_set_up=True, wording=BACKUP_ALERTS, clock=clock)
+    assert (said[-1].level, said[-1].text) \
+        == ("error", "The last off-site copy failed (2026-11-16T12:00): the store did not answer")
