@@ -5,7 +5,7 @@ interface, and each such change is listed under "Changed" with what a site must 
 The line `api: <hash>` under a version is the fingerprint of the public interface at that version
 (`docs/api-snapshot.txt`); `tests/test_public_api.py` fails when the interface changes without a new one here.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (13 November 2026)
 
 The first release: everything the four sites did alike, in one place.
 

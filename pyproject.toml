@@ -1,6 +1,6 @@
 [project]
 name = "wts-core"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "The shared foundation for the Where They Stand sites: settings, limits, the checks on briefings, the briefing flow, reports and the right of reply, backup, and the record of each briefing."
 readme = "README.md"
 license = "AGPL-3.0-only"
