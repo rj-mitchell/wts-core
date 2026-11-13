@@ -217,9 +217,9 @@ _PREAMBLE = re.compile(
 # Words the briefing puts in quotation marks must appear, word for word, in the record it attributes them to.
 # A citation proves its own cited passage exists; this also checks the quotation written around it.
 
-_QUOTE = re.compile(r'["“]([^"“”\n]{6,}?)["”]|‘([^‘’\n]{6,}?)’(?![a-z])')
+_QUOTE = re.compile(r'["\u201c]([^"\u201c\u201d\n]{6,}?)["\u201d]|\u2018([^\u2018\u2019\n]{6,}?)\u2019(?![a-z])')
 # gaps a quotation may contain: an ellipsis, or an editorial insertion in square brackets ("welcome[d]")
-_ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…|\[[^\]]{0,40}\])\s*")
+_ELLIPSIS = re.compile(r"\s*(?:\.\.\.|\u2026|\[[^\]]{0,40}\])\s*")
 _WORDS = re.compile(r"[^a-z0-9]+")
 _REPEATED = re.compile(r"\b(\w+)(?: \1\b)+")
 
@@ -227,7 +227,7 @@ _REPEATED = re.compile(r"\b(\w+)(?: \1\b)+")
 def _words(text: str) -> str:
     """Lower-case words only: punctuation, quote marks and spacing are not what a quotation is checked on, nor a
     word printed twice in a row in the record ("the positioning of of that company")."""
-    words = _WORDS.sub(" ", text.lower().replace("’", "'").replace("'", "")).strip()
+    words = _WORDS.sub(" ", text.lower().replace("\u2019", "'").replace("'", "")).strip()
     return " " + _REPEATED.sub(r"\1", words) + " "
 
 
@@ -430,7 +430,7 @@ class Verifier:
         """
         # an honorific's full stop ("Mr. Delattre") ends no sentence: the checks read a copy with it masked (the
         # same length, so positions carry over), and the text kept is the original
-        masked = self._honorific_dot.sub(lambda m: m.group(1) + "․", text)
+        masked = self._honorific_dot.sub(lambda m: m.group(1) + "\u2024", text)
         lines = text.splitlines(keepends=True)
         mlines = masked.splitlines(keepends=True)
         claims: set[int] = set()  # whole sentences split off a lead-in: never a mere transition, however short
