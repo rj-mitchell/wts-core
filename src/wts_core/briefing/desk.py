@@ -41,7 +41,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from wts_core.briefing.stages import Stages, marking
+from wts_core.briefing.stages import STAGES, Stages, marking
 from wts_core.ports import (
     SYSTEM_CLOCK,
     SYSTEM_RANDOM,
@@ -63,6 +63,9 @@ from wts_core.usage import Caps, FailureLog, Refusal, SavedBriefings, busy_refus
 __all__ = ["Ask", "BriefingDesk", "Event", "Hooks", "TooManyRequests"]
 
 log = logging.getLogger(__name__)
+# the structured log (``observe.LOGGER``: a test keeps the names alike) and the fixed message other handlers see
+_lines_log = logging.getLogger("wts.briefings")
+_LINE = "briefing event"
 
 # One event of a briefing, as a site's pipeline makes it and a reader receives it: today's JSON. The common ones
 # are described in ``wts_core.events``; a site may send others of its own (Where MPs Stand's ``progress`` and
@@ -398,10 +401,12 @@ class BriefingDesk:
             for raw in pipeline:
                 event = dict(raw)
                 kind = event["type"]
-                if kind == "plan" and "parse_error" in event:
-                    # the model could not read the question (a bad API key, say); the built-in rules were used
+                if kind == "plan" and event.get("parse_error"):
+                    # the model could not read the question (a bad API key, say); the built-in rules were used.
+                    # Taken off only when it says something, as Where MPs Stand and Where Countries Stand do: an
+                    # empty one is passed on as it came (Where Councils Stand's hook takes the key off always)
                     error = event.pop("parse_error")
-                    if error and self._failures is not None:
+                    if self._failures is not None:
                         self._failures.note("question reading", ask.question, str(error))
                 if kind == "error":  # the model declined to answer: the site's pipeline says so in its own words
                     if self._failures is not None:
@@ -481,14 +486,36 @@ class BriefingDesk:
     # ---- the record -------------------------------------------------------------------------------------------
 
     def _record(self, ask: Ask, run: _Run) -> None:
-        """Write this question's one record. A fault here must not reach the reader: it is logged."""
-        if run.recorded or self._log is None:
+        """Write this question's one record, and its lines in the structured log where a site has turned that on.
+        A fault here must not reach the reader: it is logged."""
+        if run.recorded:
             return
         run.recorded = True
+        self._lines(run)
+        if self._log is None:
+            return
         try:
             self._log.write(self._record_of(ask, run))
         except Exception:
             log.exception("the record of briefing %s could not be written", run.id)
+
+    def _lines(self, run: _Run) -> None:
+        """One line for each stage this briefing reached and one for how it ended (ADR 0012): the record's id, a
+        stage's name, milliseconds and an error's class name, and nothing else. Only where the site has given the
+        structured log a handler of its own (``observe.json_logging``): otherwise nothing is logged at all."""
+        if not _lines_log.handlers:
+            return
+        try:
+            for stage in STAGES:
+                at = run.stages.at(stage)
+                if at is not None:
+                    _lines_log.info(_LINE, extra={"event": "briefing.stage", "briefing": run.id, "stage": stage,
+                                                  "ms": at, "error_type": None})
+            _lines_log.log(logging.ERROR if run.outcome == "error" else logging.INFO, _LINE, extra={
+                "event": f"briefing.{run.outcome or 'error'}", "briefing": run.id, "stage": run.left_at,
+                "ms": run.stages.elapsed(), "error_type": run.error_type})
+        except Exception:
+            log.exception("the log lines of briefing %s could not be written", run.id)
 
     def _record_of(self, ask: Ask, run: _Run) -> BriefingRecord:
         config, stages = self._config, run.stages

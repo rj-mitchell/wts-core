@@ -186,6 +186,14 @@ def spending_rows(db: StateDB) -> list[tuple]:
             "cache_write_tokens, cost_usd FROM wts_spending ORDER BY id")]
 
 
+def codes_forgotten(rows: list[tuple], clock: FixedClock) -> list[tuple]:
+    """A site's own spending rows as the package keeps them: the same, except that a visitor's code from a day
+    that is over is forgotten (an empty text in its place). The one difference, and a stricter one: the sites kept
+    every code for good. It reaches the package's rows with the first call recorded on a new day."""
+    day = clock.now().strftime("%Y-%m-%d")
+    return [(*row[:3], "" if row[3] and row[0][:10] < day else row[3], *row[4:]) for row in rows]
+
+
 # ---- generated inputs --------------------------------------------------------------------------------------------
 
 
@@ -530,7 +538,7 @@ def test_the_caps_decide_and_say_what_the_sites_own_do_over_a_grid_of_spending_a
                         record("answer", "claude-sonnet-5-5", {"input_tokens": 0}, None, 7)
                     for visitor, account in checks:
                         said.add(same_decision(its, caps, settings, visitor, account, 0.0))
-            assert spending_rows(db) == its.spending_rows()
+            assert spending_rows(db) == codes_forgotten(its.spending_rows(), clock)
             clock.advance(hours=12)          # past midnight UTC: the day's counts and spending start again
             for visitor, account in checks:
                 said.add(same_decision(its, caps, settings, visitor, account, 0.0))
@@ -568,7 +576,13 @@ def test_a_month_of_spending_is_recorded_and_capped_as_the_sites_own(theirs, db,
         who = (rng.choice(["v0", "v1", "v2", "v3", None]), 7 if facts is MPS and rng.random() < 0.3 else None)
         pending = rng.choice([0.0, 0.0, settings["briefing_estimate_usd"], 1.0])
         said[same_decision(theirs, caps, settings, who[0], who[1], pending)] += 1
-    assert spending_rows(db) == theirs.spending_rows() and len(spending_rows(db)) > 600
+    assert spending_rows(db) == codes_forgotten(theirs.spending_rows(), clock) and len(spending_rows(db)) > 600
+    # and the owner's report still says how many different visitors there were: each day's number is kept when its
+    # codes go (on the sites a code changes every midnight, so different codes over a month is the sum of the days')
+    with theirs.state.connect() as con:
+        visitors = con.execute("SELECT sum(n) FROM (SELECT count(DISTINCT visitor) AS n FROM usage "
+                               "GROUP BY substr(at, 1, 10))").fetchone()[0]
+    assert spending.totals("2026-10").visitors == visitors > 20
     assert set(said) >= {None, facts.messages.visitor_daily_limit, facts.messages.daily_cap,
                          facts.messages.monthly_cap}
     assert clock.now().strftime("%Y-%m") == "2026-11"

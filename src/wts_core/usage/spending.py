@@ -6,6 +6,13 @@ visitor's code or the signed-in account, the token counts and the cost. The coun
 form (``Usage.as_stored``: input includes the cache writes), so rows copied from a site's old table and rows
 written here mean the same.
 
+A visitor's code is kept on a row only for its own day. The code is there for the daily limit, and changes at
+midnight with the day's secret; once the day is over it is of no use, and left in place it would let the day's
+rows (and through their times and token counts, the record of each briefing) be gathered by visitor. So the codes
+of days gone by are forgotten: replaced by an empty text, with the number of different visitors that day kept in
+``wts_visitor_days`` so the owner's reports say what they said before. The sites kept the codes for good; this is
+stricter, and nothing a reader sees changes.
+
 The per-visitor daily limit counts rows of kind ``answer`` since midnight UTC, as Where MPs Stand and Where
 Countries Stand count today. Where Councils Stand kept a table of its own for that count (one row a visitor a day,
 raised whenever an answer's cost was recorded), which comes to the same number.
@@ -20,9 +27,25 @@ from wts_core.ports import SYSTEM_CLOCK, Clock, Pricing, SpendingRecord, Usage
 from wts_core.state import StateDB, iso, today
 from wts_core.usage.interfaces import AccountSpending, DaySpending, SpendingFigures, SpendingTotals
 
-__all__ = ["Spending"]
+__all__ = ["Spending", "forget_visitors"]
 
 ANSWER = "answer"  # the kind of row that counts towards a visitor's or an account's daily limit
+FORGOTTEN = ""  # what stands where a visitor's code was, once its day is over: still "a member of the public"
+
+
+def forget_visitors(db: StateDB, *, clock: Clock = SYSTEM_CLOCK) -> int:
+    """Forget the visitor codes of every day before today in the spending record, keeping how many different ones
+    each day had, and say how many rows were changed. Doing it twice changes nothing."""
+    day = today(clock)
+    with db.connect() as con:
+        old = "at < ? AND visitor IS NOT NULL AND visitor != ''"
+        for who in ("'*'", "CASE WHEN account IS NULL THEN '' ELSE CAST(account AS TEXT) END"):
+            con.execute(
+                "INSERT INTO wts_visitor_days (day, who, visitors) "
+                f"SELECT substr(at, 1, 10), {who}, count(DISTINCT visitor) FROM wts_spending WHERE {old} "
+                "GROUP BY 1, 2 ON CONFLICT(day, who) DO UPDATE SET visitors = visitors + excluded.visitors",
+                (day,))
+        return con.execute(f"UPDATE wts_spending SET visitor = ? WHERE {old}", (FORGOTTEN, day)).rowcount
 
 
 class Spending:
@@ -33,6 +56,15 @@ class Spending:
         self._db = db
         self._pricing = pricing
         self._clock = clock
+        self._forgot: str | None = None  # the day on which this process last forgot the days before
+
+    def forget_visitors(self) -> int:
+        """Forget the visitor codes of every day before today, keeping how many different ones each day had, and
+        say how many rows were changed. Run with the first call recorded each day, and by a site's nightly update;
+        doing it twice changes nothing."""
+        changed = forget_visitors(self._db, clock=self._clock)
+        self._forgot = today(self._clock)
+        return changed
 
     def add(self, kind: str, model: str | None, usage: Usage | Mapping[str, Any] | None, *,
             visitor: str | None = None, account: int | None = None) -> float:
@@ -44,6 +76,8 @@ class Spending:
         counts = usage if isinstance(usage, Usage) else Usage.from_mapping(usage)
         cost = self._pricing.cost(counts, model)
         stored = counts.as_stored()
+        if self._forgot != today(self._clock):
+            self.forget_visitors()
         with self._db.connect() as con:
             con.execute(
                 "INSERT INTO wts_spending (at, kind, model, visitor, account, input_tokens, output_tokens, "
@@ -79,8 +113,13 @@ class Spending:
         with self._db.connect() as con:
             row = con.execute(
                 "SELECT coalesce(sum(cost_usd), 0), count(*), count(*) FILTER (WHERE kind = ?), "
-                "count(DISTINCT visitor) FROM wts_spending WHERE at >= ?", (ANSWER, since)).fetchone()
-        return SpendingTotals(float(row[0]), int(row[1]), int(row[2]), int(row[3]))
+                "count(DISTINCT visitor) FILTER (WHERE visitor != '') FROM wts_spending WHERE at >= ?",
+                (ANSWER, since)).fetchone()
+            # days whose codes are forgotten: the number kept for each (a period that begins part-way through
+            # such a day counts the whole day's visitors)
+            earlier = con.execute("SELECT coalesce(sum(visitors), 0) FROM wts_visitor_days WHERE who = '*' "
+                                  "AND day >= ?", (since[:10],)).fetchone()
+        return SpendingTotals(float(row[0]), int(row[1]), int(row[2]), int(row[3]) + int(earlier[0]))
 
     def by_day(self, since: str) -> list[DaySpending]:
         """Each day's spending from ``since`` on, oldest first; days with no model call are left out."""
@@ -95,9 +134,18 @@ class Spending:
         with self._db.connect() as con:
             rows = con.execute(
                 "SELECT account, account IS NULL AND visitor IS NOT NULL, sum(cost_usd), count(*), "
-                "count(DISTINCT visitor) FROM wts_spending WHERE at >= ? GROUP BY 1, 2 ORDER BY 3 DESC, 1, 2",
-                (since,)).fetchall()
-        return [AccountSpending(r[0], bool(r[1]), float(r[2]), int(r[3]), int(r[4])) for r in rows]
+                "count(DISTINCT visitor) FILTER (WHERE visitor != '') FROM wts_spending WHERE at >= ? "
+                "GROUP BY 1, 2 ORDER BY 3 DESC, 1, 2", (since,)).fetchall()
+            earlier = {r[0]: int(r[1]) for r in con.execute(
+                "SELECT who, sum(visitors) FROM wts_visitor_days WHERE who != '*' AND day >= ? GROUP BY 1",
+                (since[:10],))}
+
+        def visitors(account: int | None, public: bool, counted: int) -> int:
+            who = str(account) if account is not None else "" if public else None
+            return counted + (earlier.get(who, 0) if who is not None else 0)
+
+        return [AccountSpending(r[0], bool(r[1]), float(r[2]), int(r[3]), visitors(r[0], bool(r[1]), int(r[4])))
+                for r in rows]
 
 if TYPE_CHECKING:  # checked by mypy: the class is what its interface asks for
 

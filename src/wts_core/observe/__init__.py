@@ -34,11 +34,12 @@ from wts_core.observe.log import (
     save_week,
     weeks,
 )
-from wts_core.observe.logs import FIELDS, LOGGER, json_logging, log_event
+from wts_core.observe.logs import EVENTS, FIELDS, LOGGER, STAGE_NAMES, json_logging, log_event
 from wts_core.observe.report import ALERTS, MARGIN, proposed_thresholds, tidy_reports, tripped, weekly_report
 
 __all__ = [
     "ALERTS",
+    "EVENTS",
     "FIELDS",
     "LOGGER",
     "MARGIN",
@@ -49,6 +50,7 @@ __all__ = [
     "Headline",
     "Retention",
     "SqliteBriefingLog",
+    "STAGE_NAMES",
     "Stats",
     "Tidied",
     "config_id",

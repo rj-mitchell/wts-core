@@ -650,7 +650,8 @@ def councils_route(side: DeskSide) -> tuple[Route, Hooks]:
 
         def on_event(self, ask: Ask, event: dict[str, Any]) -> dict[str, Any] | None:
             # token counts are for the spending record: this site sends none to the reader
-            return {k: v for k, v in event.items() if k != "usage"} if event["type"] in ("plan", "final") else event
+            return ({k: v for k, v in event.items() if k not in ("usage", "parse_error")}
+                    if event["type"] in ("plan", "final") else event)
 
     def offline_plan(body: Any) -> Any:
         if body.plan:

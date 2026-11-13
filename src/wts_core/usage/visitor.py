@@ -74,10 +74,16 @@ def visitor_code(kv: KeyValue, address: str | None, *, day: str | None = None, f
     """
     name = f"{SALT}:{day or today(clock)}"
     salt = kv.get(name)
-    if salt is None:
+    for _ in range(3):
+        if salt is not None:
+            break
         kv.set_if_absent(name, random.token_hex(16))
         kv.delete_like(f"{SALT}:%", keep=name)
         if forget_undated_salt:
             kv.delete(SALT)
+        # read back, since another process may have set it first; and if a request of the next day deleted it
+        # in between (the day's first request straddling midnight), make it again rather than hash with nothing
         salt = kv.get(name)
+    if salt is None:
+        raise RuntimeError("the day's visitor secret could not be kept: the code would be an unsalted hash")
     return hashlib.sha256(f"{salt}|{network_of(address)}".encode()).hexdigest()[:24]

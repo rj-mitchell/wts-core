@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import fields
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -78,7 +78,8 @@ def test_the_table_has_one_column_for_each_field_of_the_record_and_no_other(db):
 def test_the_log_is_what_the_briefing_desk_is_promised(log):
     desk_sees: BriefingLog = log
     desk_sees.write(record("r1"))
-    desk_sees.mark("nothing-by-this-name", useful=True)
+    desk_sees.mark("nothing-by-this-name", useful=True)  # no such briefing: nothing is marked, nothing raised
+    assert list(desk_sees.since(datetime(2026, 11, 1, tzinfo=UTC))) == [record("r1")]
 
 
 def test_the_spread_and_the_filters_are_stored_as_json(db, log):

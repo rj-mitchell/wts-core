@@ -26,7 +26,7 @@ from wts_core.usage.interfaces import (
 )
 from wts_core.usage.limiter import RateLimiter
 from wts_core.usage.pricing import PriceTable
-from wts_core.usage.spending import Spending
+from wts_core.usage.spending import Spending, forget_visitors
 from wts_core.usage.tables import migrations
 from wts_core.usage.visitor import client_address, network_of, visitor_code
 
@@ -52,6 +52,7 @@ __all__ = [
     "alphabet_id",
     "busy_refusal",
     "cache_key",
+    "forget_visitors",
     "client_address",
     "migrations",
     "network_of",

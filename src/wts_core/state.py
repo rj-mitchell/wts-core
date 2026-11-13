@@ -11,8 +11,10 @@ left as the site's file has it.
 
 from __future__ import annotations
 
+import os
 import shutil
 import sqlite3
+import threading
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -88,13 +90,31 @@ class StateDB:
 
     # ---- migrations and imports ---------------------------------------------------------------------------------
 
+    @contextmanager
+    def _alone(self) -> Iterator[sqlite3.Connection]:
+        """A connection holding the database's write lock from the start, with everything done on it (making a
+        table included) kept or undone together. Two processes starting at once take turns; a change that fails
+        part-way leaves nothing behind."""
+        con = sqlite3.connect(self.path, timeout=30, isolation_level=None)
+        con.row_factory = sqlite3.Row
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            yield con
+            con.execute("COMMIT")
+        except BaseException:
+            if con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
+        finally:
+            con.close()
+
     def _migrate(self, migrations: Sequence[Migration]) -> None:
         numbers = [m.number for m in migrations]
         if len(set(numbers)) != len(numbers):
             raise ValueError("two migrations have the same number")
-        with self.connect() as con:
+        with self._alone() as con:
             con.execute("CREATE TABLE IF NOT EXISTS wts_schema (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)")
-            done = {r["name"] for r in con.execute("SELECT name FROM wts_schema")}
+            done = {r["name"] for r in con.execute("SELECT name FROM wts_schema")}  # read under the lock
             for m in sorted(migrations, key=lambda m: m.number):
                 key = f"migration:{m.number}:{m.name}"
                 if key in done:
@@ -110,14 +130,18 @@ class StateDB:
     def _import(self, imports: Sequence[Import]) -> None:
         if not imports:
             return
-        with self.connect() as con:
+
+        def todo(con: sqlite3.Connection) -> list[Import]:
             done = {r["name"] for r in con.execute("SELECT name FROM wts_schema")}
-        todo = [i for i in imports if f"import:{i.name}" not in done and set(i.needs) <= self.tables()]
-        if not todo:
-            return
+            there = {r["name"] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            return [i for i in imports if f"import:{i.name}" not in done and set(i.needs) <= there]
+
+        with self.connect() as con:
+            if not todo(con):
+                return
         self._copy_before_first_import()
-        with self.connect() as con:  # all of them, or none
-            for i in todo:
+        with self._alone() as con:  # all of them, or none; and only once, however many processes start together
+            for i in todo(con):
                 for statement in i.statements:
                     con.execute(statement)
                 con.execute("INSERT INTO wts_schema (name, applied_at) VALUES (?, ?)",
@@ -129,7 +153,8 @@ class StateDB:
         copy = self.path.with_name(f"{self.path.stem}.pre-wts-core.{today(self.clock)}{self.path.suffix}")
         if copy.exists():
             return copy
-        partial = copy.with_name(copy.name + ".partial")
+        # a name of its own, so two processes starting together cannot write over each other's half-made copy
+        partial = copy.with_name(f"{copy.name}.{os.getpid()}.{threading.get_ident()}.partial")
         src = sqlite3.connect(self.path, timeout=30)
         dst = sqlite3.connect(partial)
         try:

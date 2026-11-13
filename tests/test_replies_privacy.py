@@ -220,3 +220,35 @@ def test_a_report_contact_is_deleted_when_the_report_is_closed(site):
     [closed] = site.replies.reports(open_only=False)
     assert closed["contact"] is None and closed["status"] == "resolved" and closed["closed_at"]
     assert "reader@example.org" not in everything_kept(site)
+
+
+def test_yesterdays_visitor_codes_are_gone_without_anyone_sending_anything_more(site):
+    """Found in review: the counts were emptied only when the next statement or report was accepted, so on a quiet
+    site a visitor's code stayed for as long as nobody wrote in. The owner's listings and the nightly check's
+    question now empty them too."""
+    site.send(visitor="a" * 24)
+    assert site.rows("SELECT visitor FROM wts_reply_counts") == [{"visitor": "a" * 24}]
+    site.clock.advance(days=1)
+    site.replies.waiting()  # what the nightly check asks
+    assert site.rows("SELECT visitor FROM wts_reply_counts") == []
+    site.send(visitor="b" * 24)
+    site.clock.advance(days=40)
+    site.replies.statements()  # the owner looking at the list
+    assert site.rows("SELECT visitor FROM wts_reply_counts") == []
+    site.send(visitor="c" * 24)
+    site.clock.advance(days=1)
+    assert site.replies.forget_old_counts() == 1 and site.rows("SELECT visitor FROM wts_reply_counts") == []
+
+
+def test_an_ended_statement_brought_across_with_no_closing_time_still_loses_its_address(site):
+    """Found in review: a declined statement whose closing time was empty (as a site's import might leave it) kept
+    its sender's address for ever, because nothing is ever "before" an empty time. It is judged by when it was
+    sent."""
+    sid = site.send()
+    with site.db.connect() as con:
+        con.execute("UPDATE wts_statements SET status = 'declined', closed_at = NULL WHERE id = ?", (sid,))
+    site.clock.advance(days=80)
+    site.replies.forget_old_emails()
+    assert emails(site)[sid]  # not yet three months
+    site.clock.advance(days=20)
+    assert site.replies.forget_old_emails() == 1 and not emails(site)[sid]

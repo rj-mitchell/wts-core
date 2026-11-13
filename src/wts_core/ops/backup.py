@@ -132,8 +132,11 @@ def restore_backup(archive: Path, state_db: Path, spec: BackupSpec) -> Path | No
     as it is: nothing has been replaced then, and no half-written kept copy is left."""
     archive, state_db = Path(archive), Path(state_db)
     kept = state_db.with_name(state_db.name + ".before-restore") if state_db.exists() else None
+    # a database that has a write-ahead log beside it is treated as one that keeps its newest writes there,
+    # whatever the spec says: the kept copy must carry the log, or those writes are lost
+    wal = spec.wal or _beside(state_db, "-wal").exists()
     if kept:
-        for earlier in (kept, _beside(kept, "-wal")) if spec.wal else (kept,):
+        for earlier in (kept, _beside(kept, "-wal")) if wal else (kept,):
             if earlier.exists():  # the only copy of what an earlier restore replaced: never written over
                 raise RestoreRefused(f"{earlier} is still there from an earlier restore: move or delete it first",
                                      why="kept-copy")
@@ -150,7 +153,7 @@ def restore_backup(archive: Path, state_db: Path, spec: BackupSpec) -> Path | No
             # copy is never there without it.
             copy = Path(tmp) / kept.name
             shutil.copy2(state_db, copy)
-            if spec.wal:
+            if wal:
                 _beside(kept, "-shm").unlink(missing_ok=True)  # an index of a log no longer there; SQLite remakes it
                 if _beside(state_db, "-wal").exists():
                     shutil.copy2(_beside(state_db, "-wal"), _beside(copy, "-wal"))

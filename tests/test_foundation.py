@@ -152,3 +152,61 @@ def test_a_copy_made_before_an_import_does_not_outlive_the_sites_backups(tmp_pat
     clock.advance(days=1)
     assert db.forget_old_copies(14) == [copy] and not copy.exists()
     assert (tmp_path / "state.pre-wts-core.notes.db").exists() and path.exists()  # nothing else is touched
+
+
+def test_a_migration_or_import_that_fails_part_way_leaves_nothing_behind(tmp_path):
+    """Found in review: Python's sqlite3 opens a transaction only before the first INSERT, so a statement that
+    makes or alters a table was kept even when the next statement failed, and every later start then failed on
+    "duplicate column name"."""
+    import sqlite3
+
+    import pytest
+
+    from wts_core.state import Import, Migration, StateDB
+
+    path = tmp_path / "state.db"
+    StateDB(path, migrations=[Migration(90, "things", ("CREATE TABLE wts_things (id INTEGER)",))])
+    broken = Migration(91, "more", ("ALTER TABLE wts_things ADD COLUMN name TEXT", "INSERT INTO no_such VALUES (1)"))
+    first = Migration(90, "things", ("CREATE TABLE wts_things (id INTEGER)",))
+    for _ in range(2):  # the second start fails for the same reason as the first, not for a new one
+        with pytest.raises(sqlite3.OperationalError, match="no such table"):
+            StateDB(path, migrations=[first, broken])
+    mended = Migration(91, "more", ("ALTER TABLE wts_things ADD COLUMN name TEXT",))
+    db = StateDB(path, migrations=[first, mended])
+    with db.connect() as con:
+        assert [r[1] for r in con.execute("PRAGMA table_info(wts_things)")] == ["id", "name"]
+    bad = Import("bring", ("CREATE TABLE wts_brought (id INTEGER)", "INSERT INTO no_such VALUES (1)"))
+    with pytest.raises(sqlite3.OperationalError):
+        StateDB(path, migrations=[first, mended], imports=[bad])
+    assert "wts_brought" not in db.tables()
+
+
+def test_processes_that_start_together_take_turns(tmp_path):
+    """Found in review: several processes opening a new file at once each tried to record the same migration, and
+    all but one died. A web server with several workers, or the site and its nightly update, start like that."""
+    import threading
+
+    from wts_core.state import Import, Migration, StateDB
+
+    path = tmp_path / "state.db"
+    StateDB(path).set("old", "1")
+    migrations = [Migration(90, "things", ("CREATE TABLE wts_things (id INTEGER)",))]
+    imports = [Import("bring", ("INSERT INTO wts_things (id) VALUES (1)",))]
+    errors: list[BaseException] = []
+    go = threading.Barrier(8)
+
+    def start() -> None:
+        try:
+            go.wait()
+            StateDB(path, migrations=migrations, imports=imports)
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=start) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    with StateDB(path, migrations=migrations, imports=imports).connect() as con:
+        assert con.execute("SELECT count(*) FROM wts_things").fetchone()[0] == 1  # the import ran once

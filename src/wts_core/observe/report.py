@@ -393,6 +393,7 @@ def week_name(week: date) -> str:
 def _write(path: Path, text: str) -> None:
     partial = path.with_name(path.name + ".partial")
     partial.write_text(text, encoding="utf-8")
+    partial.chmod(0o600)  # a report quotes questions that found no records: for the owner, like a backup
     os.replace(partial, path)
 
 

@@ -48,6 +48,7 @@ from wts_core.observe.report import week_name
 from wts_core.ports import SYSTEM_CLOCK, Clock, Embedder, Pricing
 from wts_core.settings import Site
 from wts_core.state import StateDB
+from wts_core.usage import forget_visitors
 
 if TYPE_CHECKING:
     import typer
@@ -73,7 +74,7 @@ def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Call
                    similarity: float | None = None, pricing: Callable[[], Pricing] | None = None,
                    decided_by: Callable[[], str | None] | None = None, compare_weeks: int = 4,
                    retention: Retention = OWNER_ACCEPTED, names: StatsNames | None = None,
-                   clock: Clock = SYSTEM_CLOCK) -> typer.Typer:
+                   backup_days: int | None = None, clock: Clock = SYSTEM_CLOCK) -> typer.Typer:
     """The site's statistics commands, to add to its own app with ``app.add_typer(...)``.
 
     Everything the site knows is asked for when a command runs, never when the commands are built: ``state`` (its
@@ -192,6 +193,15 @@ def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Call
             typer.echo(f"Removed the question from {tidied.blanked:,} records of failed briefings older than "
                        f"{retention.failed_question_days} days.")
             typer.echo(f"Deleted {reports:,} weekly report files older than {retention.months} months.")
+            db = state()
+            if "wts_spending" in db.tables():
+                # the first model call of each day does this too; here it is done on a day with none
+                forgotten = forget_visitors(db, clock=clock)
+                typer.echo(f"Forgot the visitor codes on {forgotten:,} spending rows from before today.")
+            if backup_days is not None:
+                gone = db.forget_old_copies(backup_days)
+                typer.echo(f"Deleted {len(gone):,} copies of the database made before an import, older than "
+                           f"{backup_days} days.")
 
     return app
 

@@ -148,7 +148,8 @@ def retry_once[T](fn: Callable[[], T]) -> T:
     try:
         return fn()
     except Exception as exc:
-        log.info("search failed (%s); trying once more", exc)
+        # the error's class only: a failed search by words can carry the reader's words in its message
+        log.info("search failed (%s); trying once more", type(exc).__name__)
         return fn()
 
 
