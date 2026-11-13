@@ -14,7 +14,7 @@ Last updated: 13 November 2026, 15:30 UTC (session 1).
 | 1b. "Why use this rather than a chatbot?" | **Done: four pull requests** (the hub and three AI sites); screenshots in the charity repository's | below |
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
-| 3. Build the package | **Under way** (the owner accepted the design on 13 November 2026) | branch `claude/wts-3-package`; see "Phase 3" below |
+| 3. Build the package | **Built; pull request open** (rj-mitchell/wts-core#2). To merge when its checks are green, then tag `v0.1.0` | branch `claude/wts-3-package`; see "Phase 3" below |
 | 4 to 7 | Not started | |
 
 ## Pull requests
@@ -73,7 +73,7 @@ parity tests that import each site's own functions and compare results. I merge 
 | `cli` (the shared commands) and the `/api/check` route; the remaining testing helpers | `claude/wts-3-cli` | `/home/user/wt/core-cli` | **merged** (each site's own commands and the package's print the same lines and exit alike) |
 | `examples/minimal-site`, `docs/EXTENDING.md`, `docs/NEW-SITE.md`, `README.md` | `claude/wts-3-example` | `/home/user/wt/core-example` | **merged** (61 tests of its own, its real server included; the new-site checklist was followed from scratch twice) |
 | An independent review of the whole package against the brief's Musts | read-only | | **done and acted on**: [`NOTES/independent-review-of-the-package.md`](NOTES/independent-review-of-the-package.md) |
-| The public-interface snapshot test, then tag `v0.1.0` | last (the tag needs the pull requests merged first) | | |
+| The public-interface snapshot test, then tag `v0.1.0` | on the package branch | | the snapshot is in (`docs/api-snapshot.txt`); the tag follows the merge |
 
 The workers' brief is kept at `docs/study/package-worker-brief.md`.
 
