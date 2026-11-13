@@ -70,8 +70,9 @@ parity tests that import each site's own functions and compare results. I merge 
 | `briefing` (the desk, stages, the streamer) | `claude/wts-3-briefing` | `/home/user/wt/core-briefing` | **merged** (each site's real `/api/ask` and the desk give the same bytes and the same rows on every case) |
 | `observe` (the briefing log, statistics, alerts) | `claude/wts-3-observe` | `/home/user/wt/core-observe` | **merged** |
 | `eval` (replay and live runs) | `claude/wts-3-eval` | `/home/user/wt/core-eval` | **merged** (replays the shipped recordings against golden reports; reads each site's real question file) |
-| `cli` (the shared commands) and the `/api/check` route; the remaining testing helpers | `claude/wts-3-cli` | `/home/user/wt/core-cli` | building |
-| `examples/minimal-site`, `docs/EXTENDING.md`, `docs/NEW-SITE.md` | last | | |
+| `cli` (the shared commands) and the `/api/check` route; the remaining testing helpers | `claude/wts-3-cli` | `/home/user/wt/core-cli` | **merged** (each site's own commands and the package's print the same lines and exit alike) |
+| `examples/minimal-site`, `docs/EXTENDING.md`, `docs/NEW-SITE.md`, `README.md` | `claude/wts-3-example` | `/home/user/wt/core-example` | building |
+| An independent review of the whole package against the brief's Musts | read-only | | under way |
 | The public-interface snapshot test, then tag `v0.1.0` | last (the tag needs the pull requests merged first) | | |
 
 The workers' brief is kept at `docs/study/package-worker-brief.md`.

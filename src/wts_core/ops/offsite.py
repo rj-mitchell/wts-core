@@ -76,6 +76,8 @@ def send_offsite(archive: Path, store: OffsiteStore | None, spec: BackupSpec, *,
             store.close()
     except OffsiteError as exc:
         _write_status(archive.parent, {"ok": False, "when": when, "error": str(exc)[:300]})
+        # always the one kind of error for a command to word; whether the store was unreachable (try again later)
+        # or refused is still there to read, as the error's cause
         raise OffsiteError(str(exc)) from exc
     status = {"ok": True, "when": when, "file": archive.name, "bucket": store.name, "stored": stored,
               "deleted": pruned}

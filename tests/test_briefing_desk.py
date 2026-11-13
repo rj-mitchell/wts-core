@@ -731,7 +731,8 @@ def test_in_an_experiment_each_version_has_its_own_cached_answers(site, tmp_path
     assert "cached" not in a.run()[-1]
     a.desk._config["arm"] = "a"
     assert a.run()[-1]["cached"] is True
-    assert seen == [cache_key({"key": "k" * 64, "experiment": "shorter-instructions", "arm": arm}) for arm in "ab"]
+    assert seen == [cache_key({"key": "k" * 64, "experiment": "shorter-instructions", "arm": arm}, length=64)
+                    for arm in "ab"]
     assert [(r.experiment, r.arm, r.outcome) for r in a.log.records] == [
         ("shorter-instructions", "a", "completed"), ("shorter-instructions", "b", "completed"),
         ("shorter-instructions", "a", "cached")]

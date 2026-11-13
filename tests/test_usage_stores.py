@@ -60,12 +60,14 @@ def test_the_cache_key_is_a_hash_of_the_parts_whatever_their_order(site):  # noq
     key = cache_key(parts, length=site.key_length)
     assert len(key) == site.key_length and key == cache_key(dict(reversed(parts.items())), length=site.key_length)
     assert key == hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()[:site.key_length]
-    assert cache_key(parts).startswith(key) and len(cache_key(parts)) == 64
+    assert cache_key(parts, length=64).startswith(key) and len(cache_key(parts, length=64)) == 64
     # another mode, or newer data, is another answer
     assert cache_key({**parts, "mode": "comprehensive"}, length=site.key_length) != key
     assert cache_key({**parts, "data": 1731578400}, length=site.key_length) != key
     # what JSON cannot write is written as its text
-    assert cache_key({"data": date(2026, 11, 13)}) == cache_key({"data": "2026-11-13"})
+    assert cache_key({"data": date(2026, 11, 13)}, length=64) == cache_key({"data": "2026-11-13"}, length=64)
+    with pytest.raises(TypeError):
+        cache_key(parts)  # type: ignore[call-arg]  # the sites differ, so the length is always said
 
 
 def test_repeat_questions_come_from_the_cache(site, db, clock):  # noqa: F811

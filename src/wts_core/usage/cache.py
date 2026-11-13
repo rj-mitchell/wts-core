@@ -20,9 +20,12 @@ from wts_core.state import StateDB, iso
 __all__ = ["SqliteAnswerCache", "cache_key"]
 
 
-def cache_key(parts: Mapping[str, Any], *, length: int = 64) -> str:
-    """The key for an answer: ``length`` hexadecimal characters (64 everywhere but Where Councils Stand, which
-    keeps 32). Anything JSON cannot write (a date, say) is written as its text."""
+def cache_key(parts: Mapping[str, Any], *, length: int) -> str:
+    """The key for an answer: ``length`` hexadecimal characters (64 on Where MPs Stand and Where Countries Stand;
+    Where Councils Stand keeps 32). The sites differ, so there is no default: a site that passed the wrong length
+    would miss every answer it had cached. Anything JSON cannot write (a date, say) is written as its text."""
+    if not 16 <= length <= 64:
+        raise ValueError(f"a cache key is 16 to 64 characters long, not {length}")
     return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode()).hexdigest()[:length]
 
 

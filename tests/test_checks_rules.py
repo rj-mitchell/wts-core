@@ -86,3 +86,31 @@ def test_with_the_stamp_removed_the_recheck_never_adds_a_flag(site):
     # without the stamp, the recheck would clear a little of what verify() has just flagged: that is why the stamp
     # is there, and it must stay a little (phase 1's fixes: never for shortness, nor for standing before a lead-in)
     assert cleared_fresh <= COUNT // 100, cleared_fresh
+
+
+def test_a_verifier_cannot_be_built_in_a_way_that_quietly_weakens_it():
+    """Found in review: with no honorifics the pattern matched the full stop after any word, hiding where sentences
+    end, so a claim before a lead-in was cleared; with no "no records" words every answer was "no records"."""
+    import re
+
+    import pytest
+
+    from wts_core.checks import COMMON_HONORIFICS, EVIDENCE_NOTES_STRICT, Verifier
+
+    with pytest.raises(ValueError, match="no_records"):
+        Verifier(no_records="  ", evidence_notes=EVIDENCE_NOTES_STRICT)
+    with pytest.raises(TypeError, match="evidence_notes"):
+        Verifier(no_records="No records found", evidence_notes="was supplied")  # type: ignore[arg-type]
+    blocks = [{"text": "Spending rose by a tenth last year. The minister said: "},
+              {"text": "we will act", "citations": [{"cited_text": "we will act", "search_result_index": 0}]}]
+
+    class Source:
+        n, blocks = 1, ["we will act"]
+
+    def flagged(honorifics):
+        v = Verifier(no_records="No records found", evidence_notes=EVIDENCE_NOTES_STRICT, honorifics=honorifics)
+        return [s.status for s in v.verify(blocks, [Source()]).segments]
+
+    assert flagged(()) == flagged(("",)) == flagged(COMMON_HONORIFICS)
+    assert "unsupported" in flagged(())
+    assert isinstance(EVIDENCE_NOTES_STRICT, re.Pattern)

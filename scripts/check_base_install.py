@@ -12,7 +12,9 @@ import wts_core
 
 NOT_WANTED = {"anthropic", "fastembed", "lancedb", "numpy", "pyarrow", "duckdb", "httpx", "typer", "fastapi",
               "pydantic", "onnxruntime", "tokenizers"}
-NEEDS_AN_EXTRA = ("wts_core.cli",)  # typer; the adapters import their libraries only when used
+# the contract tests are classes for pytest, which a site's test environment has; everything else imports on
+# its own: the commands import typer, and the adapters their libraries, only when used
+NEEDS_AN_EXTRA = ("wts_core.testing.contracts",)
 
 installed = {d.metadata["Name"].lower().replace("_", "-") for d in importlib.metadata.distributions()}
 extra = sorted(installed & NOT_WANTED)

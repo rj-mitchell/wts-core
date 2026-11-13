@@ -51,6 +51,11 @@ class BackupSpec:
     # keeps of the database it replaces then carries the log, without which those writes would be lost
     wal: bool = False
 
+    def __post_init__(self) -> None:
+        if not [t for t in self.required_tables if t.strip()]:
+            # with none named, a restore would put any sound SQLite file, even an empty one, in the database's place
+            raise ValueError("required_tables must name at least one table that every backup of this site has")
+
     @property
     def suffix(self) -> str:
         return ".tar.gz" if self.format == "tar" else ".sqlite.gz"

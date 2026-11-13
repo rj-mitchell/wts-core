@@ -256,9 +256,17 @@ class Verifier:
 
     def __init__(self, *, no_records: str, evidence_notes: re.Pattern[str],
                  honorifics: Sequence[str] = COMMON_HONORIFICS) -> None:
+        if not no_records.strip():
+            # with no words to look for, every briefing would open with them: each would be "no records"
+            raise ValueError("no_records must be the words a \"no records\" answer opens with")
+        if not isinstance(evidence_notes, re.Pattern):
+            raise TypeError("evidence_notes must be a compiled pattern: EVIDENCE_NOTES_WIDE or EVIDENCE_NOTES_STRICT")
+        named = [h for h in honorifics if h.strip()]
         self._no_records = no_records
         self._evidence_note = evidence_notes
-        self._honorific_dot = re.compile(r"\b(" + "|".join(re.escape(h) for h in honorifics) + r")\.")
+        # with no honorifics the pattern must match nothing: an empty alternative would match the full stop after
+        # any word, and so hide where sentences end
+        self._honorific_dot = re.compile(r"\b(" + "|".join(re.escape(h) for h in named) + r")\." if named else r"(?!)")
 
     # ---- a new briefing ----------------------------------------------------------------------------------------
 
