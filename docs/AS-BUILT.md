@@ -509,3 +509,46 @@ checks section of `API-SKETCH.md` has since been rewritten as built.
 - `adapters.b2` needs the `offsite` extra (httpx). `adapters.duckdb` needs the `duckdb` extra, which asks for
   DuckDB 2. Where MPs Stand and Where Countries Stand use the wrapper; the other two do not need the extra.
 - Unit and timer files stay in each site's `deploy/`.
+
+## `wts_core.cli` (the shared commands and the check route) and the last testing helpers
+
+Proved against all four sites' own commands, loaded from their checkouts and run side by side with the package's
+on the same rows: what is printed, where, and the exit code.
+
+### Differs from the sketch
+
+- `ops_commands(site, settings, spec, wording, *, store, how_to_set_up, env, clock, before)`: the backup spec is
+  passed (`Site` has no `backup` field), and every printed line comes from the site's `OpsWording`.
+- `replies_commands(replies, commands, wording, *, about, changed)`: `commands` names each command as the site
+  has it (two words make a group, one a flat command, `None` leaves it out); `changed` is called after each
+  change (Where Landlords Stand rebuilds its pages there).
+- `check_route(site, *, replies, backups, figures, token, clock)` returns `(status, body)` for a site's route to
+  send: 404 with no token set, 401 for a wrong or missing one. It passes on only numbers, yes-or-no values and
+  empty values, under plain lower-case names, so nothing a reader wrote can leave by it. `last_day_figures(log)`
+  and `backup_ages(...)` fill it.
+- `stats_commands` adds `stats` (with `--check`), `weekly-report` and `tidy`; `eval_commands` adds `eval run`,
+  `compare` and `replay`. `eval run` has no spending limit of its own: the site passes one, or it refuses to run.
+- Typer is imported only when a command group is built, so `import wts_core.cli` and the check route need
+  nothing outside the standard library. The `cli` extra asks for Typer 0.15 or later (earlier versions cannot
+  merge a group's commands into the site's own).
+- `wts_core.testing` gains `MemoryOffsiteStore`, `OffsiteStoreContract`, `assert_no_reader_data`,
+  `assert_statements_stay_out` and `golden`. `assert_no_reader_data` allows the day's visitor code only in
+  `wts_spending.visitor` and `wts_reply_counts.visitor`, where the sites keep it today.
+
+### At adoption
+
+- **Words the owner must supply, where a site has none today:** the lines for `hide`, `unhide`, `hidden`,
+  `waiting` and `remove` on every site, and all of Where MPs Stand's report lines. The stand-ins are in
+  `tests/cli_sites.py`, marked as such.
+- Where each site printed one fixed line when something could not be done ("no waiting statement with that
+  number"), the owner now sees the exact reason. The exit code is 1 as before.
+- Where MPs Stand: declining a published statement is refused; `remove` is the command.
+- Where Landlords Stand: its one-command shape (`statements --publish 3`) becomes subcommands
+  (`statements publish 3`); its free-text `--outcome` becomes `--note` with `--outcome resolved|dismissed`; a
+  missing `--checked` exits 2 (Typer's own) rather than 1; a closed report closed again is refused; lists are
+  newest first. **Its server scripts and the owner's habits must change with it.**
+- Where Countries Stand: takedown requests are listed first.
+- Where MPs Stand had no tests of its backup, restore or off-site commands: the side-by-side runs are the first.
+- `last_day_figures` gives the last 24 hours only; the weekly figures ADR 0010 mentions come from `wts_weekly`
+  when the family's nightly check is extended (phase 5).
+
