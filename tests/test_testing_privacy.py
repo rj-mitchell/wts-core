@@ -12,10 +12,10 @@ from typing import Any
 import pytest
 
 from test_replies_sites import BARNSLEY, SITES
+from wts_core import observe, usage
 from wts_core import replies as right_of_reply
-from wts_core import usage
 from wts_core.events import TextDelta
-from wts_core.ports import Document, ModelRequest, Usage
+from wts_core.ports import BriefingRecord, Document, ModelRequest, Usage
 from wts_core.replies import Replies
 from wts_core.state import StateDB
 from wts_core.testing import FixedClock, FixedRandom, assert_no_reader_data, assert_statements_stay_out
@@ -48,7 +48,8 @@ class SmallSite:
         self.leaks = leaks
         self.clock = FixedClock()
         self.state = StateDB(folder / "state.db", clock=self.clock,
-                             migrations=(*usage.migrations(), *right_of_reply.migrations()))
+                             migrations=(*usage.migrations(), *right_of_reply.migrations(),
+                                         *observe.migrations()))
         case = SITES["councils"]
         self.replies = Replies(self.state, items=case.items(), rules=case.rules, messages=case.messages,
                                clock=self.clock)
@@ -92,6 +93,9 @@ class SmallSite:
         archive.save(question, {}, kept)
         usage.SqliteAnswerCache(self.state, clock=self.clock).put(usage.cache_key({"q": question}), events, 24)
         usage.Spending(self.state, Free(), clock=self.clock).add("answer", "a-model", Usage(), visitor=visitor)
+        observe.SqliteBriefingLog(self.state, clock=self.clock).write(BriefingRecord(
+            id=f"r{self.asked}", at=self.clock.now().isoformat(timespec="seconds"), outcome="completed",
+            question=question, briefing_id=f"abc{self.asked:03d}", sources=len(found)))
         self.lines.append(json.dumps({"event": "briefing", "briefing": "abc123", "stage": "written", "ms": 310}))
         if "log" in self.leaks:
             self.lines.append(json.dumps({"event": "statements", "shown": said}))
@@ -199,7 +203,8 @@ def test_a_site_that_keeps_only_what_its_notice_says_passes(tmp_path):
     # the question and the visitor's code are kept, and only where they may be
     with site.state.connect() as con:
         rows = {table: con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
-                for table in ("wts_briefings", "wts_answer_cache", "wts_failures", "wts_spending", "wts_reply_counts")}
+                for table in ("wts_briefings", "wts_answer_cache", "wts_briefing_log", "wts_failures", "wts_spending",
+                              "wts_reply_counts")}
     assert all(rows.values()), rows
 
 

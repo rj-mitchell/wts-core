@@ -27,7 +27,7 @@ import json
 import math
 import re
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -35,12 +35,12 @@ from wts_core import __version__
 from wts_core.events import EVENTS_VERSION
 from wts_core.ops import BackupSpec
 from wts_core.ops.offsite import _STATUS_FILE
-from wts_core.ports import SYSTEM_CLOCK, Clock
+from wts_core.ports import SYSTEM_CLOCK, BriefingLog, Clock
 from wts_core.replies import Replies
 from wts_core.settings import Site
 from wts_core.state import iso
 
-__all__ = ["backup_ages", "check_route"]
+__all__ = ["backup_ages", "check_route", "last_day_figures"]
 
 # what a missing address answers on every site (FastAPI's own words), so that a site with no token set answers
 # this address exactly as it answers one that was never there
@@ -61,8 +61,8 @@ def check_route(site: Site, *, token: str | None, replies: Replies | Callable[[]
     ``token`` is the site's own copy of the check token; None or blank means the check is not set up. ``replies``
     (or something that returns it) gives what is waiting: how many reports and statements, how many items are
     hidden, and how long the oldest has waited in working days. ``backups`` gives the ages of the newest backup and
-    off-site copy (``backup_ages``); ``figures`` the briefing record's latest figures. Only the numbers in what
-    those two return are passed on.
+    off-site copy (``backup_ages``); ``figures`` the briefing record's latest figures (``last_day_figures``). Only
+    the numbers in what those two return are passed on.
 
     The answer, when the token is right::
 
@@ -110,6 +110,23 @@ def backup_ages(folder: Path, spec: BackupSpec, *, clock: Clock = SYSTEM_CLOCK) 
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         sent, ok = None, None
     return {"newest_hours": newest, "offsite_hours": sent, "offsite_ok": ok}
+
+
+def last_day_figures(log: BriefingLog, *, clock: Clock = SYSTEM_CLOCK) -> dict[str, Any]:
+    """How readers' questions ended in the last 24 hours, from the record of each briefing, for the check's
+    ``figures``: how many there were (``briefings``), how many ended each way (``by_outcome``), how many in an
+    error (``errors``) and what share that is (``error_rate``; None when nothing was asked). ``checks`` is how
+    many of the nightly check's own questions the record holds for the same day: they are counted there and
+    nowhere else. Numbers only: the record's questions are never read."""
+    now = clock.now()
+    start = now - timedelta(hours=24)
+    by_outcome: dict[str, int] = {}
+    for record in log.since(start, now):
+        by_outcome[record.outcome] = by_outcome.get(record.outcome, 0) + 1
+    asked, errors = sum(by_outcome.values()), by_outcome.get("error", 0)
+    return {"hours": 24, "briefings": asked, "by_outcome": dict(sorted(by_outcome.items())), "errors": errors,
+            "error_rate": round(errors / asked, 4) if asked else None,
+            "checks": len(log.since(start, now, kinds=("check",)))}
 
 
 def _hours(now: datetime, then: datetime) -> float:

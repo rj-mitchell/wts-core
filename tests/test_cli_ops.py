@@ -473,7 +473,7 @@ def test_off_site_copies_set_up_without_their_library_say_what_to_install(site, 
 def test_the_commands_module_needs_neither_typer_nor_httpx_until_a_command_is_built():
     code = ("import sys; sys.modules['typer'] = None; sys.modules['httpx'] = None; sys.modules['fastapi'] = None\n"
             "import wts_core.cli\n"
-            "from wts_core.cli import check_route, ops_commands, replies_commands\n"
+            "from wts_core.cli import check_route, eval_commands, ops_commands, replies_commands, stats_commands\n"
             "print(sorted(m for m in ('typer', 'httpx', 'fastapi') if sys.modules.get(m)))")
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     assert (done.returncode, done.stdout.strip()) == (0, "[]"), done.stderr
