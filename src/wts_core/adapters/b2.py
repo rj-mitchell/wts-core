@@ -11,9 +11,11 @@ The charity's sites can share one bucket and key: each site lists and deletes on
 (``wts_core.ops``). The key should be limited to that one bucket. Each backup is uploaded with its SHA-1 checked by
 B2. Nothing here ever prints the key.
 
-One thing differs from the sites' class, and it changes nothing they do: the key is offered to Backblaze when the
-store is first used, not when it is made, so that a store can be made from settings before anything is sent and a
-refused key is recorded as a failed copy. ``close()`` ends that session; the next use starts another.
+Two things differ from the sites' class, and they change nothing a site does. The key is offered to Backblaze when
+the store is first used, not when it is made, so that a store can be made from settings before anything is sent and
+a refused key is recorded as a failed copy; ``close()`` ends that session, and the next use starts another. And
+httpx's own errors (no network, an answer that is no answer) are raised as ``ops.OffsiteUnavailable`` with httpx's
+words, so that ``wts_core.ops`` needn't know httpx to record them.
 """
 
 from __future__ import annotations

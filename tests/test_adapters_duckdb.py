@@ -3,6 +3,7 @@ DuckDB 2. (Where Countries Stand's copy of the file has the same three.)"""
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import threading
@@ -12,7 +13,9 @@ import pytest
 
 from wts_core.adapters.duckdb import SharedConnection, shared
 
-duckdb = pytest.importorskip("duckdb", reason="the duckdb extra is not installed")
+# the tests that open a database need the duckdb extra; the last one, that the adapter is imported without it, does not
+needs_duckdb = pytest.mark.skipif(importlib.util.find_spec("duckdb") is None,
+                                  reason="DuckDB is not installed: uv sync --extra duckdb")
 
 
 def a_table(con: SharedConnection, x: int) -> Any:
@@ -26,6 +29,7 @@ def a_table(con: SharedConnection, x: int) -> Any:
     return pa.table({"x": [x]})
 
 
+@needs_duckdb
 def test_threads_get_their_own_results():
     con = shared()
     con.execute("CREATE TABLE t AS SELECT range AS i FROM range(200000)")
@@ -47,6 +51,7 @@ def test_threads_get_their_own_results():
     assert errors == []
 
 
+@needs_duckdb
 def test_views_and_settings_are_shared_registrations_are_not():
     con = shared()
     con.execute("CREATE VIEW v AS SELECT 1 AS x")
@@ -69,6 +74,7 @@ def test_views_and_settings_are_shared_registrations_are_not():
     assert shared(con) is con
 
 
+@needs_duckdb
 def test_a_row_read_singly_does_not_block_the_next_registration_or_relation():
     """DuckDB 2 refuses to register a table or run a relation while the cursor's last result has rows unread, which
     is how every fetchone() that finds its row leaves it. A request thread keeps its cursor, so one lookup would
@@ -84,7 +90,10 @@ def test_a_row_read_singly_does_not_block_the_next_registration_or_relation():
     assert con.table("t").limit(1).fetchall() == [(0,)]
 
 
+@needs_duckdb
 def test_a_connection_that_is_given_is_wrapped_and_each_thread_has_one_cursor_on_it():
+    import duckdb
+
     base = duckdb.connect()
     base.execute("CREATE TABLE t AS SELECT 42 AS x")
     con = shared(base)
