@@ -62,7 +62,7 @@ parity tests that import each site's own functions and compare results. I merge 
 |---|---|---|---|
 | `checks` (verifier, loaded words, spelling, typography, balance) | `claude/wts-3-checks` | `/home/user/wt/core-checks` | **merged into the package branch** (264 tests; identical to each site's copy on generated briefings) |
 | `usage` (limiter, visitor code, prices, spending, caps, in progress, cache, saved briefings, failures) | `claude/wts-3-usage` | `/home/user/wt/core-usage` | building |
-| `ops`, `adapters.b2`, `adapters.duckdb` | `claude/wts-3-ops` | `/home/user/wt/core-ops` | building |
+| `ops`, `adapters.b2`, `adapters.duckdb` | `claude/wts-3-ops` | `/home/user/wt/core-ops` | **merged into the package branch** (compared with all four sites' own backup, restore, off-site and alert code) |
 | `replies` | `claude/wts-3-replies` | `/home/user/wt/core-replies` | building |
 | `adapters.anthropic`, `.hashing`, `.fastembed`, `.lancedb`; testing fakes and contracts | `claude/wts-3-adapters` | `/home/user/wt/core-adapters` | building |
 | `briefing` (the desk, stages, the streamer) | to start once `usage` and `checks` are merged | | |
