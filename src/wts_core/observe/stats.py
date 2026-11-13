@@ -44,7 +44,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 from wts_core.observe.log import KINDS, OUTCOMES
-from wts_core.ports import SYSTEM_CLOCK, BriefingRecord, Clock, Embedder, Pricing
+from wts_core.ports import SYSTEM_CLOCK, BriefingRecord, Clock, Embedder, Pricing, Usage
 from wts_core.settings import Site
 
 __all__ = [
@@ -373,17 +373,26 @@ def _checked(record: BriefingRecord) -> bool:
 
 
 def _prompt_cache(rows: Sequence[BriefingRecord], pricing: Pricing | None) -> PromptCache:
+    """Every sum is priced by ``Pricing.cost``, model by model, so the answer follows the site's prices however
+    they come to be worked out: what the tokens read from the cache would have cost as plain input, less what
+    they did cost; and what the tokens written to it cost, less what they would have cost as plain input."""
     reads = sum(r.cache_read_tokens for r in rows)
     writes = sum(r.cache_write_tokens for r in rows)
     if pricing is None:
         return PromptCache(reads, writes, None, None, None)
-    saved = extra = 0.0
+    by_model: dict[str | None, Usage] = {}
     for r in rows:
-        if not (r.cache_read_tokens or r.cache_write_tokens):
-            continue
-        price = pricing.price_for(r.model)
-        saved += r.cache_read_tokens * (price.input - price.cache_read) / 1_000_000
-        extra += r.cache_write_tokens * price.input * (price.cache_write_multiplier - 1) / 1_000_000
+        if r.cache_read_tokens or r.cache_write_tokens:
+            # the record has no count of writes to the one-hour cache yet: when it gains one, it is priced here
+            long = min(r.cache_write_tokens, int(getattr(r, "cache_write_long_tokens", 0) or 0))
+            by_model[r.model] = by_model.get(r.model, Usage()) + Usage(
+                cache_read=r.cache_read_tokens, cache_write=r.cache_write_tokens, cache_write_long=long)
+    saved = extra = 0.0
+    for model, used in by_model.items():
+        saved += (pricing.cost(Usage(input_uncached=used.cache_read), model)
+                  - pricing.cost(Usage(cache_read=used.cache_read), model))
+        extra += (pricing.cost(Usage(cache_write=used.cache_write, cache_write_long=used.cache_write_long), model)
+                  - pricing.cost(Usage(input_uncached=used.cache_write), model))
     saved, extra = round(saved, 6), round(extra, 6)
     return PromptCache(reads, writes, saved, extra, saved > extra if (reads or writes) else None)
 

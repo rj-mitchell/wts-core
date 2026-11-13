@@ -257,6 +257,27 @@ def test_prompt_caching_that_writes_more_than_it_saves_did_not_pay_back(tmp_path
         1000, 100000, 0.0036, 0.1, False)
 
 
+def test_prompt_caching_is_priced_by_the_sites_own_cost_and_no_sum_of_the_packages(tmp_path, clock):
+    class OddPrices:
+        """Prices nobody would set, to show whose arithmetic is used: a cent a token read from the cache, two a
+        token written to it, three a token of plain input."""
+
+        def price_for(self, model):
+            raise AssertionError("the prices themselves are not the statistics' to read")
+
+        def cost(self, usage, model):
+            assert model == "large"
+            return usage.cache_read * 0.01 + usage.cache_write * 0.02 + usage.input_uncached * 0.03
+
+    log = SqliteBriefingLog(StateDB(tmp_path / "s.db", migrations=observe.migrations(), clock=clock), clock=clock)
+    log.write(record("r1", "2026-11-12T10:00:00+00:00", model="large", cache_read_tokens=100, cache_write_tokens=10))
+    log.write(record("r2", "2026-11-12T11:00:00+00:00", model="large", cache_read_tokens=100))
+    # read: 200 × 0.03 as plain input, less 200 × 0.01 = 4.00 saved. Written: 10 × 0.02, less 10 × 0.03: the
+    # writes were cheaper than plain input at these prices, so the extra is less than nothing
+    assert stats(log, since=timedelta(days=7), pricing=OddPrices(), clock=clock).period.prompt_cache == PromptCache(
+        200, 10, 4.0, -0.1, True)
+
+
 def test_check_failure_rates_are_over_the_briefings_whose_checks_ran(week):
     p = week.period
     assert p.invalid_citation == Rate(1, 4, 0.25)  # w2
