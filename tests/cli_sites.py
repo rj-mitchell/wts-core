@@ -9,9 +9,10 @@ in ``test_cli_ops.py`` and ``test_cli_replies.py`` are what keep them true.
 from __future__ import annotations
 
 import importlib
+import json
 import logging
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +23,7 @@ import pytest
 from typer.testing import CliRunner
 
 from test_ops_sites import COUNCILS, COUNTRIES, LANDLORDS, MPS, SENTENCES, SiteFacts, checkout_of, frozen
-from wts_core.cli import BackupCheckWords, BackupWords, OpsWording, RestoreWords
+from wts_core.cli import BackupCheckWords, BackupWords, OpsWording, RepliesCommands, RepliesWording, RestoreWords
 
 # ---- each site's words for its backup commands ---------------------------------------------------------------------
 
@@ -184,3 +185,146 @@ def options(app: Any, name: str) -> dict[str, tuple[Any, ...]]:
         command = command.commands[part]
     return {p.name: (tuple(p.opts), p.required, None if callable(p.default) else p.default, getattr(p, "help", None))
             for p in command.params}
+
+
+# ---- each site's names and words for its commands on reports and statements ----------------------------------------
+#
+# Where a site has a command today, the words are its own. For what a site gains with the package (reports on Where
+# MPs Stand, which had them on its admin page only; removing, hiding and what is waiting everywhere), the words are
+# written here in the site's own manner: the owner gives the real ones when the site adopts the package.
+
+
+def _shown_from(s: Mapping[str, Any]) -> str:
+    """The date the words now shown were first shown: each site re-dated a published statement when it was updated."""
+    return max(s["published_at"] or "", s["updated_at"] or "")[:10]
+
+
+def _confirmed(s: Mapping[str, Any]) -> list[str]:
+    """How the sender was confirmed: the note of the publishing, which the package keeps in the log only."""
+    return [e["note"] for e in s["log"] if e["action"] == "published" and e["note"]]
+
+
+def _report_lines(r: Mapping[str, Any]) -> list[str]:
+    """Where Countries Stand's and Where Councils Stand's listing of a report."""
+    lines = [f"#{r['id']}  {r['at']}  {r['kind']}  {r['page'] or '-'}{'  (closed)' if r['closed_at'] else ''}",
+             f"    {r['message']}"]
+    return lines + ([f"    reply to: {r['contact']}"] if r["contact"] else [])
+
+
+def _log_line(e: Mapping[str, Any]) -> list[str]:
+    return [f"    {e['at']}  {e['action']}" + (f": {e['note']}" if e["note"] else "")]
+
+
+def _mps_statement(s: Mapping[str, Any]) -> list[str]:
+    lines = [f"#{s['id']}  {s['status']}  received {s['at'][:10]}"
+             + (f"  published {_shown_from(s)}" if s["published_at"] else "")
+             + (f"  closed {s['closed_at'][:10]}" if s["closed_at"] else ""),
+             f"  From: {s['name']}, {s['role']}  <{s['email'] or 'email deleted'}>",
+             f"  About: {s['item']}" + (f"  (member {s['about']})" if s["about"] else "  (no member set)")]
+    if s["link"]:
+        lines.append(f"  Link: {s['link']}")
+    lines += [f"  Checked: {note}" for note in _confirmed(s)]
+    if s["reason"]:
+        lines.append(f"  Reason: {s['reason']}")
+    return [*lines, "  " + s["text"].replace("\n", "\n  ") + "\n"]
+
+
+def _countries_statement(st: Mapping[str, Any], *, councils: bool = False) -> list[str]:
+    if councils:
+        about = f"  (on {st['about']}'s page)" if st["about"] else "  (on no council's page: --council)"
+    else:
+        about = f"  (speaks for {st['about']})" if st["about"] else ""
+    lines = [f"#{st['id']}  {st['at']}  {st['status']}  {st['item']}{about}", f"    from: {st['name']}, {st['role']}"]
+    if st["email"]:
+        lines.append(f"    confirm with: {st['email']}")
+    if st["link"]:
+        lines.append(f"    record: {st['link']}")
+    lines += [f"    {para}" for para in st["text"].splitlines() if para.strip()]
+    if not councils:  # only Where Countries Stand reads the note back to the owner
+        lines += [f"    sender confirmed: {note}" for note in _confirmed(st)]
+    lines.append(f"    ({st['words']} words"
+                 + (f"; shown from {_shown_from(st)}" if st["status"] == "published" else "")
+                 + (f"; {st['status']}: {st['reason']}" if st["reason"] else "") + ")")
+    return lines
+
+
+def _councils_statement(st: Mapping[str, Any]) -> list[str]:
+    return _countries_statement(st, councils=True)
+
+
+def _landlords_row(s: Mapping[str, Any]) -> dict[str, Any]:
+    """A statement under Where Landlords Stand's own names for its fields, in its own order."""
+    return {"id": s["id"], "at": s["at"], "name": s["name"], "role": s["role"], "page": s["item"], "part": s["part"],
+            "text": s["text"], "link": s["link"], "email": s["email"], "status": s["status"], "landlord": s["about"],
+            "checked": next(iter(_confirmed(s)), None), "reason": s["reason"], "published_at": s["published_at"],
+            "updated_at": s["updated_at"], "closed_at": s["closed_at"]}
+
+
+def _landlords_statement(s: Mapping[str, Any]) -> list[str]:
+    return [json.dumps(_landlords_row(s) | {"words": s["words"]})]
+
+
+def _landlords_done(s: Mapping[str, Any]) -> str:
+    row = _landlords_row(s)
+    return json.dumps({k: row[k] for k in ("id", "status", "name", "page", "part", "landlord", "email")}
+                      | {"pages_changed": s["pages_changed"], "shown": s["shown"]})
+
+
+def _landlords_report(r: Mapping[str, Any]) -> list[str]:
+    return [json.dumps({"id": r["id"], "at": r["at"], "kind": r["kind"], "page": r["page"], "message": r["message"],
+                        "email": r["contact"]})]
+
+
+_IN_SENTENCES = {
+    "hidden_item": lambda h: [f"{h['item']}  hidden since {h['at'][:10]}", f"    {h['note']}"],
+    "waiting": "{reports} reports and {statements} statements waiting, {hidden} items hidden; the oldest has "
+               "waited {oldest_working_days} working days",
+    "hid": "hidden: {item}", "unhid": "shown again: {item}",
+}
+_PLAINLY = {"published": "published", "declined": "declined", "updated": "updated", "withdrawn": "withdrawn",
+            "removed": "removed", "closed": "closed", "not_done": "error: {message}", "refused": "error: {message}",
+            "errors_to_stderr": True, "report": _report_lines, "log_entry": _log_line, **_IN_SENTENCES}
+_ONE_WORD_EACH = {
+    "reports_show": "show-report", "reports_close": "close-report", "statements_show": "show-statement",
+    "statements_publish": "publish-statement", "statements_decline": "decline-statement",
+    "statements_update": "update-statement", "statements_withdraw": "withdraw-statement",
+    "statements_remove": "remove-statement", "statements_log": "statement-log",
+    "withdraw_note": "Withdrawn by its author.", "outcome": "resolved"}
+
+REPLIES: dict[str, tuple[RepliesCommands, RepliesWording]] = {
+    "mps": (
+        RepliesCommands(
+            listed=("pending",), about_option="--person", withdraw_note="Withdrawn by the author.",
+            help={"statements": "Statements beside items (the right of reply): list, publish, decline, update and "
+                                "withdraw them.",
+                  "statements_decline.reason": "why: sent to the author, never shown",
+                  "statements_withdraw.note": "a private note, e.g. the date they asked"}),
+        RepliesWording(
+            statement=_mps_statement, report=_report_lines, log_entry=_log_line,
+            published="published #{id}",
+            declined="declined #{id}: tell the author why; their email address is deleted in three months",
+            updated="updated #{id}", withdrawn="withdrawn #{id}; the email address is deleted in three months",
+            removed="removed #{id}: tell the author why; their email address is deleted in three months",
+            closed="closed #{id}", not_done="{message}", refused="{message}", errors_to_stderr=True,
+            **_IN_SENTENCES)),
+    "countries": (
+        RepliesCommands(listed=("pending", "published"), reports_list="reports", statements_list="statements",
+                        also={"list-statements": "statements_list"}, about_option="--country",
+                        **_ONE_WORD_EACH),
+        RepliesWording(statement=_countries_statement, **_PLAINLY)),
+    "councils": (
+        RepliesCommands(listed=("pending", "published"), reports_list="list-reports",
+                        statements_list="list-statements", about_option="--council",
+                        **_ONE_WORD_EACH),
+        RepliesWording(statement=_councils_statement, **_PLAINLY)),
+    "landlords": (
+        RepliesCommands(listed=("pending",), about_option="--landlord", withdraw_note_required=True),
+        RepliesWording(
+            statement=_landlords_statement, report=_landlords_report,
+            log_entry=lambda e: [json.dumps({"at": e["at"], "action": e["action"], "note": e["note"]})],
+            published=_landlords_done, declined=_landlords_done, updated=_landlords_done, withdrawn=_landlords_done,
+            removed=_landlords_done, closed=lambda r: json.dumps({"closed": True}),
+            hidden_item=lambda h: [json.dumps(dict(h))], waiting=lambda w: json.dumps(dict(w)),
+            hid=lambda h: json.dumps({"hidden": h["item"]}), unhid=lambda h: json.dumps({"shown": h["item"]}),
+            not_done="Not done: {message}", refused="Not done: {message}", errors_to_stderr=False)),
+}
