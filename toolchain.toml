@@ -1,0 +1,19 @@
+# The family's toolchain, written once (docs/adr/0010-ci-and-nightly-check.md; the charity's family/TOOLCHAIN.md).
+# The shared workflows and actions in .github/ carry these as their defaults, and tests/test_toolchain.py fails if
+# any of them disagrees with this file. Change a version here and there in the same commit, release, then raise
+# the tag each site pins.
+python = "3.12"
+uv = "0.11.32"
+node = "22"
+playwright = "1.63.0"
+axe-core = "4.14.0"
+
+[actions]
+"actions/checkout" = "v4"
+"actions/setup-node" = "v4"
+"astral-sh/setup-uv" = "v6"
+"actions/cache" = "v4"
+"actions/upload-artifact" = "v4"
+"actions/download-artifact" = "v4"
+"docker/setup-buildx-action" = "v3"
+"docker/build-push-action" = "v6"

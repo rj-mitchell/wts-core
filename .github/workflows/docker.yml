@@ -1,0 +1,44 @@
+# Shared by every Where They Stand site that is deployed as a Docker image: build it (with the layer cache) and run
+# one command in it, so a broken image is found before the server finds it.
+#
+#   jobs:
+#     docker:
+#       uses: rj-mitchell/wts-core/.github/workflows/docker.yml@v0.1.0
+#       with:
+#         tag: wherelandlordsstand:ci
+#         run: landlords --help
+name: Docker build
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        type: string
+        default: "."
+      tag:
+        type: string
+        required: true
+      run:
+        description: A command to run in the built image (empty for none)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          load: true
+          tags: ${{ inputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run it
+        if: inputs.run != ''
+        run: docker run --rm ${{ inputs.tag }} ${{ inputs.run }}

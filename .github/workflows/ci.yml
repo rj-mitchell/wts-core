@@ -1,0 +1,86 @@
+# The package's own checks, on every push to main and every pull request. They use the same shared workflows the
+# sites call (python.yml), so those are exercised here first.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # lint, strict types and tests, as locked, on both supported Pythons
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    uses: ./.github/workflows/python.yml
+    with:
+      python: ${{ matrix.python }}
+      sync-args: "--all-extras"
+      type-check: "uv run mypy"
+
+  # the lowest and the highest versions of each library the stated ranges allow (ADR 0007)
+  ranges:
+    strategy:
+      fail-fast: false
+      matrix:
+        resolution: ["lowest-direct", "highest"]
+    uses: ./.github/workflows/python.yml
+    with:
+      resolution: ${{ matrix.resolution }}
+      sync-args: "--all-extras"
+      type-check: "uv run mypy"
+
+  # the wheel sites will install, built once and handed to the two jobs below
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # Where Landlords Stand's promise: the base install brings no AI library, and nothing else either
+  base-only:
+    needs: wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+      - name: Install the wheel alone and import every base module
+        run: |
+          uv venv --python 3.12 /tmp/base
+          uv pip install --python /tmp/base/bin/python dist/*.whl
+          /tmp/base/bin/python scripts/check_base_install.py
+
+  # the sites' images are python:3.12-slim with no git: the wheel must install there (ADR 0006)
+  slim-image:
+    needs: wheel
+    runs-on: ubuntu-latest
+    container: python:3.12.15-slim
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Install the wheel with uv, in an image with no git
+        run: |
+          if command -v git; then echo "this image has git: the test proves nothing"; exit 1; fi
+          pip install --no-cache-dir uv==0.11.32
+          uv pip install --system dist/*.whl
+          python -c "import wts_core; print('wts-core', wts_core.__version__, 'installed with no git')"
