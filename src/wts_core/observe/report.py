@@ -58,7 +58,11 @@ def _day(when: str | datetime) -> str:
 
 
 def _seconds(ms: float | None) -> str:
-    return "none" if ms is None else f"{ms / 1000:.1f} seconds"
+    if ms is None:
+        return "none"
+    if abs(ms) >= 1000:
+        return f"{ms / 1000:.1f} seconds"
+    return f"{ms:.0f} millisecond" + ("" if round(abs(ms)) == 1 else "s")
 
 
 def _percent(share: float) -> str:
@@ -70,10 +74,10 @@ def _rate(rate: Rate) -> str:
 
 
 def _usd(usd: float | None, places: int | None = None) -> str:
-    """Dollars, as the AI service prices them: to the cent, or to a hundredth of a cent for sums under a dollar."""
+    """Dollars, as the AI service prices them: to the cent, or to a hundredth of a cent for sums under ten cents."""
     if usd is None:
         return "none"
-    return f"${usd:.{(2 if abs(usd) >= 1 else 4) if places is None else places}f}"
+    return f"${usd:.{(2 if abs(usd) >= 0.1 or not usd else 4) if places is None else places}f}"
 
 
 def _number(n: float) -> str:
@@ -216,7 +220,7 @@ def _alerts_section(stats: Stats, thresholds: Mapping[str, Any] | None, margin: 
     lines = ["## Alerts", ""]
     if not _thresholds(thresholds):
         proposed = proposed_thresholds(stats, margin)
-        lines += [_NO_THRESHOLDS + (":" if proposed else ", and there are too few figures yet to propose any."), ""]
+        lines += [_NO_THRESHOLDS + ("." if proposed else ", and there are too few figures yet to propose any."), ""]
         for name, value in proposed.items():
             alert = _ALERTS[name]
             lines.append(f"- `{name} = {_number(value) if name.endswith('_ms') else value}` "
@@ -224,6 +228,9 @@ def _alerts_section(stats: Stats, thresholds: Mapping[str, Any] | None, margin: 
         return [*lines, ""] if proposed else lines
     said = tripped(stats, thresholds)
     lines += [f"- {sentence}" for sentence in said] if said else ["Nothing is over its threshold."]
+    unset = [f"`{name}`" for name in _ALERTS if name not in _thresholds(thresholds)]
+    if unset:
+        lines += ["", "No threshold is set for " + ", ".join(unset) + "."]
     return [*lines, ""]
 
 
@@ -235,7 +242,8 @@ def _times(period: dict[str, Spread], earlier: dict[str, Spread], names: Mapping
 
 
 def _briefing(item: Listed) -> str:
-    said = _quoted(item.question) if item.question else "a briefing that is not saved"
+    said = (_quoted(item.question) if item.question
+            else "a briefing since withdrawn or corrected" if item.corrected else "a briefing that is not saved")
     where = f" (saved as {item.briefing_id})" if item.briefing_id else ""
     return f"{said}{where}, record {item.id}, {_day(item.at)}"
 
@@ -339,9 +347,9 @@ def markdown(stats: Stats, site: Site, *, thresholds: Mapping[str, Any] | None =
     lines += [f"- {_seconds(item.t_written)} to the full briefing ({_seconds(item.t_first_token)} to its first "
               f"words): {_briefing(item)}" for item in stats.slowest] or ["No briefing was written."]
     lines += ["", "## The worst-checked briefings", ""]
-    lines += [f"- {item.citations_invalid or 0} invalid citations, {item.unsupported or 0} unsupported sentences, "
-              f"{item.quotes_unverified or 0} unverified quotations, {item.loaded_words or 0} loaded words"
-              + ("" if item.grounded_ratio is None else f", {_percent(item.grounded_ratio)} grounded")
+    lines += [f"- Invalid citations {item.citations_invalid or 0}, unsupported sentences {item.unsupported or 0}, "
+              f"unverified quotations {item.quotes_unverified or 0}, loaded words {item.loaded_words or 0}"
+              + ("" if item.grounded_ratio is None else f", grounded {_percent(item.grounded_ratio)}")
               + f": {_briefing(item)}" for item in stats.worst_checked] or ["The checks found no problem."]
 
     lines += ["", "## Questions that found no records", ""]

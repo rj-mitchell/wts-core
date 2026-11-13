@@ -205,7 +205,8 @@ class ArmComparison:
 
 @dataclass(frozen=True)
 class Listed:
-    """One briefing in a list of the slowest or the worst checked. ``question`` is None unless it is saved."""
+    """One briefing in a list of the slowest or the worst checked. ``question`` is None unless the briefing is
+    saved and has not been withdrawn or corrected since."""
 
     id: str
     at: str
@@ -220,6 +221,7 @@ class Listed:
     quotes_unverified: int | None
     loaded_words: int | None
     grounded_ratio: float | None
+    corrected: bool
 
 
 @dataclass(frozen=True)
@@ -480,7 +482,7 @@ def _listed(record: BriefingRecord) -> Listed:
         question=record.question if public and record.question else None, t_first_token=record.t_first_token,
         t_written=record.t_written, t_total=record.t_total, citations_invalid=record.citations_invalid,
         unsupported=record.unsupported, quotes_unverified=record.quotes_unverified,
-        loaded_words=record.loaded_words, grounded_ratio=record.grounded_ratio)
+        loaded_words=record.loaded_words, grounded_ratio=record.grounded_ratio, corrected=record.corrected)
 
 
 def _slowest(readers: Sequence[BriefingRecord]) -> tuple[Listed, ...]:
