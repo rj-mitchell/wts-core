@@ -67,7 +67,10 @@ def test_the_real_server_streams_a_briefing_over_http(server: str, tmp_path: Pat
     assert page.status_code == 200 and "Dogs on leads" in page.text
     again = httpx.post(f"{server}/api/ask", json={"question": DOGS}, timeout=30)
     assert '"cached": true' in again.text
-    # the site as it runs writes the structured log: stages and times, and no word of the question
+    # the site as it runs writes the structured log: stages, times and endings, and no word of the question
     log = (tmp_path / "data" / "logs" / "briefings.jsonl").read_text(encoding="utf-8")
-    assert [json.loads(line)["stage"] for line in log.splitlines()] == ["searched", "ranked", "written"]
+    lines = [json.loads(line) for line in log.splitlines()]
+    assert [line["event"] for line in lines if line["stage"] is None] == ["briefing.completed", "briefing.cached"]
+    assert {"searched", "ranked", "written"} <= {line["stage"] for line in lines}  # the pipeline's own marks
+    assert len({line["briefing"] for line in lines}) == 2  # each line names its briefing's record, never a reader
     assert "dogs" not in log.lower()

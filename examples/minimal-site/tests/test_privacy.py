@@ -21,9 +21,11 @@ def test_the_structured_log_holds_stages_and_times_and_never_the_question(client
     ask(client, CANARY)
     lines = [json.loads(line) for line in log_lines()]
 
-    assert [line["stage"] for line in lines] == ["searched", "ranked", "written"]
-    assert all(set(line) <= set(FIELDS) and line["site"] == "parks" and line["event"] == "briefing.stage"
-               for line in lines)
+    # the desk writes them, once the site has given the log a handler: each stage reached, then how it ended
+    assert [line["stage"] for line in lines] == ["parsed", "searched", "ranked", "sources_sent", "first_token",
+                                                 "written", "checked", None]
+    assert [line["event"] for line in lines] == ["briefing.stage"] * 7 + ["briefing.completed"]
+    assert all(set(line) == set(FIELDS) and line["site"] == "parks" for line in lines)
     assert "xylophonecanary" not in "\n".join(log_lines())
 
 

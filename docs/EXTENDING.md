@@ -442,9 +442,12 @@ happens inside a pipeline only the pipeline knows, so it marks those stages itse
 From `examples/minimal-site/src/parks/pipeline.py`:
 
 ```python
-    stages = current_stages()
-    stages.mark(stage)
-    log_event("briefing.stage", stage=stage, ms=stages.at(stage))
+def _reached(stage: Stage) -> None:
+    """A stage of the briefing being written has just been reached. The briefing desk can see for itself when the
+    question was read, the sources sent and the first words written; the search, the ranking and the model
+    finishing happen in here, so the pipeline marks them. The desk times them, puts them in the briefing's record
+    and writes them to the structured log."""
+    current_stages().mark(stage)
 ```
 
 A sources-only stream carries no token counts. If the site's sources-only function asks the model to read the
@@ -596,8 +599,8 @@ def open_state(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> StateDB:
 ```
 
 An import must give every `NOT NULL` column a value. The copy made before an import holds everything the site
-deletes on a schedule, as it was that day, so a site's nightly job calls `StateDB.forget_old_copies(days)` with
-the days it keeps a backup (the example's `parks nightly`).
+deletes on a schedule, as it was that day, so it must not outlive the site's backups. The package's `tidy`
+command deletes old copies when the site passes `backup_days` (section 10).
 
 ## 7. Adapters, and how to swap one
 
@@ -764,9 +767,30 @@ From `examples/minimal-site/config/settings.toml`:
 An unknown name under `[alerts]` stops the statistics commands and names it. A figure trips only when it is over
 its threshold.
 
-**The structured log** is turned on by the site, once for each process, with its own limits
-(`observe.json_logging`; the example's `start_logging` in `parks/app.py`). A line can hold only a stage's name, a
-time and an error's class name. There is no field for a question.
+**The structured log** is turned on by the site, once for each process, by giving the logger `observe.LOGGER` a
+handler with the site's own limits. The desk then writes a line for each stage a briefing reaches and one for how
+it ended. With no handler nothing is logged.
+
+From `examples/minimal-site/src/parks/app.py`:
+
+```python
+    logs = settings.section("logs")
+    handler = json_logging(settings.logs_dir / "briefings.jsonl", site=SITE, max_bytes=int(logs["max_bytes"]),
+                           keep=int(logs["keep"]), days=int(logs["days"]), clock=clock)
+    log = logging.getLogger(LOGGER)
+    log.addHandler(handler)
+    log.setLevel(logging.INFO)
+    log.propagate = False
+```
+
+A line holds a briefing's record id, a stage's name, a time and an error's class name, and nothing else. A line's
+`event` must be one of `observe.EVENTS`, and its `stage` one of `observe.STAGE_NAMES`. A site that notes events
+of its own with `observe.log_event` lists their names in its code: `json_logging(..., events=("index.rebuilt",))`.
+A name that is not listed is left out of the line, so nothing a reader typed can become one.
+
+**Visitor codes are forgotten after their day.** The spending record keeps the day's visitor code on a row for
+that day only (`Spending.forget_visitors`, run with the first model call of each day). The package's `tidy`
+command does the same on a day with no model call. A site needs to do nothing but run `tidy` nightly.
 
 ## 10. The owner's commands and the check route
 
@@ -804,9 +828,23 @@ BACKUPS = BackupSpec(
 )
 ```
 
-The package's `tidy` applies the retention to the record of briefings and to the weekly reports. Three other jobs
-belong in a site's nightly run and are not in `tidy`: `StateDB.forget_old_copies`, `Replies.lapse_undecided` and
-`Replies.forget_old_emails`. The example's own `parks nightly` command calls all three.
+The package's `tidy` applies the retention to the record of briefings and to the weekly reports, forgets old
+visitor codes, and deletes copies of the database made before an import once they are older than `backup_days`.
+A site passes the days it keeps a backup.
+
+From `examples/minimal-site/src/parks/cli.py`:
+
+```python
+    backup_days=BACKUPS_KEPT_DAYS,  # tidy deletes copies of the database older than the backups are kept
+```
+
+The housekeeping of reports and statements is not in `tidy`. A site's nightly run calls it too:
+`Replies.lapse_undecided`, `Replies.forget_old_emails` and `Replies.forget_old_counts`. The example's own
+`parks nightly` command calls all three.
+
+A restore accepts any file that has the tables `required_tables` names. A site with a table of its own should
+name it there, so that a sister site's backup is refused. The example has no table of its own, so its list holds
+the package's tables only.
 
 **The check route** answers the nightly family check ([ADR 0010](adr/0010-ci-and-nightly-check.md)). `check_route`
 returns a plain function; the site's own route calls it.

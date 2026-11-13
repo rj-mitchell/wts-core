@@ -239,8 +239,8 @@ The timers run the site's commands. With the example's names:
 |---|---|---|
 | nightly | `rivers backup` | backs up the state database and sends a copy off site |
 | nightly, after it | `rivers backup-check --in <backups folder>` | fails, so the owner is emailed, if backups have stopped |
-| nightly | `rivers nightly` | the site's own housekeeping: lapsed statements, old addresses, old copies |
-| nightly | `rivers tidy` | applies the retention to the record of briefings and the weekly reports |
+| nightly | `rivers nightly` | the site's own housekeeping of reports and statements: lapsed statements, old addresses, old counts |
+| nightly | `rivers tidy` | applies the retention to the record of briefings and the weekly reports; forgets old visitor codes and old copies of the database |
 | weekly | `rivers weekly-report` | saves the week's figures, and fails if a figure is over its threshold |
 | after each update | `rivers stats --check` | fails if a figure is over its threshold |
 

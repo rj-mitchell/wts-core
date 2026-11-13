@@ -29,7 +29,7 @@ from wts_core.adapters.hashing import HashingEmbedder
 from wts_core.briefing import Event, Stage, current_stages
 from wts_core.checks import blend, check_briefing, round_robin
 from wts_core.events import Answer, Block, Completed, blocks_as_today, to_reader
-from wts_core.observe import config_id, log_event
+from wts_core.observe import config_id
 from wts_core.ports import Document, Embedder, ModelClient, ModelRequest, SpendingRecord, Usage, VectorIndex
 from wts_core.settings import SettingsError
 from wts_core.testing.index import MemoryIndex
@@ -146,11 +146,9 @@ INSTRUCTIONS = (
 def _reached(stage: Stage) -> None:
     """A stage of the briefing being written has just been reached. The briefing desk can see for itself when the
     question was read, the sources sent and the first words written; the search, the ranking and the model
-    finishing happen in here, so the pipeline marks them. The same goes into the structured log: a stage's name
-    and a time, never a question or a word of a briefing."""
-    stages = current_stages()
-    stages.mark(stage)
-    log_event("briefing.stage", stage=stage, ms=stages.at(stage))
+    finishing happen in here, so the pipeline marks them. The desk times them, puts them in the briefing's record
+    and writes them to the structured log."""
+    current_stages().mark(stage)
 
 
 # given what the model was sent and what it wrote back: how a caller keeps a briefing as a fixture for replay

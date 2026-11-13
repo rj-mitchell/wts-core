@@ -66,19 +66,15 @@ def minutes(park: str = typer.Option("", help="only this park's")) -> None:
 
 @app.command()
 def nightly() -> None:
-    """What the site's timer runs each night, after ``parks backup`` and before ``parks tidy``: the housekeeping
-    that is promised in the privacy notice."""
-    settings = load()
-    db = open_state(settings)
-    # A copy of the whole database made before an import must not outlive the site's own backups: it holds
-    # whatever the site deletes on a schedule, as it was that day.
-    for copy in db.forget_old_copies(BACKUPS_KEPT_DAYS):
-        typer.echo(f"Deleted {copy.name}: older than the backups are kept.")
+    """What the site's timer runs each night beside ``parks tidy``: the housekeeping of reports and statements
+    that the privacy notice promises. (``tidy`` is the package's, and sees to the record of briefings, the
+    weekly reports, old visitor codes and old copies of the database.)"""
     statements, contacts = _replies().lapse_undecided()
     typer.echo(f"{statements} statements lapsed with no decision in three months; {contacts} old reports' contact "
                "details deleted.")
     typer.echo(f"{_replies().forget_old_emails()} confirming addresses deleted, three months after their statements "
                "ended.")
+    typer.echo(f"{_replies().forget_old_counts()} counts of earlier days' reports and statements deleted.")
 
 
 # ---- the package's commands: backups -----------------------------------------------------------------------------
@@ -178,6 +174,7 @@ app.add_typer(stats_commands(
     folder=lambda: load().reports_dir,
     embedder=lambda: embedder_from_settings(load()), similarity=THEME_SIMILARITY,
     pricing=lambda: PriceTable.from_settings(load().usage),
+    backup_days=BACKUPS_KEPT_DAYS,  # tidy deletes copies of the database older than the backups are kept
 ))  # stats, weekly-report, tidy
 
 # ---- the package's commands: evaluation --------------------------------------------------------------------------
