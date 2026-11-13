@@ -9,8 +9,8 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from test_usage_sites import COUNCILS, COUNTRIES, MPS, SiteFacts, site  # noqa: F401  (the fixture)
 
+from test_usage_sites import COUNCILS, COUNTRIES, MPS, SiteFacts, site  # noqa: F401  (the fixture)
 from wts_core import usage
 from wts_core.ports import Busy
 from wts_core.settings import SettingsError
