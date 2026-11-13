@@ -494,7 +494,8 @@ class BriefingDesk:
         config, stages = self._config, run.stages
         final = run.final or {}
         answer = final.get("answer") or {}
-        counts = run.usage.as_stored()
+        spent = run.usage + stages.spent_unseen
+        counts = spent.as_stored()
         return BriefingRecord(
             id=run.id, at=run.at, outcome=run.outcome or "error", kind=ask.kind, question=ask.question,
             follow_up=ask.follow_up, mode=ask.mode, filters_set=tuple(ask.filters_set),
@@ -504,8 +505,9 @@ class BriefingDesk:
             site_version=str(config.get("site_version", "")), experiment=config.get("experiment"),
             arm=config.get("arm"), sources=run.sources, spread=None if run.groups is None else dict(run.groups),
             input_tokens=counts["input_tokens"], cache_read_tokens=counts["cache_read_tokens"],
-            cache_write_tokens=counts["cache_write_tokens"], output_tokens=counts["output_tokens"],
-            cost_usd=round(run.cost, 6), stop_reason=final.get("stop_reason"),
+            cache_write_tokens=counts["cache_write_tokens"], cache_write_long_tokens=spent.cache_write_long,
+            output_tokens=counts["output_tokens"], cost_usd=round(run.cost + stages.cost_unseen, 6),
+            stop_reason=final.get("stop_reason"),
             citations_total=answer.get("citations_total"), citations_invalid=answer.get("citations_invalid"),
             grounded_ratio=answer.get("grounded_ratio"), unsupported=answer.get("unsupported_segments"),
             quotes_unverified=answer.get("quotes_unverified"), loaded_words=answer.get("loaded_words"),

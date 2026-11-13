@@ -13,11 +13,11 @@ desk's own, later, mark.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextvars import ContextVar
-from typing import Literal
+from typing import Any, Literal
 
-from wts_core.ports import SYSTEM_CLOCK, Clock
+from wts_core.ports import SYSTEM_CLOCK, Clock, Usage
 
 __all__ = ["STAGES", "Stage", "Stages", "current_stages", "marking"]
 
@@ -34,6 +34,16 @@ class Stages:
         self._clock = clock
         self._start = clock.monotonic()
         self._at: dict[Stage, int] = {}
+        self.spent_unseen = Usage()
+        self.cost_unseen = 0.0
+
+    def spent(self, usage: Usage | Mapping[str, Any] | None, cost: float) -> None:
+        """A model call the desk cannot see in the events, already recorded as spending by the site, for this
+        briefing's record: the reading of the question on a sources-only request, whose events carry no token
+        counts. ``cost`` is what ``SpendingRecord.add`` returned for it."""
+        if usage:
+            self.spent_unseen += usage if isinstance(usage, Usage) else Usage.from_mapping(usage)
+        self.cost_unseen += cost
 
     def elapsed(self) -> int:
         """Milliseconds since the question arrived."""

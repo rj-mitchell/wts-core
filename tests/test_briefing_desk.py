@@ -751,3 +751,21 @@ def test_the_desk_is_the_same_for_every_site():
     for word in ("hansard", "wcs", "councils", "Where MPs", "Where Countries", "Where Councils", COUNCILS.package):
         assert word not in code, word
     assert SimpleNamespace  # (imported for the fakes above)
+
+
+def test_the_cost_of_reading_the_question_on_a_sources_only_request_reaches_its_record(told):
+    """A sources-only stream carries no token counts (``usage: null``, as the sites send today), so the desk cannot
+    see what the model's reading of the question cost. The site's function records the spending itself, as today,
+    and tells the briefing's stages, so the record of that question is not shown as free."""
+
+    def sources_only(note: str, free: bool) -> Iterator[dict[str, Any]]:
+        cost = told.spending.add("parse", told.facts.models[-1], dict(PARSE), visitor=VISITOR)
+        current_stages().spent(dict(PARSE), cost)
+        yield from told.sources_only(note, free)
+
+    events = told.run(only_sources=True, sources_only=sources_only)
+    assert types(events) == ["plan", "sources", "final"] and events[0]["usage"] is None  # the reader's bytes: as today
+    [row] = told.rows("wts_spending")  # one row, the site's own: the desk records nothing a second time
+    r = told.record
+    assert (r.outcome, r.input_tokens, r.output_tokens) == ("sources_only", row["input_tokens"], row["output_tokens"])
+    assert r.cost_usd == round(row["cost_usd"], 6) > 0

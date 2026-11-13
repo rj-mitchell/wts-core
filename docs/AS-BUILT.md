@@ -117,6 +117,62 @@ entry comes from the hand-back of the worker that built the module, checked agai
 - Each site's own methods stay its own, as functions over the index: Where MPs Stand's `similarities`, Where
   Countries Stand's `group_rows` and `set_groups`.
 
+## `wts_core.briefing` (the desk, stage timings, the streamer)
+
+Proved against each site's real application: all three sites' own `create_app()` are built in the package's tests
+and driven through `/api/ask`, beside the desk configured as that site would configure it. The bytes a reader
+receives and the rows written (spending, cache, saved briefings, failures) are compared field by field on every
+case in ADR 0009, for each site.
+
+### Differs from the sketch
+
+- `sse(events, keep_alive=15)`: all three sites use 15 seconds; the sketch's 10 would have added lines to what a
+  reader receives.
+- Events are plain dictionaries (`briefing.Event`), because Where MPs Stand's `progress` and `interests` events
+  are not in `events.ReaderEvent`.
+- `Ask` gains `filters_set`, `options` and `save(final, kept, text)`; the route calls `desk.allow(key)` itself.
+- `Hooks.send` is gone: what Where Councils Stand strips must be stripped before the briefing is kept, so it is
+  `on_event`. `Hooks.usages` names any further model calls an event reports.
+- `BriefingDesk` takes no `site` and no `experiment`; it gains `parse_model`, `config`, `group_of`, `strict`. With
+  an arm in `config`, the experiment and arm are part of the cache key.
+- `handle()` looks in the cache and makes the first check of the caps before it returns, as the sites do before
+  the response starts, so a storage fault is still an HTTP error.
+- `Stages.spent(usage, cost)` is new: a site's sources-only function tells the briefing's record what its reading
+  of the question cost, since that stream carries no token counts.
+- `marking(stages, events)` makes the stages current for each step, so it works under a framework's thread pool.
+- `gather_first` (reading the question and searching at once) is not built: it belongs to phase 6.
+
+### How each site's difference is expressed (no branch in the desk names a site; a test checks)
+
+| Difference | Where it lives |
+|---|---|
+| Where Councils Stand sends no `usage` | `Hooks.on_event`, before keeping |
+| `parse_error` | removed by the desk on every site; noted as a failure if the site keeps failures |
+| Where Countries Stand does not cache follow-ups | `Ask.cache_key=None` |
+| Where MPs Stand's `briefing_key` | `Hooks.finish` |
+| Where MPs Stand's `interests_usage` | `Hooks.usages`, then removed in `on_event` |
+| Where MPs Stand's reminder of what briefings cost | `Hooks.for_this_reader`, on a copy, so it is never saved or cached |
+| Where MPs Stand's old cached answer given an address | `Hooks.on_cached` |
+| Where MPs Stand's saved shape | `Ask.save` |
+| Who reads the question when no briefing is written | `Ask.sources_only(note, free)` |
+| The model declining | the pipeline's own `error` event; the desk notes it and records its cost |
+
+### At adoption
+
+- Each site's own `test_api.py` tests of the ask flow stay in the site as the gate for its adoption: the parity
+  tests here use a scripted pipeline, not the site's index.
+- Where Councils Stand with `answer_cache_hours = 0` stored a cache row that could never be read; the desk stores
+  none. The bytes are the same.
+- Where MPs Stand's reminder count is taken when the final event is sent, after saving, not straight after the
+  answer is recorded. It differs only if the same visitor finishes another briefing in those milliseconds.
+- A reader who leaves is recorded as `left` only for a briefing that was being written; a refusal, a sources-only
+  request or a cached replay closed early keeps its outcome and gains `left_at`.
+- Where Councils Stand keeps no failures and counts questions in its own table: it passes `failures=None`.
+- The desk keeps the sites' `log.exception("ask failed")`, which carries the exception's message as today; the
+  record of the briefing carries only the exception's class name.
+- Each site's sources-only function should call `current_stages().spent(usage, cost)` after it records its
+  spending, or those records show no cost.
+
 ## `wts_core.observe` (the record of each briefing, statistics, the weekly report, alerts)
 
 ### Differs from the sketch
