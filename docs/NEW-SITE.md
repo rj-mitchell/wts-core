@@ -399,6 +399,9 @@ from the source, and then:
 - `rivers backup` wrote `rivers-state-2026-11-13.sqlite.gz`; `rivers waiting`, `rivers stats --since 24h`,
   `rivers eval run --record-fixtures` (passed, and noted) and `rivers eval replay` all ran.
 
+The corrected steps were then followed again from scratch, the same day, after the package's review fixes were
+merged: the same 61 tests passed, the server answered as before, and `rivers tidy` and `rivers nightly` ran.
+
 What was wrong or unclear the first time, and what was changed:
 
 | What happened | What was changed |
