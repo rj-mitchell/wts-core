@@ -10,7 +10,7 @@ Last updated: 13 November 2026, 15:30 UTC (session 1).
 |---|---|---|
 | 0. Prerequisites | Done | [`PHASE-0.md`](PHASE-0.md) |
 | 1. Converge the copies | **Done: five pull requests, all green**, and the charity repository's (drift list, baseline, ENGINE.md) | below; the drift report before and after is in [`study/`](study/) |
-| 1, the library upgrade | Pull request open and green; **needs an evaluation run before merging** | rj-mitchell/wherempsstand#43 |
+| 1, the library upgrade | **Merged on the owner's word, 13 November 2026** (the site's own evaluation run still needs the server's data) | rj-mitchell/wherempsstand#43 |
 | 1b. "Why use this rather than a chatbot?" | **Done: four pull requests** (the hub and three AI sites); screenshots in the charity repository's | below |
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
@@ -19,9 +19,9 @@ Last updated: 13 November 2026, 15:30 UTC (session 1).
 
 ## Pull requests
 
-**Sixteen of the first seventeen were merged on 13 November 2026, at the owner's request** (squash merges, as each
+**All seventeen were merged on 13 November 2026, at the owner's request** (squash merges, as each
 repository's history has them; a merge commit for this repository's design and for Where Lives Stand). Each
-branch was brought up to date with `main` and its checks re-run before it was merged. One is held.
+branch was brought up to date with `main` and its checks re-run before it was merged.
 
 | Repository | Step | Pull request | State |
 |---|---|---|---|
@@ -31,7 +31,7 @@ branch was brought up to date with `main` and its checks re-run before it was me
 | wherecouncilsstand | 1: ports | rj-mitchell/wherecouncilsstand#49 | merged |
 | wherelandlordsstand | 1: ports | rj-mitchell/wherelandlordsstand#17 | merged |
 | wheretheystand-charity | 1: drift list, baseline, ENGINE.md | rj-mitchell/wheretheystand-charity#28 | merged |
-| wherempsstand | 1: library versions | rj-mitchell/wherempsstand#43 | **open, held**: real briefings work on both sides of the upgrade on the sample data, but the site's own evaluation set needs the server's data. To merge on the owner's word |
+| wherempsstand | 1: library versions | rj-mitchell/wherempsstand#43 | merged (538 tests passed with `main` merged in; real briefings worked on both sides of the upgrade on the sample data; the site's own evaluation set was not run, as it needs the server's data) |
 | wheretheystand-charity | 1b: the hub, the glossary's wording, all screenshots | rj-mitchell/wheretheystand-charity#27 | merged; the hub published itself and shows the new text |
 | wherempsstand | 1b | rj-mitchell/wherempsstand#45 | merged |
 | wherecountriesstand | 1b | rj-mitchell/wherecountriesstand#32 | merged (the one-line conflict in `docs/DECISIONS.md` resolved by keeping both rows) |
@@ -43,8 +43,10 @@ branch was brought up to date with `main` and its checks re-run before it was me
 publish themselves on a merge.
 
 The drift check, run strict against the merged `main` branches
-([`study/drift-2026-11-13-main-after-merges.txt`](study/drift-2026-11-13-main-after-merges.txt)): one pair below
-the baseline, the DuckDB wrapper (0.77), which becomes 1.00 when #43 is merged.
+([`study/drift-2026-11-13-main-after-merges.txt`](study/drift-2026-11-13-main-after-merges.txt)): one pair was below
+the baseline, the DuckDB wrapper (0.77), until #43 was merged. Run again after it
+([`study/drift-2026-11-13-main-after-all-merges.txt`](study/drift-2026-11-13-main-after-all-merges.txt)): the strict
+check passes, with no pair further apart than the baseline.
 
 ## Phase 3: how it is being built
 
@@ -87,9 +89,10 @@ The workers' brief is kept at `docs/study/package-worker-brief.md`.
 
 ## Open, for the owner
 
-1. Whether to merge rj-mitchell/wherempsstand#43 as it stands, or after an evaluation run on the server.
-2. Running each site's `update.sh` on the server.
-3. The check token, when the nightly check is extended (ADR 0010); nothing is needed before then.
+1. Running each site's `update.sh` on the server.
+2. The check token, when the nightly check is extended (ADR 0010); nothing is needed before then.
+
+The owner has also said (13 November) to merge the package's own pull request when it is ready.
 
 The API key works since 13 November (`NOTES/what-the-build-session-cannot-do.md`); spend so far is under 25p.
 
