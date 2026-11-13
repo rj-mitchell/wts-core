@@ -10,14 +10,14 @@ from wts_core.usage import PriceTable
 
 from parks.evaluation import ParksEval
 from parks.pipeline import configuration
-from parks.site import EVAL_MAX_COST_USD, LOADED_WORDS, VERIFIER, ParksSettings
+from parks.site import LOADED_WORDS, VERIFIER, ParksSettings
 
 
 def run_the_set(settings: ParksSettings, clock: FixedClock, fixtures: Path | None = None) -> harness.Run:
     site = ParksEval(settings, env={})
     config = configuration(settings, site.embedder, None)
     return harness.run(site, config.settings, config_id=config.config_id, pricing=PriceTable.from_settings(settings.usage),
-                       clock=clock, max_cost_usd=EVAL_MAX_COST_USD,
+                       clock=clock, max_cost_usd=float(settings.section("eval")["max_cost_usd"]),
                        record_fixtures=fixtures)
 
 

@@ -120,8 +120,8 @@ def ops_commands(site: Site, settings: Callable[[], Settings], spec: BackupSpec,
     ``settings`` is called when a command runs, never when the commands are built; the state database is its
     ``state_db``. ``store`` gives the off-site store, or None when none is set up: left out, it is the site's
     Backblaze B2 bucket (``adapters.b2.configured(site, env)``), and ``how_to_set_up`` is then that adapter's own
-    sentence; a site with another store gives both. ``before`` is called first in every command (Where MPs Stand
-    sets up its logging there)."""
+    sentence; a site with another store gives both. How many copies stay off site is the spec's ``keep_offsite``.
+    ``before`` is called first in every command (Where MPs Stand sets up its logging there)."""
     import typer
 
     app = typer.Typer(add_completion=False)

@@ -10,7 +10,7 @@ The line `api: <hash>` under a version is the fingerprint of the public interfac
 The rough edges the example site found, removed before the three AI sites adopt the package. No site uses the
 briefing desk yet, so its interface could still change; the bytes a reader receives through it have not.
 
-api: ac8f7432c813
+api: 76812dd2d34b
 
 ### Changed
 
@@ -31,8 +31,23 @@ api: ac8f7432c813
   scripted model are unchanged in what they do. *What a site must do:* nothing; a model adapter of a site's own
   must return something with `close()` (the contract test checks).
 
+- **`cli.RepliesWording` has a new line, `tidied`,** for what the right of reply's nightly housekeeping did (the
+  counts `lapsed`, `contacts`, `emails` and `counts`). Like every line of that group it has no default.
+  *What a site must do:* give the line when it adopts the commands (no site has yet).
+- **`ops.send_offsite(..., keep=None)`:** how many copies stay off site is now the spec's `keep_offsite` (60 if
+  the spec does not say, as before); `keep` still overrides it for one call. *What a site must do:* nothing.
+
 ### Added
 
+- **One nightly command.** `stats_commands(..., also_tidy=[...])`: the statistics group's `tidy` runs the rest of
+  a site's nightly housekeeping and prints what each step says. `cli.replies_tidy(replies, wording)` is the right
+  of reply's step (`forget_old_emails`, `lapse_undecided`, `forget_old_counts`), so a site with no check token
+  set still keeps the privacy notice's three months on a night nobody writes in. `replies_commands` adds the same
+  as a command of its own, `tidy-replies` (`RepliesCommands.tidy`), for a site with no record of briefings.
+- `eval_commands(max_cost_usd=…)` and `stats_commands(similarity=…)` each take a function as well as a number,
+  called when the command runs, so the figure can come from the site's settings.
+- `ops.BackupSpec.keep_offsite` (60 by default): how many of a site's copies stay in the off-site store. The
+  backup command follows it.
 - `adapters.has_model(settings, site, env=None)`: whether the provider named in the settings has what it is
   called with, so a site imports no provider's module to ask.
 - **`briefing.desk_parts(settings, db, messages, new_id=…, at_once_per_visitor=…, forget_over=…,

@@ -5,7 +5,10 @@ its own command line (ADR 0008).
 
 * ``reports list | show | close``;
 * ``statements list | show | publish | decline | update | withdraw | remove | log``;
-* ``hide``, ``unhide``, ``hidden`` (what is hidden now) and ``waiting`` (what is waiting for the owner).
+* ``hide``, ``unhide``, ``hidden`` (what is hidden now) and ``waiting`` (what is waiting for the owner);
+* ``tidy-replies``: the right of reply's nightly housekeeping, for a site's timer. ``replies_tidy`` is the same
+  work as a step, for a site whose one nightly command is the statistics group's ``tidy``
+  (``stats_commands(..., also_tidy=[replies_tidy(replies, wording)])``).
 
 The four sites each wrote these out, under different names and with different words (docs/study/
 reports-statements.md, section 1): ``hansard statements publish 3``, ``wcs publish-statement 3``,
@@ -36,7 +39,7 @@ from wts_core.replies import NotDone, Refused, Replies, StatementStatus, word_co
 if TYPE_CHECKING:
     import typer
 
-__all__ = ["RepliesCommands", "RepliesWording", "replies_commands"]
+__all__ = ["RepliesCommands", "RepliesWording", "replies_commands", "replies_tidy"]
 
 # a line said when something was done: a template filled with the fields of what it was done to, or a function of
 # those fields
@@ -68,6 +71,7 @@ class RepliesCommands:
     unhide: str | None = "unhide"
     hidden: str | None = "hidden"
     waiting: str | None = "waiting"
+    tidy: str | None = "tidy-replies"  # the nightly housekeeping (``replies_tidy``)
     # further names for a command, kept out of the help: {"list-statements": "statements_list"}
     also: Mapping[str, str] = field(default_factory=dict)
     # the site's own name for --about, the option that says whom a statement speaks for: "--person", "--country"
@@ -105,6 +109,10 @@ class RepliesWording:
     closed: Line  # the report's fields, as they now are
     hid: Line  # item, note
     unhid: Line  # item
+    # what the nightly housekeeping did, each a count: lapsed (statements nobody decided in three months, now
+    # declined), contacts (old open reports whose contact details were deleted), emails (confirming addresses
+    # deleted three months after their statements ended), counts (rows of earlier days' daily counts deleted)
+    tidied: Line
     not_done: str  # {message}: why the owner's request could not be done, in the package's words
     refused: str  # {message}: the site's own words for new wording that breaks a rule
     errors_to_stderr: bool  # where those two are said: standard error, or standard output
@@ -149,7 +157,31 @@ _HELP: dict[str, str] = {
     "unhide": "Show a hidden item again.",
     "hidden": "The items hidden now, longest hidden first.",
     "waiting": "What is waiting for a decision, and how long the oldest has waited.",
+    "tidy": "Delete what the right of reply no longer keeps: old confirming addresses, the contact details of old "
+            "reports, what nobody decided in three months, and earlier days' counts. For the nightly timer.",
 }
+
+
+def replies_tidy(replies: Callable[[], Replies], wording: RepliesWording) -> Callable[[], list[str]]:
+    """The right of reply's nightly housekeeping, as a step that says what it did in the site's own words
+    (``RepliesWording.tidied``): confirming addresses deleted three months after their statements ended, what
+    nobody decided in three months lapsed, and earlier days' counts (which hold visitor codes) emptied.
+
+    The site's routes do the same on every write, the owner's listings on every reading, and the nightly family
+    check when it asks what is waiting. This is for the night nobody writes in, on a site with no check token
+    set: the privacy notice's three months must not depend on a visitor. Give it to the statistics group, so the
+    site's timer runs one command (``stats_commands(..., also_tidy=[replies_tidy(replies, wording)])``); or run
+    the command ``replies_commands`` adds (``RepliesCommands.tidy``), which calls this."""
+
+    def tidy() -> list[str]:
+        desk = replies()
+        emails = desk.forget_old_emails()
+        lapsed, contacts = desk.lapse_undecided()
+        counts = desk.forget_old_counts()
+        row = {"lapsed": lapsed, "contacts": contacts, "emails": emails, "counts": counts}
+        return [wording.tidied(row) if callable(wording.tidied) else wording.tidied.format(**row)]
+
+    return tidy
 
 
 def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, wording: RepliesWording, *,
@@ -394,6 +426,12 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
     @place("waiting")
     def waiting() -> None:
         say(wording.waiting, asdict(replies().waiting()))
+
+    housekeeping = replies_tidy(replies, wording)
+
+    @place("tidy")
+    def tidy() -> None:
+        show(housekeeping())
 
     return app
 

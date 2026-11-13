@@ -83,12 +83,12 @@ class ParksSettings(Settings):
 REQUIRED: Mapping[str, tuple[str, ...]] = {
     "record": ("minutes",),
     "ranking": ("word_weight", "meaning_floor", "meaning_ceiling", "max_per_park"),
-    "embedding": ("backend", "dim"),
+    "embedding": ("backend", "dim", "theme_similarity"),
     "answer": ("provider", "recording", "model", "query_parse_model", "summary_sources", "comprehensive_sources",
                "summary_effort", "comprehensive_effort", "query_parse_effort", "max_tokens", "use_fallbacks"),
     "server": ("behind_proxy", "trust_forwarded_first"),
     "logs": ("max_bytes", "keep", "days"),
-    "eval": ("thresholds",),
+    "eval": ("max_cost_usd", "thresholds"),
 }
 
 
@@ -106,13 +106,6 @@ def prices(settings: ParksSettings) -> PriceTable:
     """The site's prices, for the owner's commands that work out a cost."""
     return PriceTable.from_settings(settings.usage, file=settings.config_path)
 
-
-# Two figures the package's commands take when they are built, before any settings are read, so they are fixed here
-# and not in settings.toml. What one evaluation run may spend, in US dollars, unless --max-cost says otherwise:
-EVAL_MAX_COST_USD = 1.0
-# How alike two questions must be to count as one theme in the statistics (cosine similarity). It belongs to the
-# embedding model, so it changes when [embedding] does.
-THEME_SIMILARITY = 0.5
 
 # ---- every word of the briefing flow that a reader can be shown --------------------------------------------------
 
@@ -225,12 +218,11 @@ class ParksItems:
 BACKUPS = BackupSpec(
     prefix="parks-state-",  # parks-state-2026-11-13.sqlite.gz: what marks a backup, here and off site, as this site's
     keep=14,  # how many stay on the server; `parks backup --keep` says otherwise for one run
+    # How many nightly copies stay off site, and so about how many days a deleted address can remain in a backup.
+    # Nothing else that holds old data may be kept longer (`parks tidy` is told this figure too).
+    keep_offsite=60,
     required_tables=("wts_schema", "wts_spending", "wts_briefings", "wts_reports", "wts_statements"),
 )
-
-# How many nightly copies are kept off site (the package's figure: wts_core.ops.send_offsite), and so about how
-# many days a deleted address can remain in a backup. Nothing else that holds old data may be kept longer.
-BACKUPS_KEPT_DAYS = 60
 
 BACKUP_ALERTS = AlertWording(
     no_backups="No backups have been made yet.",

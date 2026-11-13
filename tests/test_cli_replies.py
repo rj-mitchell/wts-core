@@ -41,7 +41,7 @@ from cli_sites import (  # noqa: F401
 )
 from test_ops_sites import COUNCILS, COUNTRIES, LANDLORDS, MPS
 from test_replies_sites import BARNSLEY, SITES, Open, site_fixture
-from wts_core.cli import RepliesCommands, replies_commands
+from wts_core.cli import RepliesCommands, replies_commands, replies_tidy
 from wts_core.replies import NotDone
 
 pytestmark = pytest.mark.usefixtures("logging_left_as_it_was")
@@ -562,6 +562,54 @@ def test_waiting_counts_what_is_waiting_and_how_long(site, tmp_path):
                                "days\n")
 
 
+def test_the_nightly_housekeeping_runs_with_no_visitor_and_no_check_token_and_says_what_it_did(site, tmp_path):
+    """On a quiet site nobody writes in and the owner reads no list, so nothing else would run it: the three
+    months the privacy notice promises must not wait for a visitor."""
+    app = app_of(site)
+    waiting = site.send(visitor="a" * 24)
+    ended = site.send(email="second@example.org", visitor="a" * 24)
+    site.replies.decline(ended, "Not from the person named.")
+    site.replies.report(**site.case.report, contact="reader@example.org", visitor="b" * 24)
+    with site.db.connect() as con:  # looked at directly: a listing would do the housekeeping itself
+        assert con.execute("SELECT count(*) FROM wts_reply_counts").fetchone()[0] == 2
+    site.clock.advance(days=100)  # past three calendar months, and nobody has written in or looked
+    said = run(app, named(site, "tidy"), tmp_path)
+    assert said.exit_code == 0
+    done = {"lapsed": 1, "contacts": 1, "emails": 1, "counts": 2}
+    if site.key == "landlords":
+        assert json.loads(said.stdout) == done
+    else:
+        assert said.stdout == ("1 statements lapsed, 1 old reports' contacts deleted, 1 addresses deleted, 2 old "
+                               "counts deleted\n")
+    with site.db.connect() as con:
+        assert [tuple(r) for r in con.execute("SELECT id, status, email FROM wts_statements ORDER BY id")] == [
+            (waiting, "declined", None), (ended, "declined", None)]
+        assert con.execute("SELECT contact FROM wts_reports").fetchone()[0] is None
+        assert con.execute("SELECT count(*) FROM wts_reply_counts").fetchone()[0] == 0
+    again = run(app, named(site, "tidy"), tmp_path)  # and again: nothing more to do
+    nothing = {"lapsed": 0, "contacts": 0, "emails": 0, "counts": 0}
+    assert again.exit_code == 0 and (json.loads(again.stdout) == nothing if site.key == "landlords"
+                                     else again.stdout.startswith("0 statements lapsed, 0 old"))
+
+
+def test_the_housekeeping_is_also_a_step_for_the_sites_one_nightly_command(site, tmp_path):
+    """``replies_tidy`` is what the statistics group's ``tidy`` is given (``also_tidy``): the same work, and the
+    same line in the site's words, with nothing opened until it runs."""
+    opened: list[str] = []
+
+    def replies() -> Any:
+        opened.append("opened")
+        return site.replies
+
+    step = replies_tidy(replies, REPLIES[site.key][1])
+    site.send()
+    site.clock.advance(days=100)
+    assert opened == []
+    (line,) = step()
+    assert opened == ["opened"] and ("1 statements lapsed" in line or json.loads(line)["lapsed"] == 1)
+    assert site.replies.statements("pending") == []
+
+
 def test_a_report_is_shown_and_closed_with_its_outcome_and_notes(site, tmp_path):
     app = app_of(site)
     rid = site.replies.report(**site.case.report, contact="reader@example.org")
@@ -625,6 +673,9 @@ def test_names_are_the_sites_to_give(countries, tmp_path):
 
     # a command the site does not want is left out
     assert run(built(hide=None, unhide=None), ["hide", "/b/AbC123xy", "--note", "x"], tmp_path).exit_code == 2
+    assert run(built(), ["tidy-replies"], tmp_path).exit_code == 0  # the package's own name for it
+    assert run(built(tidy=None), ["tidy-replies"], tmp_path).exit_code == 2
+    assert run(built(tidy="nightly"), ["nightly"], tmp_path).exit_code == 0
     # two words put a command in a group, which a site may describe
     grouped = built(statements_list="replies waiting", help={"replies": "Statements under the right of reply."})
     assert run(grouped, ["replies", "waiting"], tmp_path).exit_code == 0

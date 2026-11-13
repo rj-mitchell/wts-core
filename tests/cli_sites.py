@@ -275,11 +275,15 @@ def _landlords_report(r: Mapping[str, Any]) -> list[str]:
                         "email": r["contact"]})]
 
 
+# Words for what no site has a command for today (hiding an item, what is waiting, the nightly housekeeping):
+# stand-ins, until the owner gives each site its own at adoption (docs/AS-BUILT.md).
 _IN_SENTENCES = {
     "hidden_item": lambda h: [f"{h['item']}  hidden since {h['at'][:10]}", f"    {h['note']}"],
     "waiting": "{reports} reports and {statements} statements waiting, {hidden} items hidden; the oldest has "
                "waited {oldest_working_days} working days",
     "hid": "hidden: {item}", "unhid": "shown again: {item}",
+    "tidied": "{lapsed} statements lapsed, {contacts} old reports' contacts deleted, {emails} addresses deleted, "
+              "{counts} old counts deleted",
 }
 _PLAINLY = {"published": "published", "declined": "declined", "updated": "updated", "withdrawn": "withdrawn",
             "removed": "removed", "closed": "closed", "not_done": "error: {message}", "refused": "error: {message}",
@@ -326,5 +330,6 @@ REPLIES: dict[str, tuple[RepliesCommands, RepliesWording]] = {
             removed=_landlords_done, closed=lambda r: json.dumps({"closed": True}),
             hidden_item=lambda h: [json.dumps(dict(h))], waiting=lambda w: json.dumps(dict(w)),
             hid=lambda h: json.dumps({"hidden": h["item"]}), unhid=lambda h: json.dumps({"shown": h["item"]}),
+            tidied=lambda t: json.dumps(dict(t)),
             not_done="Not done: {message}", refused="Not done: {message}", errors_to_stderr=False)),
 }

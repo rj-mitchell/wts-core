@@ -14,7 +14,9 @@
   owner. With no thresholds set it prints the thresholds proposed from the week, for the owner to write into
   ``[alerts]``, and ends with status 0: an alert never fires from a number nobody chose.
 * ``tidy``: applies the retention the owner accepted (``observe.OWNER_ACCEPTED``) to the record and to the saved
-  reports, and says what went. Each site's nightly update runs it.
+  reports, and says what went. Each site's nightly update runs it. It is the one command a site's timer needs:
+  ``also_tidy`` gives it the rest of the site's nightly housekeeping, the right of reply's first of all
+  (``cli.replies_tidy``).
 
 These commands are new on every site, so there is no site's wording to keep: what they print is the package's,
 in the plain style of the report itself. A site may rename them (Where Countries Stand has a ``stats`` already).
@@ -26,7 +28,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -71,20 +73,28 @@ class StatsNames:
 
 def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Callable[[], Mapping[str, Any]],
                    folder: Callable[[], Path], embedder: Callable[[], Embedder] | None = None,
-                   similarity: float | None = None, pricing: Callable[[], Pricing] | None = None,
+                   similarity: float | Callable[[], float] | None = None,
+                   pricing: Callable[[], Pricing] | None = None,
                    decided_by: Callable[[], str | None] | None = None, compare_weeks: int = 4,
                    retention: Retention = OWNER_ACCEPTED, names: StatsNames | None = None,
-                   backup_days: int | None = None, clock: Clock = SYSTEM_CLOCK) -> typer.Typer:
+                   backup_days: int | None = None, also_tidy: Sequence[Callable[[], Iterable[str]]] = (),
+                   clock: Clock = SYSTEM_CLOCK) -> typer.Typer:
     """The site's statistics commands, to add to its own app with ``app.add_typer(...)``.
 
     Everything the site knows is asked for when a command runs, never when the commands are built: ``state`` (its
     state database, with ``observe.migrations()`` among its migrations), ``thresholds`` (its ``[alerts]`` settings:
     empty until the owner sets them) and ``folder`` (where its weekly reports are kept). ``embedder`` and
     ``similarity`` group readers' questions into themes by meaning: the site's own embedder, so no question
-    leaves the server, and the cosine similarity at which two questions are one theme for that model. ``stats``
-    uses them only when ``--themes`` is given (loading the model takes a while); the weekly report always does.
+    leaves the server, and the cosine similarity at which two questions are one theme for that model: a number,
+    or a function that gives it when a command runs, for a site that keeps it in its settings. ``stats`` uses
+    them only when ``--themes`` is given (loading the model takes a while); the weekly report always does.
     ``pricing`` puts whether prompt caching paid back in dollars; ``decided_by`` names the rate that decides the
-    site's experiment, if one is running."""
+    site's experiment, if one is running.
+
+    ``backup_days`` is how long the site keeps a backup: ``tidy`` deletes the copies of the database made before
+    an import once they are older. ``also_tidy`` is the rest of the site's nightly housekeeping, so that its
+    timer runs one command: each is called by ``tidy`` after the package's own work and gives the lines to print
+    (``cli.replies_tidy`` is the right of reply's)."""
     import typer
 
     if embedder is not None and similarity is None:
@@ -97,11 +107,14 @@ def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Call
         typer.echo(str(why), err=True)
         return typer.Exit(1)
 
+    def alike() -> float | None:
+        return similarity() if callable(similarity) else similarity
+
     def figures(since: datetime | timedelta, until: datetime | None, by_meaning: bool) -> Stats:
         log = SqliteBriefingLog(state(), clock=clock)
         return stats(log, since=since, until=until, compare_weeks=compare_weeks,
                      embedder=embedder() if by_meaning and embedder is not None else None,
-                     similarity=similarity if by_meaning and embedder is not None else None,
+                     similarity=alike() if by_meaning and embedder is not None else None,
                      pricing=pricing() if pricing is not None else None,
                      decided_by=decided_by() if decided_by is not None else None, clock=clock)
 
@@ -202,6 +215,9 @@ def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Call
                 gone = db.forget_old_copies(backup_days)
                 typer.echo(f"Deleted {len(gone):,} copies of the database made before an import, older than "
                            f"{backup_days} days.")
+            for step in also_tidy:  # the rest of the site's nightly housekeeping, in its own words
+                for line in step():
+                    typer.echo(line)
 
     return app
 

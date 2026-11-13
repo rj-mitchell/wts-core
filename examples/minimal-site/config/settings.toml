@@ -24,6 +24,9 @@ max_per_park = 2
 # "hashing" needs no model file: it captures shared words only. A real site names a real model here.
 backend = "hashing"
 dim = 256
+# How alike two questions must be to count as one theme in the statistics (cosine similarity). It belongs to the
+# embedding model, so it changes when the model does.
+theme_similarity = 0.5
 
 [answer]
 # "scripted" replays a recorded briefing, so the example runs anywhere with no key.
@@ -85,6 +88,11 @@ days = 14
 [alerts]
 # Thresholds start unset: the first weekly report proposes them from that week's figures, and the owner writes
 # them here. The names are p95_full_briefing_ms, error_rate, check_failure_rate, not_useful_rate, daily_cost_usd.
+
+[eval]
+# What one evaluation run may spend, in US dollars, unless --max-cost says otherwise. A run costs money, so it
+# never starts without a limit.
+max_cost_usd = 1.0
 
 [eval.thresholds]
 # What an evaluation run is held to (`parks eval run`). A threshold is min_ or max_ and the name of a figure.

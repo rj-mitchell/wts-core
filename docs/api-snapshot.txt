@@ -309,6 +309,7 @@ eval_commands: from wts_core.cli.eval
 last_day_figures: from wts_core.cli.check
 ops_commands: from wts_core.cli.ops
 replies_commands: from wts_core.cli.replies
+replies_tidy: from wts_core.cli.replies
 stats_commands: from wts_core.cli.stats
 
 ## wts_core.cli.check
@@ -317,7 +318,7 @@ def check_route(site: 'Site', *, token: 'str | None', replies: 'Replies | Callab
 def last_day_figures(log: 'BriefingLog', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
 
 ## wts_core.cli.eval
-def eval_commands(site: 'Callable[[], EvalSite]', *, config: 'Callable[[], Mapping[str, Any]]', config_id: 'Callable[[Mapping[str, Any]], str]', pricing: 'Callable[[], Pricing]', thresholds: 'Callable[[], Mapping[str, float]]', runs: 'Callable[[], Path]', max_cost_usd: 'float | None', verifier: 'Callable[[], Verifier] | None' = None, loaded_words: 'Callable[[], LoadedWords] | None' = None, curled: 'bool' = False, group: 'str | None' = 'eval', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+def eval_commands(site: 'Callable[[], EvalSite]', *, config: 'Callable[[], Mapping[str, Any]]', config_id: 'Callable[[Mapping[str, Any]], str]', pricing: 'Callable[[], Pricing]', thresholds: 'Callable[[], Mapping[str, float]]', runs: 'Callable[[], Path]', max_cost_usd: 'float | Callable[[], float | None] | None', verifier: 'Callable[[], Verifier] | None' = None, loaded_words: 'Callable[[], LoadedWords] | None' = None, curled: 'bool' = False, group: 'str | None' = 'eval', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
 
 ## wts_core.cli.ops
 class BackupCheckWords
@@ -380,6 +381,7 @@ class RepliesCommands
     unhide: str | None = ...
     hidden: str | None = ...
     waiting: str | None = ...
+    tidy: str | None = ...
     also: Mapping[str, str] = ...
     about_option: str | None = ...
     withdraw_note: str | None = ...
@@ -400,17 +402,19 @@ class RepliesWording
     closed: Line
     hid: Line
     unhid: Line
+    tidied: Line
     not_done: str
     refused: str
     errors_to_stderr: bool
 def replies_commands(replies: 'Callable[[], Replies]', commands: 'RepliesCommands', wording: 'RepliesWording', *, about: 'Callable[[str], str] | None' = None, changed: 'Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None' = None) -> 'typer.Typer'
+def replies_tidy(replies: 'Callable[[], Replies]', wording: 'RepliesWording') -> 'Callable[[], list[str]]'
 
 ## wts_core.cli.stats
 class StatsNames
     stats: str | None = ...
     weekly_report: str | None = ...
     tidy: str | None = ...
-def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | Callable[[], float] | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, also_tidy: 'Sequence[Callable[[], Iterable[str]]]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
 
 ## wts_core.eval
 Case: from wts_core.eval.cases
@@ -827,6 +831,7 @@ class BackupSpec
     member: str = ...
     extra_files: tuple[str, ...] = ...
     keep: int
+    keep_offsite: int = ...
     required_tables: tuple[str, ...]
     wal: bool = ...
     def archives(self, folder: 'Path') -> 'list[Path]'
@@ -851,7 +856,7 @@ OffsiteError: from wts_core.ports
 OffsiteUnavailable: from wts_core.ports
 def backup_alerts(folder: 'Path', spec: 'BackupSpec', *, offsite_set_up: 'bool', wording: 'AlertWording', stale_hours: 'int' = 50, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'list[Alert]'
 def check_offsite(store: 'OffsiteStore | None', spec: 'BackupSpec', *, how_to_set_up: 'str | None' = None) -> 'dict[str, Any]'
-def send_offsite(archive: 'Path', store: 'OffsiteStore | None', spec: 'BackupSpec', *, keep: 'int' = 60, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
+def send_offsite(archive: 'Path', store: 'OffsiteStore | None', spec: 'BackupSpec', *, keep: 'int | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
 
 ## wts_core.ports
 class AnswerCache(Protocol)

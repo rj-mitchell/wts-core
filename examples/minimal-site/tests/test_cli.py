@@ -110,12 +110,15 @@ def test_statistics_the_weekly_report_and_the_nightly_tidy(run: Run, site: TestC
     assert len(written) == 2 and written[0].endswith(".json") and written[1].endswith(".md")
     assert "No alert thresholds are set yet." in said and "daily_cost_usd = " in said  # proposed, for [alerts]
 
+    # one command each night: the record, the reports, old visitor codes, old copies, and the right of reply's
     tidied = run("tidy").splitlines()
     assert tidied[0] == "Deleted 0 records of briefings older than 13 months."
-    assert tidied[-2:] == ["Forgot the visitor codes on 0 spending rows from before today.",
-                           "Deleted 0 copies of the database made before an import, older than 60 days."]
-    nightly = run("nightly").splitlines()
-    assert nightly[0].startswith("0 statements lapsed with no decision in three months") and len(nightly) == 3
+    assert tidied[-3:-1] == ["Forgot the visitor codes on 0 spending rows from before today.",
+                             "Deleted 0 copies of the database made before an import, older than 60 days."]
+    assert tidied[-1] == ("0 statements lapsed with no decision in three months; 0 old reports' contact details "
+                          "deleted; 0 confirming addresses deleted, three months after their statements ended; 0 "
+                          "counts of earlier days' reports and statements deleted.")
+    assert "tidy-replies" not in run("--help")  # no second command for the timer to forget
 
 
 def test_an_evaluation_run_passes_is_noted_and_replays(run: Run, tmp_path: Path) -> None:

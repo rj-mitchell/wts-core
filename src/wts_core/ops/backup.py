@@ -46,6 +46,7 @@ class BackupSpec:
     member: str = "state.db"  # Where MPs Stand: "state.sqlite"
     extra_files: tuple[str, ...] = ()  # Where MPs Stand: ("settings.local.toml",)
     keep: int  # how many archives stay in the backups folder
+    keep_offsite: int = 60  # how many of the site's copies stay in the off-site store: 60 on all four sites today
     required_tables: tuple[str, ...]  # a file without these is not a backup of this site's state database
     # whether the database keeps its newest writes in a write-ahead log (Where MPs Stand's does): the copy a restore
     # keeps of the database it replaces then carries the log, without which those writes would be lost

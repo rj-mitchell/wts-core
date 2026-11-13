@@ -225,6 +225,48 @@ def test_tidy_applies_the_retention_the_owner_accepted_and_says_what_went(office
     assert office("tidy").stdout.startswith("Deleted 0 records")  # and again: nothing more to do
 
 
+def test_tidy_runs_the_rest_of_the_sites_nightly_housekeeping_and_prints_what_each_says(tmp_path):
+    done: list[str] = []
+
+    def replies_step() -> list[str]:
+        done.append("replies")
+        return ["2 statements lapsed", "1 address deleted"]
+
+    def another() -> list[str]:
+        done.append("another")
+        return []
+
+    office = Office(tmp_path, also_tidy=[replies_step, another])
+    assert done == [] and office("stats", "--check").exit_code == 0 and done == []  # only tidy runs them
+    said = office("tidy")
+    assert said.exit_code == 0 and done == ["replies", "another"]
+    assert said.stdout.splitlines() == [
+        "Deleted 0 records of briefings older than 13 months.",
+        "Removed the question from 0 records of failed briefings older than 90 days.",
+        "Deleted 0 weekly report files older than 13 months.",
+        "2 statements lapsed", "1 address deleted"]
+
+
+def test_the_similarity_may_be_read_when_a_command_runs_so_it_can_come_from_settings(tmp_path):
+    read: list[float] = []
+
+    def from_settings() -> float:
+        read.append(0.5)
+        return 0.5
+
+    embedder = RecordingEmbedder()
+    office = Office(tmp_path, embedder=lambda: embedder, similarity=from_settings)
+    assert read == [] and office("stats").exit_code == 0 and read == []  # asked for only with the embedder
+    assert office("weekly-report", "--week", "2026-W46").exit_code == 0 and read == [0.5]
+    by_callable = json.loads((tmp_path / "reports" / "2026-W46.json").read_text())["stats"]
+    plain = Office(tmp_path / "plain", embedder=lambda: RecordingEmbedder(), similarity=0.5)
+    assert plain("weekly-report", "--week", "2026-W46").exit_code == 0
+    by_value = json.loads((tmp_path / "plain" / "reports" / "2026-W46.json").read_text())["stats"]
+    assert by_callable["themes_by"] == "meaning" and by_callable["themes"] == by_value["themes"]
+    with pytest.raises(ValueError, match="an embedder needs similarity too"):
+        Office(tmp_path / "none", embedder=lambda: embedder)
+
+
 # ---- names, and what the nightly check is given --------------------------------------------------------------------
 
 

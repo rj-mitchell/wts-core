@@ -429,6 +429,22 @@ def our_app(site: SiteFacts, folder: Path, **more: Any) -> Any:
 
 
 @each_site
+def test_the_backup_command_keeps_off_site_as_many_as_the_sites_spec_says(site, tmp_path):
+    import dataclasses
+
+    store = MemoryStore("wts-backups")
+    for day in range(1, 8):
+        store.files[site.archive_name(WHEN - timedelta(days=day))] = b"x"
+    two = dataclasses.replace(site.spec, keep_offsite=2)
+    settings = Settings(raw={}, data_dir=tmp_path / "data", config_path=Path("settings.toml"), site=site.site)
+    app = mounted(ops_commands(site.site, lambda: settings, two, OPS[site.repo], store=lambda: store,
+                               clock=FixedClock(WHEN)))
+    state_database(tmp_path / "data" / site.state_file, site.spec)
+    assert run(app, backup(tmp_path), tmp_path).exit_code == 0
+    assert sorted(store.files) == [site.archive_name(WHEN - timedelta(days=1)), site.archive_name(WHEN)]
+
+
+@each_site
 def test_a_site_may_keep_its_copies_in_another_store(site, tmp_path):
     store = MemoryStore("somewhere-else")
     app = our_app(site, tmp_path, store=lambda: store, how_to_set_up="set OTHER_STORE in deploy/.env")

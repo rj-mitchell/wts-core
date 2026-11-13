@@ -858,7 +858,7 @@ app.add_typer(replies_commands(_replies, REPLIES_COMMANDS, REPLIES_WORDING))  # 
 | Group | Commands | What a site passes |
 |---|---|---|
 | `ops_commands` | `backup`, `restore`, `offsite`, `backup-check` | its `BackupSpec` and `OpsWording`; another off-site store if it has one |
-| `replies_commands` | `reports list/show/close`, `statements list/show/publish/decline/update/withdraw/remove/log`, `hide`, `unhide`, `hidden`, `waiting` | `RepliesCommands` (what each command is called) and `RepliesWording` |
+| `replies_commands` | `reports list/show/close`, `statements list/show/publish/decline/update/withdraw/remove/log`, `hide`, `unhide`, `hidden`, `waiting`, `tidy-replies` | `RepliesCommands` (what each command is called) and `RepliesWording` |
 | `stats_commands` | `stats`, `weekly-report`, `tidy` | its `[alerts]` thresholds, its reports folder, its embedder and the similarity for themes |
 | `eval_commands` | `eval run`, `eval compare`, `eval replay` | its `EvalSite`, configuration, prices, thresholds and the most a run may spend |
 
@@ -870,23 +870,47 @@ From `examples/minimal-site/src/parks/site.py`:
 BACKUPS = BackupSpec(
     prefix="parks-state-",  # parks-state-2026-11-13.sqlite.gz: what marks a backup, here and off site, as this site's
     keep=14,  # how many stay on the server; `parks backup --keep` says otherwise for one run
+    # How many nightly copies stay off site, and so about how many days a deleted address can remain in a backup.
+    # Nothing else that holds old data may be kept longer (`parks tidy` is told this figure too).
+    keep_offsite=60,
     required_tables=("wts_schema", "wts_spending", "wts_briefings", "wts_reports", "wts_statements"),
 )
 ```
 
-The package's `tidy` applies the retention to the record of briefings and to the weekly reports, forgets old
-visitor codes, and deletes copies of the database made before an import once they are older than `backup_days`.
-A site passes the days it keeps a backup.
+`keep_offsite` is how many of the site's copies stay in the off-site store: 60 if the spec does not say, which is
+every site's figure today.
+
+**One command each night.** The package's `tidy` is the housekeeping a site's timer runs. It applies the
+retention to the record of briefings and to the weekly reports, forgets old visitor codes, and deletes copies of
+the database made before an import once they are older than `backup_days` (a site passes the days it keeps a
+backup). Given `also_tidy`, it then does the rest of the site's nightly housekeeping and prints what each step
+says. `cli.replies_tidy` is the right of reply's step: statements nobody decided in three months lapse, old
+confirming addresses and the contact details of old reports are deleted, and earlier days' counts are emptied. It
+says what it did in the site's own words (`RepliesWording.tidied`).
 
 From `examples/minimal-site/src/parks/cli.py`:
 
 ```python
-    backup_days=BACKUPS_KEPT_DAYS,  # tidy deletes copies of the database older than the backups are kept
+    backup_days=BACKUPS.keep_offsite,  # tidy deletes copies of the database older than the backups are kept
+    # The one command the site's timer runs each night does the right of reply's housekeeping too: what the
+    # privacy notice promises of old addresses and undecided statements must not wait for a visitor.
+    also_tidy=[replies_tidy(_replies, REPLIES_WORDING)],
 ```
 
-The housekeeping of reports and statements is not in `tidy`. A site's nightly run calls it too:
-`Replies.lapse_undecided`, `Replies.forget_old_emails` and `Replies.forget_old_counts`. The example's own
-`parks nightly` command calls all three.
+The site's routes do the same housekeeping on every report and statement, and the nightly family check does it
+when it asks what is waiting. The command is for the night nobody writes in, on a site with no check token set.
+A site with no record of briefings (and so no `tidy`) runs `tidy-replies`, which `replies_commands` adds
+(`RepliesCommands.tidy` names it, or leaves it out with `None`, as the example does).
+
+**Figures read when a command runs.** `eval_commands`' `max_cost_usd` and `stats_commands`' `similarity` each
+take a number or a function that gives one. A function is called when the command runs, so the figure can live
+in the site's settings.
+
+From `examples/minimal-site/src/parks/cli.py`:
+
+```python
+    max_cost_usd=lambda: float(load().section("eval")["max_cost_usd"]),  # no run starts without a limit
+```
 
 A restore accepts any file that has the tables `required_tables` names. A site with a table of its own should
 name it there, so that a sister site's backup is refused. The example has no table of its own, so its list holds

@@ -21,6 +21,7 @@ from wts_core.cli import (
     eval_commands,
     ops_commands,
     replies_commands,
+    replies_tidy,
     stats_commands,
 )
 from wts_core.observe import config_id
@@ -31,11 +32,8 @@ from parks.pipeline import configuration, embedder_from_settings, load_minutes
 from parks.site import (
     BACKUP_ALERTS,
     BACKUPS,
-    BACKUPS_KEPT_DAYS,
-    EVAL_MAX_COST_USD,
     LOADED_WORDS,
     SITE,
-    THEME_SIMILARITY,
     VERIFIER,
     load,
     open_replies,
@@ -63,19 +61,6 @@ def minutes(park: str = typer.Option("", help="only this park's")) -> None:
     for minute in load_minutes(load().minutes_file):
         if not park or minute.park == park:
             typer.echo(f"{minute.date}  {minute.park}: item {minute.item}, {minute.title}")
-
-
-@app.command()
-def nightly() -> None:
-    """What the site's timer runs each night beside ``parks tidy``: the housekeeping of reports and statements
-    that the privacy notice promises. (``tidy`` is the package's, and sees to the record of briefings, the
-    weekly reports, old visitor codes and old copies of the database.)"""
-    statements, contacts = _replies().lapse_undecided()
-    typer.echo(f"{statements} statements lapsed with no decision in three months; {contacts} old reports' contact "
-               "details deleted.")
-    typer.echo(f"{_replies().forget_old_emails()} confirming addresses deleted, three months after their statements "
-               "ended.")
-    typer.echo(f"{_replies().forget_old_counts()} counts of earlier days' reports and statements deleted.")
 
 
 # ---- the package's commands: backups -----------------------------------------------------------------------------
@@ -144,7 +129,9 @@ def _waiting(w: Mapping[str, Any]) -> str:
     return said + f" The oldest has waited {w['oldest_working_days']} working days: the promise is five."
 
 
-REPLIES_COMMANDS = RepliesCommands(listed=("pending", "published"), outcome=None)
+# The package's own names for the commands. Its nightly housekeeping is left out as a command of its own: on this
+# site `parks tidy` does it with the rest (see the statistics commands below), so the timer runs one command.
+REPLIES_COMMANDS = RepliesCommands(listed=("pending", "published"), outcome=None, tidy=None)
 
 REPLIES_WORDING = RepliesWording(
     report=_report,
@@ -160,6 +147,9 @@ REPLIES_WORDING = RepliesWording(
     closed="Closed report {id}. Its contact details are deleted.",
     hid="Hidden: {item}. Its page now shows the note.",
     unhid="Shown again: {item}.",
+    tidied="{lapsed} statements lapsed with no decision in three months; {contacts} old reports' contact details "
+           "deleted; {emails} confirming addresses deleted, three months after their statements ended; {counts} "
+           "counts of earlier days' reports and statements deleted.",
     not_done="Not done: {message}",
     refused="Not done: {message}",
     errors_to_stderr=True,
@@ -173,9 +163,13 @@ app.add_typer(stats_commands(
     SITE, lambda: open_state(load()),
     thresholds=lambda: load().section("alerts"),  # empty until the owner sets them
     folder=lambda: load().reports_dir,
-    embedder=lambda: embedder_from_settings(load()), similarity=THEME_SIMILARITY,
+    embedder=lambda: embedder_from_settings(load()),
+    similarity=lambda: float(load().section("embedding")["theme_similarity"]),  # read when a command runs
     pricing=lambda: prices(load()),
-    backup_days=BACKUPS_KEPT_DAYS,  # tidy deletes copies of the database older than the backups are kept
+    backup_days=BACKUPS.keep_offsite,  # tidy deletes copies of the database older than the backups are kept
+    # The one command the site's timer runs each night does the right of reply's housekeeping too: what the
+    # privacy notice promises of old addresses and undecided statements must not wait for a visitor.
+    also_tidy=[replies_tidy(_replies, REPLIES_WORDING)],
 ))  # stats, weekly-report, tidy
 
 # ---- the package's commands: evaluation --------------------------------------------------------------------------
@@ -194,7 +188,7 @@ app.add_typer(eval_commands(
     pricing=lambda: prices(load()),
     thresholds=lambda: load().section("eval")["thresholds"],
     runs=lambda: RUNS,
-    max_cost_usd=EVAL_MAX_COST_USD,  # a run costs money, so it never starts without a limit
+    max_cost_usd=lambda: float(load().section("eval")["max_cost_usd"]),  # no run starts without a limit
     verifier=lambda: VERIFIER, loaded_words=lambda: LOADED_WORDS,
 ))  # eval run | compare | replay
 
