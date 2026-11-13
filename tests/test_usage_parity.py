@@ -406,7 +406,7 @@ def test_the_limiter_decides_as_where_landlords_stands():
     """Where Landlords Stand's ``Limiter`` keeps a hash of who it is given; the decisions are the same."""
     api = SITES_ROOT / "wherelandlordsstand" / "src" / "landlords" / "api.py"
     if not api.exists():
-        pytest.skip(f"Where Landlords Stand's checkout is not at {api.parents[3]} (set WTS_SITES_DIR to the folder "
+        pytest.skip(f"Where Landlords Stand's checkout is not at {api.parents[2]} (set WTS_SITES_DIR to the folder "
                     "that holds wherelandlordsstand): nothing to compare with")
     clock = FixedClock()
     limiter_class = definition(api, "Limiter", deque=deque, defaultdict=defaultdict, threading=threading,
