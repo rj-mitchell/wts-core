@@ -35,6 +35,15 @@ jobs:
       sync-args: "--all-extras"
       type-check: "uv run mypy"
 
+  # The example site (examples/minimal-site), the living reference: installed as a site installs, from its own
+  # lock file, then linted, type-checked and run end to end, its real server included. It is called exactly as a
+  # site calls this workflow, so the example's CI is the example of a site's CI too.
+  example:
+    uses: ./.github/workflows/python.yml
+    with:
+      working-directory: examples/minimal-site
+      type-check: "uv run mypy"
+
   # the wheel sites will install, built once and handed to the two jobs below
   wheel:
     runs-on: ubuntu-latest

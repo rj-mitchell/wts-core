@@ -1,0 +1,24 @@
+{"recording": 1, "documents": 3, "sources": [{"title": "Minutes of the Canal Gardens Committee, 14 January 2026: item 3, Café lease", "source": "https://whereparksstand.example/minutes/canal-gardens/2026-01-14#item-3", "passages": ["The Committee agreed to renew the café's lease for five years at a rent of £9,500 a year.", "The tenant will keep the public toilets open during the café's hours."]}, {"title": "Minutes of the Alder Park Committee, 12 May 2026: item 6, Opening hours", "source": "https://whereparksstand.example/minutes/alder-park/2026-05-12#item-6", "passages": ["The Committee agreed that the gates would open at 7am and close at dusk throughout the summer.", "A proposal to leave the gates open overnight was not supported."]}, {"title": "Minutes of the Canal Gardens Committee, 15 July 2026: item 5, Opening hours", "source": "https://whereparksstand.example/minutes/canal-gardens/2026-07-15#item-5", "passages": ["The Committee agreed to keep the gardens open until 10pm from June to August.", "The gates will be locked at 8pm for the rest of the year."]}], "synthetic": true, "question": "When do the parks open and close?", "about": "written by hand for the example site, in the shape real recordings have; not a recording", "reading": {"topic": "opening hours gates open close", "park": null}, "reading_usage": {"input_uncached": 96, "output": 14}}
+{"event": "text", "text": "- Alder"}
+{"event": "text", "text": " Park: "}
+{"event": "citation", "document": 1, "quoted": "The Committee agreed that the gates would open at 7am and close at dusk throughout the summer."}
+{"event": "text", "text": "the gates open at 7am and clos"}
+{"event": "text", "text": "e at dusk throughout the summer"}
+{"event": "text", "text": ";"}
+{"event": "text", "text": " "}
+{"event": "citation", "document": 1, "quoted": "A proposal to leave the gates open overnight was not supported."}
+{"event": "text", "text": "a proposal to leave them ope"}
+{"event": "text", "text": "n overnight was not supported"}
+{"event": "text", "text": ".\n- Canal"}
+{"event": "text", "text": " Gardens: "}
+{"event": "citation", "document": 2, "quoted": "The Committee agreed to keep the gardens open until 10pm from June to August."}
+{"event": "text", "text": "the gardens stay open unti"}
+{"event": "text", "text": "l 10pm from June to August"}
+{"event": "text", "text": ", a"}
+{"event": "text", "text": "nd "}
+{"event": "citation", "document": 2, "quoted": "The gates will be locked at 8pm for the rest of the year."}
+{"event": "text", "text": "the gates are locked at 8p"}
+{"event": "text", "text": "m for the rest of the year"}
+{"event": "text", "text": ".\n\nThe shorter winter hours leave C"}
+{"event": "text", "text": "anal Gardens neglected after dark.\n"}
+{"event": "completed", "blocks": [{"text": "- Alder Park: ", "citations": []}, {"text": "the gates open at 7am and close at dusk throughout the summer", "citations": [{"document": 1, "quoted": "The Committee agreed that the gates would open at 7am and close at dusk throughout the summer."}]}, {"text": "; ", "citations": []}, {"text": "a proposal to leave them open overnight was not supported", "citations": [{"document": 1, "quoted": "A proposal to leave the gates open overnight was not supported."}]}, {"text": ".\n- Canal Gardens: ", "citations": []}, {"text": "the gardens stay open until 10pm from June to August", "citations": [{"document": 2, "quoted": "The Committee agreed to keep the gardens open until 10pm from June to August."}]}, {"text": ", and ", "citations": []}, {"text": "the gates are locked at 8pm for the rest of the year", "citations": [{"document": 2, "quoted": "The gates will be locked at 8pm for the rest of the year."}]}, {"text": ".\n\nThe shorter winter hours leave Canal Gardens neglected after dark.\n", "citations": []}], "model": "recorded-briefing", "stop_reason": "end_turn", "usage": {"input_uncached": 598, "cache_write": 0, "cache_read": 540, "output": 121}}
