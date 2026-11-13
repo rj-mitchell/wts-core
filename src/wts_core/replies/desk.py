@@ -427,7 +427,9 @@ class Replies:
     # ---- for the owner, the update report and the nightly check --------------------------------------------------
 
     def waiting(self) -> Waiting:
-        self.forget_old_counts()  # the nightly check asks this every night, so no code outlives its day by much
+        # the nightly check asks this every night: so on a site where nobody writes in and the owner looks at no
+        # list, addresses are still deleted when three months are up, and no visitor code outlives its day by much
+        self._tidy()
         with self.db.connect() as con:
             reports, first_report = con.execute("SELECT count(*), min(at) FROM wts_reports "
                                                 "WHERE closed_at IS NULL").fetchone()

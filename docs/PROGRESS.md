@@ -71,11 +71,36 @@ parity tests that import each site's own functions and compare results. I merge 
 | `observe` (the briefing log, statistics, alerts) | `claude/wts-3-observe` | `/home/user/wt/core-observe` | **merged** |
 | `eval` (replay and live runs) | `claude/wts-3-eval` | `/home/user/wt/core-eval` | **merged** (replays the shipped recordings against golden reports; reads each site's real question file) |
 | `cli` (the shared commands) and the `/api/check` route; the remaining testing helpers | `claude/wts-3-cli` | `/home/user/wt/core-cli` | **merged** (each site's own commands and the package's print the same lines and exit alike) |
-| `examples/minimal-site`, `docs/EXTENDING.md`, `docs/NEW-SITE.md`, `README.md` | `claude/wts-3-example` | `/home/user/wt/core-example` | building |
-| An independent review of the whole package against the brief's Musts | read-only | | under way |
+| `examples/minimal-site`, `docs/EXTENDING.md`, `docs/NEW-SITE.md`, `README.md` | `claude/wts-3-example` | `/home/user/wt/core-example` | **merged** (61 tests of its own, its real server included; the new-site checklist was followed from scratch twice) |
+| An independent review of the whole package against the brief's Musts | read-only | | **done and acted on**: [`NOTES/independent-review-of-the-package.md`](NOTES/independent-review-of-the-package.md) |
 | The public-interface snapshot test, then tag `v0.1.0` | last (the tag needs the pull requests merged first) | | |
 
 The workers' brief is kept at `docs/study/package-worker-brief.md`.
+
+## Rough edges the example site found, kept for the first AI site's adoption
+
+Building the example made its author the package's first user. These are real, and each is better settled against
+a real site's wiring than guessed at now. They are the first things to do in phase 4, before Where Councils Stand:
+
+1. **A builder for the desk.** `BriefingDesk` takes twelve required arguments and a site builds about ten objects
+   first, alike on every site. One function from settings, a `StateDB` and `Messages` would cut each site's wiring
+   and the room for error. With it: one start-up check that names the file for a missing limit or price.
+2. **`config` is a mapping with string keys.** A misspelt key is recorded as empty. A small dataclass, built once
+   with its id and remembered in `wts_configs` by the same call.
+3. **The model client's type has no `close()`**, and "is there a key?" needs a provider-specific import. Both
+   belong with phase 5's proof that a provider can be swapped.
+4. **Housekeeping the nightly update must call** is now: the `tidy` command (the record, reports, visitor codes,
+   old copies) and the check route (the right of reply's, through `waiting()`). A site with no check token set
+   needs a command for the second.
+5. **About forty lines of wording** for a new site's backup and right-of-reply commands, with no defaults.
+6. Two command arguments are plain values where the rest are callables (`max_cost_usd`, `similarity`); the
+   off-site `keep` is fixed at 60.
+7. **A restore accepts a sister site's backup** when both have only `wts_` tables. A stamp of the site's package
+   in `wts_kv`, checked on restore, would close it.
+8. `events.to_reader` returns a typed dictionary and the desk takes plain ones, so a site needs a cast.
+9. `FixedRandom.token()` gives nine characters and the structured log takes only the desk's eleven.
+10. `replies.long_date` (the family's date format) lives in the right-of-reply module, where a pipeline must not
+    import it.
 
 ## What could not be done, and why
 

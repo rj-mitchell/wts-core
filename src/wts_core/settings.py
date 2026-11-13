@@ -87,7 +87,7 @@ class Messages:
     sources_follow: str  # "{reason} The sources found are shown below."
     sources_only: str
     briefing_failed: str
-    model_declined: str
+    model_declined: str  # sent by the site's own pipeline, in its error event, when the model declines
     account_daily_limit: str | None = None  # only a site with signed-in accounts has one
 
     def with_sources(self, reason: str) -> str:

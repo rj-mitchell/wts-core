@@ -158,7 +158,9 @@ class Hooks:
 
     def finish(self, ask: Ask, final: Event, kept: list[Event]) -> Event:
         """The final event, before the briefing is saved or cached: what a site adds to every copy (Where MPs
-        Stand's ``briefing_key``). ``kept`` is the events so far, without the text and the citations."""
+        Stand's ``briefing_key``). ``kept`` is the events so far, without the text and the citations. It is called
+        for every final event the pipeline sends, one with no answer included (no model, or no records): look at
+        ``final.get("answer")`` before adding what belongs only to a written briefing."""
         return final
 
     def for_this_reader(self, ask: Ask, final: Event) -> Event:
