@@ -123,7 +123,7 @@ The keys the package reads itself. Those of the briefing flow are checked togeth
 | Key | Read by | Needed |
 |---|---|---|
 | `[paths] data_dir` | `load_settings` | no: `data` if absent |
-| `[answer] provider` | `adapters.model_client` | no: `anthropic` if absent |
+| `[answer] provider` | `adapters.model_client`, `adapters.has_model` | no: `anthropic` if absent |
 | `[usage] per_visitor_daily_questions`, `daily_spend_cap_usd`, `monthly_spend_cap_usd` | `Limits.from_settings` | yes |
 | `[usage] per_user_daily_questions` | `Limits.from_settings` | only on a site with signed-in accounts |
 | `[usage] price_input_per_mtok`, `price_output_per_mtok`, `price_cache_read_per_mtok`, `cache_write_multiplier` | `PriceTable.from_settings` | yes |
@@ -689,9 +689,23 @@ def model_from_settings(settings: ParksSettings, env: Mapping[str, str] | None =
     provider = str(settings.answer["provider"]).strip().lower()
     if provider == "scripted":
         return scripted_model(settings.recordings_dir / f"{settings.answer['recording']}.jsonl")
-    if provider == "anthropic" and not anthropic.has_credentials(SITE, settings, env):
-        return None  # no key: the site shows the minutes only
+    if not has_model(settings, SITE, env):
+        return None  # nothing to call the provider with (no key): the site shows the minutes only
     return model_client(settings, SITE, env)
+```
+
+`adapters.has_model` asks whether the provider named in the settings has what it is called with. A site asks
+there, beside `adapters.model_client`, and imports no provider's module, so a change of provider stays a change
+to its settings.
+
+A pipeline closes the model's stream when it has finished with it, however it finished. `close()` is in the
+interface's type (`ports.ModelStream`), and it stops the model if the reader has gone.
+
+From `examples/minimal-site/src/parks/pipeline.py`:
+
+```python
+        finally:
+            stream.close()  # if the reader has gone, this stops the model: nothing more is written or paid for
 ```
 
 Three rules for a site:

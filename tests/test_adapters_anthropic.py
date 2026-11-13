@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from adapters_sites import SITES, site_file
-from wts_core.adapters import model_client
+from wts_core.adapters import has_model, model_client
 from wts_core.adapters.anthropic import (
     BASE_URL,
     FALLBACK_BETA,
@@ -526,6 +526,21 @@ def test_the_provider_is_a_setting_and_an_unknown_one_names_it(tmp_path):
     assert isinstance(model_client(settings_for(tmp_path, site(), provider="anthropic"), site(), {}), AnthropicClient)
     with pytest.raises(SettingsError, match=r"settings\.toml: \[answer\] provider is 'acme'"):
         model_client(settings_for(tmp_path, site(), provider="acme"), site(), {})
+
+
+def test_whether_there_is_a_model_is_asked_without_naming_the_provider(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    settings = settings_for(tmp_path, site())
+    assert has_model(settings, site(), {}) is False  # no key: the site shows the sources only
+    assert has_model(settings, site(), {"COUNCILS_ANTHROPIC_API_KEY": "sk-ant-test"}) is True
+    assert has_model(settings, site(), {"ANTHROPIC_AUTH_TOKEN": "token"}) is True
+    assert has_model(settings, site(), {"WCS_ANTHROPIC_API_KEY": "another-sites"}) is False
+    (tmp_path / KEY_FILE).write_text("sk-ant-from-the-file\n")
+    assert has_model(settings, site(), {}) is True
+    # the same answer as the provider's own module gives, and the same refusal of a provider there is none for
+    assert has_model(settings, site(), {}) == has_credentials(site(), settings, {})
+    with pytest.raises(SettingsError, match=r"settings\.toml: \[answer\] provider is 'acme'"):
+        has_model(settings_for(tmp_path, site(), provider="acme"), site(), {})
 
 
 def test_importing_the_adapters_needs_no_sdk():

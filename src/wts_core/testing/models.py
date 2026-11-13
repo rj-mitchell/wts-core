@@ -20,7 +20,7 @@ recording made through one adapter can be replayed to test anything downstream o
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Generator, Iterable, Sequence
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -143,11 +143,11 @@ class ScriptedModel:
         self.started = 0
         self.closed = 0
 
-    def stream(self, request: ModelRequest) -> Iterator[ModelEvent]:
+    def stream(self, request: ModelRequest) -> Generator[ModelEvent, None, None]:
         self.requests.append(request)
         return self._replay()
 
-    def _replay(self) -> Iterator[ModelEvent]:
+    def _replay(self) -> Generator[ModelEvent, None, None]:
         self.started += 1
         try:
             yield from self.script

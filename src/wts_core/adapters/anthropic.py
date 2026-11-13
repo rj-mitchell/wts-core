@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Iterator, Mapping
 from typing import Any
 
 from wts_core.events import Block, Citation, CitationDelta, Completed, ModelEvent, TextDelta
@@ -186,9 +186,9 @@ class AnthropicClient:
 
     # ---- a briefing ---------------------------------------------------------------------------------------------
 
-    def stream(self, request: ModelRequest) -> Iterator[ModelEvent]:
-        """Text and citations as they are written, then one ``Completed``. Closing the iterator closes the SDK's
-        stream, so a briefing nobody is reading stops being written."""
+    def stream(self, request: ModelRequest) -> Generator[ModelEvent, None, None]:
+        """Text and citations as they are written, then one ``Completed`` (``ports.ModelStream``). Closing it
+        closes the SDK's stream, so a briefing nobody is reading stops being written."""
         content: list[dict[str, Any]] = [search_result(d) for d in request.documents]
         content.append({"type": "text", "text": request.question})
         kwargs: dict[str, Any] = {

@@ -6,13 +6,14 @@ __version__ = <the version>
 load_settings: from wts_core.settings
 
 ## wts_core.adapters
+def has_model(settings: 'Settings', site: 'Site', env: 'Mapping[str, str] | None' = None) -> 'bool'
 def model_client(settings: 'Settings', site: 'Site', env: 'Mapping[str, str] | None' = None) -> 'ModelClient'
 
 ## wts_core.adapters.anthropic
 class AnthropicClient
     def __init__(self, api_key: 'str | None', *, base_url: 'str', timeout: 'float' = 300.0, connect: 'float' = 10.0, max_retries: 'int' = 2, client: 'Any' = None) -> 'None'
     property client
-    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def stream(self, request: 'ModelRequest') -> 'Generator[ModelEvent, None, None]'
     def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
 BASE_URL = 'https://api.anthropic.com'
 FALLBACK_BETA = 'server-side-fallback-2026-07-01'
@@ -958,7 +959,7 @@ class Limiter(Protocol)
     def allow(self, key: 'str') -> 'bool'
 class ModelClient(Protocol)
     def __init__(self, *args, **kwargs)
-    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def stream(self, request: 'ModelRequest') -> 'ModelStream'
     def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
 class ModelRequest
     model: str
@@ -969,6 +970,9 @@ class ModelRequest
     effort: str | None = ...
     cache_instructions: Literal['off', 'short', 'long'] = ...
     fallbacks: bool = ...
+class ModelStream(Protocol)
+    def __init__(self, *args, **kwargs)
+    def close(self) -> 'None'
 class OffsiteError(RuntimeError)
 class OffsiteStore(Protocol)
     def __init__(self, *args, **kwargs)
@@ -1263,6 +1267,7 @@ class EmbedderContract
 class ModelClientContract
     def test_a_question_is_read_into_the_schema_it_is_given(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_a_stream_is_text_and_citations_then_exactly_one_completed(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_a_stream_may_be_closed_when_it_has_ended_or_never_began_or_twice(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_closing_the_iterator_stops_the_stream(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_every_citation_names_a_document_in_the_request(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_it_says_who_it_is_and_what_it_can_do(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
@@ -1320,7 +1325,7 @@ class RecordingEmbedder
 RECORDING_VERSION = 1
 class ScriptedModel
     def __init__(self, script: 'Sequence[ModelEvent] | Path', *, structured: 'Any' = None, structured_usage: 'Usage | None' = None, error: 'Exception | None' = None) -> 'None'
-    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def stream(self, request: 'ModelRequest') -> 'Generator[ModelEvent, None, None]'
     def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
 def load_documents(path: 'Path') -> 'tuple[Document, ...]'
 def load_header(path: 'Path') -> 'dict[str, Any]'

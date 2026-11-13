@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
-from wts_core.adapters import anthropic, model_client
+from wts_core.adapters import has_model, model_client
 from wts_core.adapters.hashing import HashingEmbedder
 from wts_core.briefing import Event, Stage, current_stages
 from wts_core.checks import blend, check_briefing, round_robin
@@ -278,9 +278,7 @@ class Pipeline:
                 else:
                     yield dict(to_reader(event))  # text and citations, as they are written
         finally:
-            close = getattr(stream, "close", None)
-            if close is not None:
-                close()  # if the reader has gone, this stops the model: nothing more is written or paid for
+            stream.close()  # if the reader has gone, this stops the model: nothing more is written or paid for
         _reached("written")
         if done is None:
             raise RuntimeError("the model returned no answer")
@@ -343,8 +341,8 @@ def model_from_settings(settings: ParksSettings, env: Mapping[str, str] | None =
     provider = str(settings.answer["provider"]).strip().lower()
     if provider == "scripted":
         return scripted_model(settings.recordings_dir / f"{settings.answer['recording']}.jsonl")
-    if provider == "anthropic" and not anthropic.has_credentials(SITE, settings, env):
-        return None  # no key: the site shows the minutes only
+    if not has_model(settings, SITE, env):
+        return None  # nothing to call the provider with (no key): the site shows the minutes only
     return model_client(settings, SITE, env)
 
 

@@ -38,6 +38,7 @@ __all__ = [
     "Limiter",
     "ModelClient",
     "ModelRequest",
+    "ModelStream",
     "OffsiteError",
     "OffsiteStore",
     "OffsiteUnavailable",
@@ -195,14 +196,29 @@ class Schema(Protocol):
     def model_validate(cls, obj: Any) -> Self: ...
 
 
+class ModelStream(Protocol):
+    """A model's answer as it is being written: text and citations to take one by one, then exactly one
+    ``Completed``. A generator is one, and every adapter's stream is a generator today."""
+
+    def __iter__(self) -> Iterator[ModelEvent]: ...
+
+    def __next__(self) -> ModelEvent: ...
+
+    def close(self) -> None:
+        """Stop the model: nothing more is written or paid for. For a pipeline to call when it has finished with
+        the stream, however it finished: the reader may have gone. Closing a stream that has ended, or never
+        began, does no harm."""
+        ...
+
+
 class ModelClient(Protocol):
     """A model that writes briefings from documents, with citations, and reads questions into a schema."""
 
     provider: str
     supports: frozenset[str]  # of "caching", "long_cache", "fallbacks", "effort", "citations"
 
-    def stream(self, request: ModelRequest) -> Iterator[ModelEvent]:
-        """Text and citations as they are written, then exactly one ``Completed``. Closing the iterator stops the
+    def stream(self, request: ModelRequest) -> ModelStream:
+        """Text and citations as they are written, then exactly one ``Completed``. Closing the stream stops the
         model."""
         ...
 

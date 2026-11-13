@@ -10,7 +10,7 @@ The line `api: <hash>` under a version is the fingerprint of the public interfac
 The rough edges the example site found, removed before the three AI sites adopt the package. No site uses the
 briefing desk yet, so its interface could still change; the bytes a reader receives through it have not.
 
-api: ff12b44f8642
+api: ac8f7432c813
 
 ### Changed
 
@@ -26,8 +26,15 @@ api: ff12b44f8642
   `file=`, the settings file to name in the error. `SettingsError` gains `problems`, each thing wrong on its own.
   *What a site must do:* nothing. The sentences for a missing key are unchanged.
 
+- **`ports.ModelClient.stream` returns a `ports.ModelStream`,** which has `close()` in its type: a pipeline
+  stops the model with `stream.close()` and needs no `getattr`. A generator is one, so the adapter and the
+  scripted model are unchanged in what they do. *What a site must do:* nothing; a model adapter of a site's own
+  must return something with `close()` (the contract test checks).
+
 ### Added
 
+- `adapters.has_model(settings, site, env=None)`: whether the provider named in the settings has what it is
+  called with, so a site imports no provider's module to ask.
 - **`briefing.desk_parts(settings, db, messages, new_id=…, at_once_per_visitor=…, forget_over=…,
   keep_failures=…)`** builds everything a desk is made of from a site's settings (prices, limits, the spending
   record, caps, the per-minute limiter, briefings in progress, the answer cache, saved briefings, failures) on one
