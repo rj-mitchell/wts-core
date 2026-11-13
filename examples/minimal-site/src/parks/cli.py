@@ -140,6 +140,13 @@ def _report(r: Mapping[str, Any]) -> list[str]:
     return [*lines, f"    reply to: {r['contact']}"] if r["contact"] else lines
 
 
+def _waiting(w: Mapping[str, Any]) -> str:
+    said = f"{w['reports']} reports and {w['statements']} statements are waiting, and {w['hidden']} items are hidden."
+    if w["oldest_working_days"] is None:  # nothing is waiting
+        return said
+    return said + f" The oldest has waited {w['oldest_working_days']} working days: the promise is five."
+
+
 REPLIES_COMMANDS = RepliesCommands(listed=("pending", "published"), outcome=None)
 
 REPLIES_WORDING = RepliesWording(
@@ -147,8 +154,7 @@ REPLIES_WORDING = RepliesWording(
     statement=_statement,
     log_entry=lambda e: [f"{e['at'][:16]}  {e['action']}" + (f": {e['note']}" if e["note"] else "")],
     hidden_item=lambda h: [f"{h['item']}  hidden since {h['at'][:10]}: {h['note']}"],
-    waiting="{reports} reports and {statements} statements are waiting, and {hidden} items are hidden. The oldest "
-            "has waited {oldest_working_days} working days.",
+    waiting=_waiting,
     published="Published statement {id}. It is shown beside {item}.",
     declined="Declined statement {id}. Tell its sender why; their address is deleted in three months.",
     updated="Updated statement {id}.",

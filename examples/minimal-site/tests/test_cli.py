@@ -71,12 +71,13 @@ def test_backup_restore_and_the_backup_check_in_the_sites_words(run: Run, site: 
 
 def test_a_statement_is_published_and_an_item_hidden_from_the_command_line(run: Run, site: TestClient) -> None:
     address = f"/b/{final_of(ask(site, DOGS))['briefing_id']}"
+    assert run("waiting") == "0 reports and 0 statements are waiting, and 0 items are hidden.\n"
     site.post("/api/statements", json={"name": "Priya Raman", "role": "Chair, Alder Park Committee", "item": address,
                                        "text": "We stand by the decision.", "email": "chair@alderpark.example"})
     site.post("/api/report", json={"kind": "takedown", "page": address, "contact": "reader@example.org",
                                    "message": "Please take my name out of this briefing."})
-
-    assert run("waiting").startswith("1 reports and 1 statements are waiting, and 0 items are hidden.")
+    assert run("waiting") == ("1 reports and 1 statements are waiting, and 0 items are hidden. The oldest has waited "
+                              "0 working days: the promise is five.\n")
     listed = run("statements", "list")
     assert "#1  pending  " in listed and f"beside {address}" in listed and "confirm with: chair@alderpark.example" in listed
     assert "say how you confirmed" in run("statements", "publish", "1", "--checked", " ", code=1)
