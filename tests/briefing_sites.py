@@ -626,7 +626,7 @@ def countries_route(side: DeskSide) -> tuple[Route, Hooks]:
         if model_on and side.cache_hours > 0 and not body.history:  # a follow-up is never cached
             key = cache_key({"q": plain_question(body.question), **body.model_dump(exclude={"question"}),
                              "model": settings.answer.get("model"), "data": app.data_stamp(settings),
-                             "instructions": app.INSTRUCTIONS_VERSION})
+                             "instructions": app.INSTRUCTIONS_VERSION}, length=64)
         return sse(side.desk.handle(Ask(
             question=body.question, visitor=who, write=lambda: p.run(request_for(body)),
             sources_only=lambda note, free: sources_only(body, note),  # always the built-in rules, free
@@ -789,7 +789,7 @@ def mps_route(side: DeskSide) -> tuple[Route, Hooks]:
             last = state.runs(1)
             key = cache_key({"q": plain_question(body.question), **body.model_dump(exclude={"question"}),
                              "model": settings.answer.get("model"), "data": last[0]["run_id"] if last else None,
-                             "instructions": app.INSTRUCTIONS_VERSION})
+                             "instructions": app.INSTRUCTIONS_VERSION}, length=64)
         usage.count_question(state, body.question)
         usage.record_event(state, "ask", visitor)
         if body.history:

@@ -131,3 +131,24 @@ def test_a_sites_rows_are_imported_once_and_its_old_tables_left_alone(tmp_path):
     db = StateDB(path, imports=[bring, later], clock=clock)
     assert db.get("visitor_salt:x") is None  # not run a second time
     assert sqlite3.connect(path).execute("SELECT * FROM kv").fetchall() == before
+
+
+def test_a_copy_made_before_an_import_does_not_outlive_the_sites_backups(tmp_path):
+    """The copy is the whole database as it was, the day's visitor secret included, which the site deletes the
+    next day. So it is kept only as long as a backup is."""
+    from wts_core.state import Import, StateDB
+    from wts_core.testing import FixedClock
+
+    clock = FixedClock("2026-11-13T12:00:00+00:00")
+    path = tmp_path / "state.db"
+    StateDB(path, clock=clock).set("old", "row")
+    db = StateDB(path, imports=[Import("first", ("INSERT INTO wts_kv (key, value) VALUES ('new', 'row')",))],
+                 clock=clock)
+    copy = tmp_path / "state.pre-wts-core.2026-11-13.db"
+    assert copy.exists()
+    (tmp_path / "state.pre-wts-core.notes.db").write_text("not one of ours")
+    clock.advance(days=14)
+    assert db.forget_old_copies(14) == [] and copy.exists()  # fourteen days old: kept
+    clock.advance(days=1)
+    assert db.forget_old_copies(14) == [copy] and not copy.exists()
+    assert (tmp_path / "state.pre-wts-core.notes.db").exists() and path.exists()  # nothing else is touched

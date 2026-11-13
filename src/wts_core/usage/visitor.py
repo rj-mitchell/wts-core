@@ -68,7 +68,9 @@ def visitor_code(kv: KeyValue, address: str | None, *, day: str | None = None, f
 
     The day's secret is kept in the key-value store as ``visitor_salt:YYYY-MM-DD``; making a new one deletes every
     other day's. ``day`` fixes the day (tests). ``forget_undated_salt`` also deletes the one un-dated key
-    ``visitor_salt``: Where MPs Stand once had a permanent secret.
+    ``visitor_salt`` from this store, should a site's import have copied a permanent secret across (Where MPs Stand
+    once had one). A secret left in a site's own old table is the site's import to delete: the package never
+    touches a table that is not its own.
     """
     name = f"{SALT}:{day or today(clock)}"
     salt = kv.get(name)

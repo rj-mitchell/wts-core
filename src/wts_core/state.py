@@ -16,6 +16,7 @@ import sqlite3
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from wts_core.ports import SYSTEM_CLOCK, Clock
@@ -139,6 +140,23 @@ class StateDB:
         shutil.move(partial, copy)
         copy.chmod(0o600)
         return copy
+
+    def forget_old_copies(self, days: int) -> list[Path]:
+        """Delete the copies made before an import (``<name>.pre-wts-core.<date>``) that are more than ``days``
+        days old, and say which. A copy is a whole state database as it was, with whatever the site deletes on a
+        schedule frozen in it (the day's visitor secret, addresses awaiting deletion), so it must not outlive the
+        site's own backups: a site's nightly update calls this with the days it keeps a backup."""
+        gone: list[Path] = []
+        for copy in sorted(self.path.parent.glob(f"{self.path.stem}.pre-wts-core.*{self.path.suffix}")):
+            stamp = copy.name[len(self.path.stem) + len(".pre-wts-core."):len(copy.name) - len(self.path.suffix)]
+            try:
+                made = date.fromisoformat(stamp)
+            except ValueError:
+                continue
+            if (self.clock.now().date() - made).days > days:
+                copy.unlink()
+                gone.append(copy)
+        return gone
 
     # ---- key and value ------------------------------------------------------------------------------------------
 

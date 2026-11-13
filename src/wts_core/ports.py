@@ -224,7 +224,9 @@ class Price:
 
 
 class UnknownModel(LookupError):
-    """A model named in settings has no price: the site stops at start-up rather than cost it at nothing."""
+    """A model named in settings has no price of its own. Raised only by a site that asks for strict pricing at
+    start-up (``usage.PriceTable.require(models, base_counts=False)``); otherwise, as on every site today, a model
+    with no entry is costed at the site's base prices."""
 
 
 class Pricing(Protocol):
