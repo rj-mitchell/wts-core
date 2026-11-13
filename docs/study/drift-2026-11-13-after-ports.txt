@@ -1,8 +1,8 @@
 Shared-engine drift (family/ENGINE.md)
 
-  Where MPs Stand        /home/user/wherempsstand (c5ba393, 2026-11-13)
-  Where Countries Stand  /home/user/wherecountriesstand (469a3a0, 2026-11-13)
-  Where Councils Stand   /home/user/wherecouncilsstand (1dbd82c, 2026-11-13)
+  Where MPs Stand        /home/user/wherempsstand (51343d2, 2026-11-13)
+  Where Countries Stand  /home/user/wherecountriesstand (74f7117, 2026-11-13)
+  Where Councils Stand   /home/user/wherecouncilsstand (0d152af, 2026-11-13)
   Where Landlords Stand  /home/user/wherelandlordsstand (e3190e4, 2026-11-13)
 
 Module                                      Upstream   Pair                   Alike  Change  Functions that differ
@@ -44,11 +44,11 @@ The answer cache *                          MPs        MPs ↔ Countries        
                                                        MPs ↔ Councils         0.07          cache_key, cached_events, store_events
                                                        Countries ↔ Councils   0.07          cache_key, cached_events, store_events
 The thread-safe DuckDB wrapper              MPs        MPs ↔ Countries        1.00          none
-Backup *                                    MPs        MPs ↔ Countries        0.56          make_backup, restore_backup, (module level)
-                                                       MPs ↔ Councils         0.37          make_backup, restore_backup (only MPs), (module level)
-                                                       MPs ↔ Landlords        0.17          make_backup, restore_backup (only MPs), (module level) (only MPs)
-                                                       Countries ↔ Councils   0.63          make_backup, restore_backup (only Countries), (module level)
-                                                       Countries ↔ Landlords  0.25          make_backup, restore_backup (only Countries), (module level) (only Countries)
+Backup *                                    MPs        MPs ↔ Countries        0.48          make_backup, restore_backup, (module level)
+                                                       MPs ↔ Councils         0.33          make_backup, restore_backup (only MPs), (module level)
+                                                       MPs ↔ Landlords        0.15          make_backup, restore_backup (only MPs), (module level) (only MPs)
+                                                       Countries ↔ Councils   0.61          make_backup, restore_backup (only Countries), (module level)
+                                                       Countries ↔ Landlords  0.24          make_backup, restore_backup (only Countries), (module level) (only Countries)
                                                        Councils ↔ Landlords   0.37          make_backup, (module level) (only Councils)
 Config loading *                            MPs        MPs ↔ Countries        0.98          load_settings
                                                        MPs ↔ Councils         0.98          load_settings
