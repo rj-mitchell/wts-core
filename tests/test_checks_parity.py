@@ -75,7 +75,7 @@ def texts(count: int = COUNT) -> list[str]:
 
 def test_each_sites_inputs_are_what_its_own_copy_has(site):
     t = theirs(site)
-    assert t.prompts.NO_RECORDS == site.no_records
+    assert site.no_records == t.prompts.NO_RECORDS
     v = site.verifier
     assert (v._honorific_dot.pattern, v._honorific_dot.flags) == (t.verify._HONORIFIC_DOT.pattern,
                                                                   t.verify._HONORIFIC_DOT.flags)
@@ -194,8 +194,8 @@ def test_recheck_gives_what_the_sites_recheck_gives(site):
             assert (mine is saved) == (their is saved)  # an answer with nothing to clear comes back itself
             cleared, kept = cleared + (mine is not saved), kept + (mine is saved)
             # the plain recheck, which every site's copy has
-            plain = v.recheck(saved)
-            assert plain == t.verify.recheck_flags(saved) and (plain is saved) == (t.verify.recheck_flags(saved) is saved)
+            plain, their_plain = v.recheck(saved), t.verify.recheck_flags(saved)
+            assert plain == their_plain and (plain is saved) == (their_plain is saved)
     assert cleared > COUNT // 4 and kept > COUNT // 4
     for nothing in (None, {}, {"segments": []}, {"segments": None}):
         assert v.recheck(nothing) == t.verify.recheck_flags(nothing)

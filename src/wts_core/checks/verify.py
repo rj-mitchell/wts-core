@@ -68,8 +68,8 @@ _NOTES_AFTER = (
 EVIDENCE_NOTES_WIDE: re.Pattern[str] = re.compile(
     _NOTES_BEFORE
     + r"no (division|voting) records|no (recorded[- ]vote|vote|voting) (data|records|tables)|"
-    r"(votes?|data) (were|was) (not )?supplied|\b(are|were|is|was) (not )?(supplied|retrieved)\b|evidence (base|is|set)|"
-    r"gaps?\b|caveats?\b|cannot be (reported|attributed)|"
+    r"(votes?|data) (were|was) (not )?supplied|\b(are|were|is|was) (not )?(supplied|retrieved)\b|"
+    r"evidence (base|is|set)|gaps?\b|caveats?\b|cannot be (reported|attributed)|"
     + _NOTES_AFTER, re.I)
 # The strict form, as Where Councils Stand has it: without those alternatives, so both of the sentences above are
 # points to check.
@@ -358,8 +358,8 @@ class Verifier:
 
         ``curled``: for a site that shows its briefings with curly quotes (``typography``). The text is read with
         straight quotes, as the checks first read it: a briefing saved since quotes were curled would otherwise not
-        show a sentence ending in a closing quote (He said “no.” Smith said …) and could lose a point to check. Only
-        the statuses come back; the saved text is kept.
+        show a sentence ending in a closing quote (He said “no.” Smith said …) and could lose a point to check.
+        Only the statuses come back; the saved text is kept.
         """
         if not answer:
             return answer

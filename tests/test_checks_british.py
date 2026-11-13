@@ -54,8 +54,8 @@ def test_british_text_is_unchanged():
 
 
 def test_the_models_own_words_are_found_between_quotations_and_across_segments():
-    segs = [Segment('He said "no'), Segment(' more" and “never” again.'), Segment(""), Segment("‘Single’ marks")]
-    assert outside_quotes(segs) == [(0, 0, "He said "), (1, 6, " and "), (1, 18, " again."), (3, 0, "‘Single’ marks")]
+    segs = [Segment('He said "no'), Segment(' more" and “never” again.'), Segment(""), Segment("‘One’ mark")]
+    assert outside_quotes(segs) == [(0, 0, "He said "), (1, 6, " and "), (1, 18, " again."), (3, 0, "‘One’ mark")]
 
 
 def test_single_quotation_marks_are_not_quotations_here_and_capitals_are_kept():

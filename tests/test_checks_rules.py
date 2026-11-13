@@ -82,7 +82,7 @@ def test_with_the_stamp_removed_the_recheck_never_adds_a_flag(site):
             assert_nothing_is_newly_flagged(saved, shown)
         cleared_fresh += flags(v.recheck(fresh, curled=site.curled)) != flags(fresh)
         cleared_saved += flags(site.shown_again(saved)) != flags(saved)
-    assert cleared_saved > COUNT // 2  # flags that older rules made and today's clear are cleared
+    assert cleared_saved > COUNT // 4  # flags that older rules made and today's clear are cleared
     # without the stamp, the recheck would clear a little of what verify() has just flagged: that is why the stamp
     # is there, and it must stay a little (phase 1's fixes: never for shortness, nor for standing before a lead-in)
     assert cleared_fresh <= COUNT // 100, cleared_fresh

@@ -55,7 +55,8 @@ def test_labels_for_governments_and_blocs_are_where_countries_stands_own():
             {"search_result_index": 0, "cited_text": "Our action is self-defence."}]},
          {"text": ", while the regime in question ignored the West.", "citations": []}],
         [src(1, "Our action is self-defence.")])
-    found = [m["word"] for s in report.segments for m in s.loaded] if COUNTRIES.loaded_words.flag(report.segments) else []
+    flagged = COUNTRIES.loaded_words.flag(report.segments)
+    found = [m["word"] for s in report.segments for m in s.loaded] if flagged else []
     assert "regime" in found and "the West" in found
     # "the West" as a bloc, only with its capital letter
     assert all(s.loaded_words.flag([Segment("Troops moved to the west of the country.")]) == 0 for s in SITES)

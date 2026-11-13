@@ -19,7 +19,7 @@ an alternative of its own after it. A word added to the common part reaches ever
 from __future__ import annotations
 
 import re
-from typing import Any, cast
+from typing import Any, cast, final
 
 from wts_core.checks.british import outside_quotes
 from wts_core.checks.verify import Segment
@@ -40,6 +40,7 @@ COMMON_LOADED_WORDS = (
 )
 
 
+@final
 class LoadedWords:
     """The loaded-words check with one site's list. Not for subclassing."""
 
