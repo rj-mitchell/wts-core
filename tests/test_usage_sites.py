@@ -5,6 +5,7 @@ over these (the fixture ``site``), and the tests here keep them true to each sit
 from __future__ import annotations
 
 import ast
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +15,8 @@ import pytest
 
 from wts_core.settings import Messages
 
-SITES_ROOT = Path("/home/user")
+# where the four sites' checkouts are: WTS_SITES_DIR, or beside this one on the build machine
+SITES_ROOT = Path(os.environ.get("WTS_SITES_DIR") or "/home/user")
 
 TOO_MANY = "Too many requests. Please wait a minute and try again."
 BUSY_VISITOR = "A briefing is already being written for you; please wait for it to finish."
@@ -130,7 +132,8 @@ def site(request: pytest.FixtureRequest) -> SiteFacts:
 def checkout_of(facts: SiteFacts) -> Path:
     """The site's checkout, or the test is skipped: the comparisons with a site's own code need its repository."""
     if not (facts.src / "api" / "usage.py").exists():
-        pytest.skip(f"{facts.name}'s checkout is not at {facts.checkout}: nothing to compare with")
+        pytest.skip(f"{facts.name}'s checkout is not at {facts.checkout} (set WTS_SITES_DIR to the folder that "
+                    f"holds {facts.repo}): nothing to compare with")
     return facts.checkout
 
 

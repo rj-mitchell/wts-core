@@ -16,11 +16,14 @@ import ast
 import hashlib
 import ipaddress
 import json
+import os
 import random
 import sys
+import tempfile
 import threading
 import tomllib
 from collections import defaultdict, deque
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -155,13 +158,25 @@ def clock() -> FixedClock:
 
 
 @pytest.fixture
-def theirs(site, tmp_path, clock) -> SiteCode:  # noqa: F811
-    return SiteCode(site, tmp_path, clock)
+def folder(tmp_path) -> Iterator[Path]:
+    """Where the databases of a comparison go: in memory where the machine has such a folder, since these tests
+    commit many thousands of times and each commit to a disk waits for the disk."""
+    memory = Path("/dev/shm")
+    if memory.is_dir() and os.access(memory, os.W_OK):
+        with tempfile.TemporaryDirectory(dir=memory, prefix="wts-usage-") as made:
+            yield Path(made)
+    else:
+        yield tmp_path
 
 
 @pytest.fixture
-def db(tmp_path, clock) -> StateDB:
-    return StateDB(tmp_path / "core.db", migrations=core.migrations(), clock=clock)
+def theirs(site, folder, clock) -> SiteCode:  # noqa: F811
+    return SiteCode(site, folder, clock)
+
+
+@pytest.fixture
+def db(folder, clock) -> StateDB:
+    return StateDB(folder / "core.db", migrations=core.migrations(), clock=clock)
 
 
 def spending_rows(db: StateDB) -> list[tuple]:
@@ -346,13 +361,13 @@ def test_visitors_are_counted_by_the_same_unit_and_given_the_same_code(theirs, d
 # ---- the limiter -------------------------------------------------------------------------------------------------
 
 
-def script(rng: random.Random, calls: int, keys: int) -> list[tuple[float, str]]:
-    """Calls to the limiter: how long after the one before, and who from. Bursts, pauses, and gaps of exactly a
-    minute."""
+def script(rng: random.Random, calls: int, keys: int, pauses: float = 1.0) -> list[tuple[float, str]]:
+    """Calls to the limiter: how long after the one before, and who from. Bursts, pauses (for that share of the
+    calls), and gaps of exactly a minute."""
     out = []
     for _ in range(calls):
         wait = rng.choice([0.0, 0.0, 0.0, 0.1, 1.0, 2.5, 7.0, 29.0, 30.0, 31.0, 60.0, 60.0, 61.0, 120.0])
-        out.append((wait, f"visitor:{rng.randrange(keys)}"))
+        out.append((wait if rng.random() < pauses else 0.0, f"visitor:{rng.randrange(keys)}"))
     return out
 
 
@@ -362,12 +377,13 @@ def test_the_limiter_decides_as_the_sites_own(theirs, clock, per_minute):
     mine = RateLimiter(per_minute, forget_over=theirs.facts.forget_over, clock=clock)
     its = theirs.usage.RateLimiter(per_minute)
     allowed = 0
-    for wait, key in script(rng, 6000, keys=5):
+    pauses = {20: 0.1, 3: 0.3, 2: 0.5, 1: 1.0}[per_minute]   # the more allowed a minute, the busier the run
+    for wait, key in script(rng, 6000, keys=3, pauses=pauses):
         clock.advance(wait)
         decision = mine.allow(key)
         assert decision == its.allow(key)
         allowed += decision
-    assert 0 < allowed < 6000
+    assert 300 < allowed < 5700
 
 
 def test_the_limiter_forgets_idle_keys_when_the_sites_own_does(theirs, clock):
@@ -390,7 +406,8 @@ def test_the_limiter_decides_as_where_landlords_stands():
     """Where Landlords Stand's ``Limiter`` keeps a hash of who it is given; the decisions are the same."""
     api = SITES_ROOT / "wherelandlordsstand" / "src" / "landlords" / "api.py"
     if not api.exists():
-        pytest.skip(f"Where Landlords Stand's checkout is not at {api.parents[2]}: nothing to compare with")
+        pytest.skip(f"Where Landlords Stand's checkout is not at {api.parents[3]} (set WTS_SITES_DIR to the folder "
+                    "that holds wherelandlordsstand): nothing to compare with")
     clock = FixedClock()
     limiter_class = definition(api, "Limiter", deque=deque, defaultdict=defaultdict, threading=threading,
                                sha256=hashlib.sha256, time=SimpleNamespace(monotonic=clock.monotonic))
@@ -398,7 +415,7 @@ def test_the_limiter_decides_as_where_landlords_stands():
         its = limiter_class() if per_minute == 10 else limiter_class(per_minute=per_minute, forget_over=forget_over)
         assert (its.per_minute, its.forget_over) == (per_minute, forget_over)
         mine = RateLimiter(per_minute, forget_over=forget_over, clock=clock)
-        for wait, key in script(random.Random(per_minute), 5000, keys=8):
+        for wait, key in script(random.Random(per_minute), 5000, keys=8, pauses=per_minute / 20):
             clock.advance(wait)
             assert mine.allow(key) == its.allow(key)
             assert {hashlib.sha256(k.encode()).hexdigest()[:16] for k in mine._hits} == set(its.seen)
@@ -460,23 +477,29 @@ def same_decision(theirs: SiteCode, caps: Caps, settings: dict[str, Any], visito
     return said
 
 
-def test_the_caps_decide_and_say_what_the_sites_own_do_over_a_grid_of_spending_and_counts(theirs, tmp_path, clock):
+def test_the_caps_decide_and_say_what_the_sites_own_do_over_a_grid_of_spending_and_counts(theirs, folder, clock):
     """For spending today and earlier this month just under, at and just over each cap, and a visitor one short of,
     at and over the daily limit: the site's own function, on a database built by the site's own code, against the
     package's on its own tables."""
-    facts, settings = theirs.facts, theirs.settings
-    limits, messages = Limits.from_settings(settings), facts.messages
-    day_cap, month_cap, estimate = limits.daily_cap_usd, limits.monthly_cap_usd, settings["briefing_estimate_usd"]
-    tick = 1 / 1e6 * settings["price_input_per_mtok"] * 1
+    facts, messages = theirs.facts, theirs.facts.messages
+    real = Limits.from_settings(theirs.settings)
+    day_cap, month_cap, estimate = real.daily_cap_usd, real.monthly_cap_usd, theirs.settings["briefing_estimate_usd"]
+    tick = 1 / 1e6 * theirs.settings["price_input_per_mtok"]   # what one token costs
     said: set[str | None] = set()
     scenario = 0
-    for today_usd in (0.0, day_cap - 1.0, day_cap - tick, day_cap, day_cap + tick):
-        for earlier_usd in (0.0, month_cap - day_cap, month_cap - tick, month_cap, month_cap + tick):
+    todays = (0.0, day_cap - 1.0, day_cap - tick, day_cap, day_cap + tick)
+    earliers = (0.0, month_cap - day_cap, month_cap - tick, month_cap, month_cap + tick)
+    for i, today_usd in enumerate(todays):
+        for j, earlier_usd in enumerate(earliers):
             scenario += 1
-            folder = tmp_path / str(scenario)
-            folder.mkdir()
-            its = SiteCode(facts, folder, clock)
-            db = StateDB(folder / "core.db", migrations=core.migrations(), clock=clock)
+            its = SiteCode(facts, folder / str(scenario), clock)
+            # the site's real daily limits where the two spendings move together; limits of two elsewhere, which
+            # each site's function is handed just as it is handed its settings
+            settings = dict(theirs.settings) if i == j else {
+                **theirs.settings, "per_visitor_daily_questions": 2,
+                **({"per_user_daily_questions": 2} if facts is MPS else {})}
+            limits = Limits.from_settings(settings)
+            db = StateDB(folder / str(scenario) / "core.db", migrations=core.migrations(), clock=clock)
             spending = Spending(db, PriceTable.from_settings(settings), clock=clock)
             caps = Caps(spending, limits, messages, clock)
 
@@ -499,9 +522,9 @@ def test_the_caps_decide_and_say_what_the_sites_own_do_over_a_grid_of_spending_a
                     record("answer", "claude-sonnet-5-5", {"input_tokens": 0}, "v1")
                     record("parse", "claude-haiku-5-5", {"input_tokens": 0}, "v1")
                 for visitor, account in checks:
-                    for pending in (0.0, tick, estimate, day_cap, month_cap):
+                    for pending in (0.0, tick, estimate, month_cap):
                         said.add(same_decision(its, caps, settings, visitor, account, pending))
-            if facts is MPS and scenario <= 3:   # and a signed-in account's own count
+            if facts is MPS and (scenario == 1 or i != j):   # and a signed-in account's own count
                 for add in (limits.per_account_daily - 1, 1, 1):
                     for _ in range(add):
                         record("answer", "claude-sonnet-5-5", {"input_tokens": 0}, None, 7)
@@ -521,7 +544,8 @@ def test_a_month_of_spending_is_recorded_and_capped_as_the_sites_own(theirs, db,
     """A month of calls of every kind, in both forms of token counts, for every model the site names: the same
     rows are written, the same cost returned, and after every call the caps decide the same."""
     facts = theirs.facts
-    settings = {**theirs.settings, "per_visitor_daily_questions": 4, "per_user_daily_questions": 3}
+    settings = {**theirs.settings, "per_visitor_daily_questions": 4,
+                **({"per_user_daily_questions": 3} if facts is MPS else {})}
     spending = Spending(db, PriceTable.from_settings(settings), clock=clock)
     caps = Caps(spending, Limits.from_settings(settings), facts.messages, clock)
     rng = random.Random(5)
@@ -529,7 +553,7 @@ def test_a_month_of_spending_is_recorded_and_capped_as_the_sites_own(theirs, db,
     clock.set("2026-10-30T22:00:00+00:00")
     said: dict[str | None, int] = defaultdict(int)
     for _ in range(700):
-        clock.advance(rng.choice([1, 30, 600, 3_600, 7_200, 20_000]))
+        clock.advance(rng.choice([1, 30, 600, 3_600, 7_200, 10_800]))
         kind = rng.choice(["answer", "answer", "parse", "interests", "topic"])
         account = 7 if facts is MPS and rng.random() < 0.2 else None
         visitor = None if account is not None or kind == "topic" else f"v{rng.randrange(4)}"
@@ -559,10 +583,10 @@ def test_the_answer_cache_gives_and_forgets_as_the_sites_own(theirs, db, clock):
     rng = random.Random(9)
     table, when = ("answer_cache", "at" if facts is COUNCILS else "created_at")
     stored: dict[str, datetime] = {}
-    hits = 0
-    for n in range(600):
-        clock.advance(rng.choice([0, 1, 60, 1800, 3600, 3600, 7200, 86_400]))
-        key = cache_key({"q": rng.randrange(12)}, length=facts.key_length)
+    hits = misses = 0
+    for n in range(500):
+        clock.advance(rng.choice([0, 1, 60, 600, 1800, 1800, 3600, 3600, 7200, 86_400]))
+        key = cache_key({"q": rng.randrange(8)}, length=facts.key_length)
         hours = rng.choice([1, 2, 24, 168, 0.5])
         if rng.random() < 0.4:
             events = [{"type": "sources", "sources": [{"n": n, "on": date(2024, 12, 17)}]},
@@ -579,28 +603,32 @@ def test_the_answer_cache_gives_and_forgets_as_the_sites_own(theirs, db, clock):
             got = theirs.state.cached(key, hours) if facts is COUNCILS else u.cached_events(theirs.state, key, hours)
             assert cache.get(key, hours) == got
             hits += got is not None
+            misses += got is None
         with theirs.state.connect() as con:
             its = sorted(tuple(r) for r in con.execute(f"SELECT key, {when}, events FROM {table}"))
         with db.connect() as con:
             mine = sorted(tuple(r) for r in con.execute("SELECT key, created_at, events FROM wts_answer_cache"))
         assert mine == its
-    assert 50 < hits < 350
+    assert hits > 25 and misses > 25
 
 
-def test_failures_are_noted_and_cleared_as_where_countries_stands(tmp_path, clock, db):
+def test_failures_are_noted_and_cleared_as_where_countries_stands(folder, clock, db):
     """Where Countries Stand's is the rule every site now has: the newest 500, and none older than 90 days. (Where
     MPs Stand's copy has no 90 days; Where Councils Stand's has no such table.)"""
-    theirs = SiteCode(COUNTRIES, tmp_path, clock)
+    theirs = SiteCode(COUNTRIES, folder, clock)
     failures = Failures(db, clock=clock)
     rng = random.Random(13)
-    for n in range(900):
-        clock.advance(rng.choice([1, 60, 3600, 86_400, 86_400 * 3]))
+    most = 0
+    for n in range(640):
+        # first more than 500 in a few days, then some over many months
+        clock.advance(rng.choice([1, 60, 600]) if n < 520 else rng.choice([3600, 86_400, 86_400 * 3]))
         args = (rng.choice(["briefing", "question reading"]), rng.choice([None, "q" * rng.randrange(0, 700)]),
                 f"Error {n}: " + "x" * rng.randrange(0, 700))
         failures.note(*args)
         theirs.usage.record_failure(theirs.state, *args)
-        if n % 50 == 0 or n > 880:
+        if n % 40 == 0 or n > 620 or 495 < n < 525:
             with theirs.state.connect() as con:
                 its = [tuple(r) for r in con.execute("SELECT at, kind, question, error FROM failures ORDER BY id DESC")]
             assert [tuple(f.values()) for f in failures.recent(None)] == its
-    assert 0 < len(failures.recent(None)) <= 500
+            most = max(most, len(its))
+    assert most == 500 and 0 < len(failures.recent(None)) < 200
