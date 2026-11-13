@@ -23,42 +23,13 @@ from wts_core.ops import (
     make_backup,
     send_offsite,
 )
-from wts_core.ports import OffsiteStore, StoredFile
-from wts_core.testing import FixedClock
+from wts_core.ports import OffsiteStore
+from wts_core.testing import FixedClock, MemoryOffsiteStore
 
 NOW = datetime(2026, 11, 6, 12, tzinfo=UTC)
 
 
-class MemoryStore:
-    """A ``ports.OffsiteStore`` that keeps what it is given, and can be told to fail."""
-
-    def __init__(self, name: str = "wts-backups", *, can_delete: bool = True, newest_first: bool = False) -> None:
-        self.name, self.can_delete, self.newest_first = name, can_delete, newest_first
-        self.files: dict[str, bytes] = {}
-        self.fail: dict[str, Exception] = {}  # the method's name, and what it raises
-        self.closed = 0
-
-    def put(self, path: Path) -> StoredFile:
-        if "put" in self.fail:
-            raise self.fail["put"]
-        self.files[path.name] = path.read_bytes()
-        return StoredFile(path.name, f"id-{path.name}", len(self.files[path.name]))
-
-    def list(self, prefix: str) -> list[StoredFile]:
-        if "list" in self.fail:
-            raise self.fail["list"]
-        found = [StoredFile(n, f"id-{n}", len(self.files[n])) for n in sorted(self.files) if n.startswith(prefix)]
-        return found[::-1] if self.newest_first else found
-
-    def delete(self, file: StoredFile) -> None:
-        if "delete" in self.fail:
-            raise self.fail["delete"]
-        if not self.can_delete:
-            raise OffsiteError("b2_delete_file_version: 401 unauthorized")
-        del self.files[file.name]
-
-    def close(self) -> None:
-        self.closed += 1
+MemoryStore = MemoryOffsiteStore  # the store these tests were written with, now shipped for the sites' own
 
 
 def archive(folder: Path, site, day: str) -> Path:
