@@ -213,7 +213,8 @@ def test_archives_and_databases_are_moved_into_place_from_a_folder_beside_them(s
     db, dest = data_folder(tmp_path, site, "before"), tmp_path / "backups"
     moved = []
     rename = Path.replace
-    monkeypatch.setattr(Path, "replace", lambda self, target: moved.append((self, Path(target))) or rename(self, target))
+    monkeypatch.setattr(Path, "replace",
+                        lambda self, target: moved.append((self, Path(target))) or rename(self, target))
     out = make_backup(db, dest, site.spec, clock=at(DAYS[0]))
     restore_backup(out, db, site.spec)
     monkeypatch.undo()

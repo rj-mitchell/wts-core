@@ -5,10 +5,10 @@ through ``ops.send_offsite`` and the adapter, for each site's names; and the com
 from __future__ import annotations
 
 import hashlib
-import importlib
 import json
+import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +16,6 @@ import httpx
 import pytest
 
 from test_ops_sites import SITES, each_site, freeze_their_clock, own_code
-from wts_core.adapters import b2
 from wts_core.adapters.b2 import B2Store, configured, how_to_set_up
 from wts_core.ops import OffsiteError, OffsiteUnavailable, check_offsite, send_offsite
 from wts_core.ports import OffsiteStore, StoredFile
@@ -247,6 +246,26 @@ def test_an_upload_refused_three_times_is_a_failure_with_the_last_answer(tmp_pat
     assert send(site, fake, archive(tmp_path, site, "2026-10-12"))["ok"]
 
 
+def test_files_are_listed_oldest_first_and_a_long_answer_is_cut_to_two_hundred_characters(tmp_path):
+    site, fake = SITES[1], FakeB2()
+    answered = [{"fileName": f"wcs-state-{day}.sqlite.gz", "fileId": day} for day in ("2026-10-11", "2026-10-10",
+                                                                                      "2026-10-12")]
+
+    def backblaze(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("b2_list_file_names"):  # in an order of its own
+            return httpx.Response(200, json={"files": answered})
+        if request.url.path == "/upload":
+            return httpx.Response(503, text="no " * 100)
+        return fake(request)
+
+    store = configured(site.site, site.env(), client=httpx.Client(transport=httpx.MockTransport(backblaze)))
+    assert store is not None
+    assert [f.id for f in store.list("wcs-state-")] == ["2026-10-10", "2026-10-11", "2026-10-12"]
+    with pytest.raises(OffsiteError) as failed:
+        store.put(archive(tmp_path, site, "2026-10-13"))
+    assert str(failed.value) == "upload failed: 503 " + ("no " * 100)[:200]
+
+
 def test_a_refused_request_names_the_call_and_the_answer(tmp_path):
     site, fake = SITES[1], FakeB2(can_delete=False)
     store = store_for(site, fake)
@@ -293,9 +312,10 @@ def test_a_store_made_without_a_site_says_which_key_was_refused_in_plain_words()
 
 def test_a_client_of_its_own_is_made_when_first_needed_and_closed_after(tmp_path, monkeypatch):
     site, fake, made = SITES[1], FakeB2(), []
+    ready = [fake.client(), fake.client()]
 
     def client(**kw: Any) -> httpx.Client:
-        made.append((kw, fake.client()))
+        made.append((kw, ready.pop(0)))
         return made[-1][1]
 
     monkeypatch.setattr(httpx, "Client", client)
@@ -309,6 +329,7 @@ def test_a_client_of_its_own_is_made_when_first_needed_and_closed_after(tmp_path
     with pytest.raises(OffsiteError):
         refused.list("wcs-state-")
     assert len(made) == 2 and made[1][1].is_closed  # closed when the key is refused, too
+    monkeypatch.undo()
     given = fake.client()
     store_for_given = configured(site.site, site.env(), client=given)
     assert store_for_given is not None
@@ -317,19 +338,18 @@ def test_a_client_of_its_own_is_made_when_first_needed_and_closed_after(tmp_path
     assert not given.is_closed  # a client that was passed in is left open
 
 
-def test_the_adapter_is_imported_without_httpx(monkeypatch):
+def test_the_adapter_is_imported_without_httpx():
     """httpx is asked for when a store first talks to Backblaze: a site with no off-site copies needn't install it."""
-    monkeypatch.setitem(sys.modules, "httpx", None)  # as if it were not installed
-    module = importlib.reload(b2)
-    try:
-        assert module.configured(SITES[0].site, {}) is None
-        store = module.configured(SITES[0].site, SITES[0].env())
-        assert store is not None and module.how_to_set_up(SITES[0].site).startswith("add HANSARD_B2_BUCKET, ")
-        with pytest.raises(ImportError):
-            store.list("where-they-stand-")
-    finally:
-        monkeypatch.undo()
-        importlib.reload(b2)
+    code = ("import sys; sys.modules['httpx'] = None\n"  # as if it were not installed
+            "from pathlib import Path\n"
+            "from wts_core.adapters.b2 import configured, how_to_set_up\n"
+            "from wts_core.settings import Site\n"
+            "site = Site(name='Where Countries Stand', package='wcs', env_prefix='WCS', root=Path('.'))\n"
+            "assert configured(site, {}) is None and how_to_set_up(site).startswith('add WCS_B2_BUCKET, ')\n"
+            "store = configured(site, {'WCS_B2_BUCKET': 'b', 'WCS_B2_KEY_ID': 'k', 'WCS_B2_APPLICATION_KEY': 'a'})\n"
+            "try:\n    store.list('wcs-state-')\nexcept ImportError:\n    print('asked for when first used')\n")
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert done.stdout == "asked for when first used\n", done.stderr
 
 
 # ---- the same as each site's own code ----------------------------------------------------------------------------
@@ -423,8 +443,8 @@ def test_the_package_and_the_sites_own_code_say_and_send_the_same(site, scenario
         fake = FakeB2(**backblaze)
         for other in SITES:  # the bucket is shared, and has more of this site's copies than are kept
             fake.files[other.archive_name(datetime(2026, 9, 1, tzinfo=UTC))] = b"older"
-        for day in range(1, 62):
-            fake.files[site.archive_name(datetime(2026, 7, 1, tzinfo=UTC).replace(day=1 + day % 28, month=7 + day // 28))] = b"x"
+        for day in range(61):
+            fake.files[site.archive_name(datetime(2026, 7, 1, tzinfo=UTC) + timedelta(days=day))] = b"x"
         run = kind(site, tmp_path / kind.__name__, fake, own, None if env is None else site.env(**env))
         steps(run)
         runs.append(run)

@@ -9,6 +9,7 @@ import ast
 import gzip
 import importlib
 import io
+import os
 import re
 import sqlite3
 import sys
@@ -24,7 +25,17 @@ import pytest
 from wts_core.ops import AlertWording, BackupSpec
 from wts_core.settings import Site
 
-SITES_ROOT = Path("/home/user")
+
+def sites_root() -> Path:
+    """The folder the four sites' checkouts are in: ``WTS_SITES_DIR`` where it is set, else the nearest folder above
+    this repository that holds one of them (the checkouts sit beside it), else the folder this repository is in."""
+    if os.environ.get("WTS_SITES_DIR"):
+        return Path(os.environ["WTS_SITES_DIR"])
+    above = Path(__file__).resolve().parents[2:5]
+    return next((folder for folder in above if (folder / "wherempsstand").is_dir()), above[0])
+
+
+SITES_ROOT = sites_root()
 
 # Where MPs Stand's and Where Councils Stand's alerts are sentences: the first shows them on its admin page, the
 # second prints them from `councils backup-check`. Where Landlords Stand has no alerts yet and takes these.
@@ -210,7 +221,8 @@ def archive_of(path: Path, spec: BackupSpec, **files: bytes) -> Path:
 def checkout_of(facts: SiteFacts) -> Path:
     """The site's checkout, or the test is skipped: the comparisons with a site's own code need its repository."""
     if not (facts.src / "offsite.py").exists():
-        pytest.skip(f"{facts.name}'s checkout is not at {facts.checkout}: nothing to compare with")
+        pytest.skip(f"{facts.name}'s checkout is not at {facts.checkout} (WTS_SITES_DIR says where the sites' "
+                    "checkouts are): nothing to compare with")
     return facts.checkout
 
 

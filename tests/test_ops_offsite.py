@@ -316,7 +316,8 @@ def test_stale_is_over_fifty_hours_unless_the_site_says_otherwise(site, tmp_path
 @each_site
 def test_a_real_backup_and_copy_raise_no_alert_until_they_are_old(site, tmp_path):
     """The three functions together, as a site's nightly command and its daily check use them."""
-    db, folder, store = state_database(tmp_path / "data" / site.state_file, site.spec), tmp_path / "backups", MemoryStore()
+    db, folder = state_database(tmp_path / "data" / site.state_file, site.spec), tmp_path / "backups"
+    store = MemoryStore()
     clock = FixedClock("2026-11-04T04:20:00+00:00")
     out = make_backup(db, folder, site.spec, clock=clock)
     aged(out, clock.now())
