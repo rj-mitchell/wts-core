@@ -106,7 +106,9 @@ brief's rule it **needs the owner's agreement before it is switched on** on thos
 ## Experiments
 
 One declared in settings at a time (`[experiment]`: name, the versions and their share of traffic, start and end
-dates, the statistic that decides it). The package enforces the policy's principle 6:
+dates, the statistic that decides it). The record's fields and the cache key's part for the version are in
+`v0.1.0`; the switch itself arrives in `v0.2.0`, once a site has a baseline and its public wording allows it (the
+brief's 3.7). The package enforces the policy's principle 6:
 
 - an arm is chosen at random for each briefing, from the `Random` port, with no cookie, account or stored
   identifier; the nightly check's and the evaluation harness's briefings are never in an experiment;
