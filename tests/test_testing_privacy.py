@@ -245,3 +245,22 @@ def test_something_too_short_to_prove_anything_is_refused(tmp_path, short):
     site = asked(tmp_path)
     with pytest.raises(ValueError, match="too short to prove anything"):
         assert_no_reader_data(site.state, site.lines, **{"question": QUESTION, "address": ADDRESS, **short})
+
+
+# ---- the helpers themselves keep the wall --------------------------------------------------------------------------
+
+
+def test_nothing_near_the_model_loads_the_right_of_reply_by_importing_the_test_helpers():
+    """``wts_core.eval`` reads the recording format in ``wts_core.testing.models``. Importing that, or the package
+    it is in, must not bring ``wts_core.replies`` with it: the two checks here are imported only when asked for."""
+    import subprocess
+    import sys
+
+    code = ("import sys\n"
+            "import wts_core.testing, wts_core.testing.models, wts_core.testing.index\n"
+            "import wts_core.eval, wts_core.observe, wts_core.checks\n"
+            "print(sorted(m for m in sys.modules if m.startswith('wts_core.replies')))\n"
+            "from wts_core.testing import assert_no_reader_data, assert_statements_stay_out, golden\n"
+            "print('wts_core.replies' in sys.modules)")
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert (done.returncode, done.stdout.split()) == (0, ["[]", "True"]), done.stderr

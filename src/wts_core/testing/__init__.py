@@ -11,13 +11,31 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 from wts_core.testing.golden import golden
 from wts_core.testing.offsite import MemoryOffsiteStore
-from wts_core.testing.privacy import assert_no_reader_data, assert_statements_stay_out
+
+if TYPE_CHECKING:
+    from wts_core.testing.privacy import assert_no_reader_data, assert_statements_stay_out
 
 __all__ = ["FixedClock", "FixedRandom", "MemoryOffsiteStore", "assert_no_reader_data", "assert_statements_stay_out",
            "golden"]
+
+
+_LATER = ("assert_no_reader_data", "assert_statements_stay_out")
+
+
+def __getattr__(name: str) -> Any:
+    """The two privacy checks are imported when first asked for, not with this package: they read
+    ``wts_core.replies``, and ``wts_core.eval`` reads the recording format beside this module. Imported here at the
+    top, the evaluation harness would load the right of reply's code, which nothing near the model may do
+    (ADR 0008; tests/test_walls.py)."""
+    if name in _LATER:
+        from wts_core.testing import privacy
+
+        return getattr(privacy, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class FixedClock:
