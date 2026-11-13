@@ -1,6 +1,6 @@
 # ADR 0007: Versioning, the public interface and compatibility
 
-Status: proposed, for the owner's review (it keeps the brief's defaults in 3.3 and adds three rules). 13 November 2026.
+Status: accepted by the owner on 13 November 2026.
 
 ## Context
 

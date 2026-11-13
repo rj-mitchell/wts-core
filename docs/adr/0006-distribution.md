@@ -1,6 +1,6 @@
 # ADR 0006: How the sites take the package: a wheel from a tagged release
 
-Status: proposed, for the owner's review (it replaces a Default in the brief, section 3.4). 13 November 2026.
+Status: accepted by the owner on 13 November 2026.
 
 ## Context
 

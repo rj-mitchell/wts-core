@@ -1,6 +1,6 @@
 # ADR 0009: The briefing desk: one request flow, with each site's steps hung on it
 
-Status: proposed, for the owner's review. It moves more behaviour into the package than the brief lists, so it is
+Status: accepted by the owner on 13 November 2026.
 on the list to check first. 13 November 2026.
 
 ## Context

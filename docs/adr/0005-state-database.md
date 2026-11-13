@@ -1,6 +1,6 @@
 # ADR 0005: The state database: the package's own tables, beside each site's
 
-Status: proposed, for the owner's review. This one touches live data, so it is on the list to check first.
+Status: accepted by the owner on 13 November 2026.
 13 November 2026.
 
 ## Context

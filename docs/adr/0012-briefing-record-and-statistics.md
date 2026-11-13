@@ -1,6 +1,6 @@
 # ADR 0012: The record of each briefing, statistics, alerts and experiments
 
-Status: proposed, for the owner's review. It decides what is kept about each briefing and for how long, and it
+Status: accepted by the owner on 13 November 2026.
 proposes one sentence for each privacy notice, so it is on the list to check first. 13 November 2026.
 
 ## Context
@@ -50,7 +50,7 @@ The phase 1b count of how often "Why use this rather than a chatbot?" is opened 
 | What | Kept | Why |
 |---|---|---|
 | A row's `question` when `outcome` is `error` | 90 days, then blanked | Where Countries Stand's notice already promises this for failed briefings; the package applies the stricter promise on every site |
-| The whole row | 13 months, then deleted [for the owner to confirm] | long enough to compare a month with the same month a year before |
+| The whole row | 13 months, then deleted (confirmed by the owner, 13 November 2026) | long enough to compare a month with the same month a year before |
 | Weekly totals (`wts_weekly`: counts, rates, medians per week and configuration) | indefinitely | they hold no question text |
 | Structured log files | 14 days or 50 MB a site, whichever is less, then rotated away | see below |
 
@@ -86,8 +86,9 @@ fails if the canary appears in any log line.
 > they are kept for 13 months, and the question of a briefing that could not be written is removed from them after
 > 90 days.
 
-This goes slightly beyond what Where MPs Stand's and Where Councils Stand's notices describe today, so under the
-brief's rule it **needs the owner's agreement before it is switched on** on those sites. Nothing in phase 3
+This goes slightly beyond what Where MPs Stand's and Where Councils Stand's notices describe today. **The owner
+agreed to the notice changes on 13 November 2026;** the sentence goes into each notice in the same pull request that
+switches the record on. Nothing in phase 3
 (building the package) collects anything; the question arises at each site's adoption.
 
 ## Statistics, the weekly report and alerts

@@ -1,6 +1,6 @@
 # ADR 0011: What to converge before the package, and what to converge by adopting it
 
-Status: decided (a Default: "the order of adoption and how the phases are split"). 13 November 2026.
+Status: accepted by the owner on 13 November 2026.
 
 ## Context
 

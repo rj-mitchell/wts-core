@@ -1,6 +1,6 @@
 # ADR 0008: Reports, corrections and the right of reply: where the shared rules end
 
-Status: proposed, for the owner's review. It decides rules that named people will meet, so it is on the list to
+Status: accepted by the owner on 13 November 2026.
 check first. 13 November 2026.
 
 ## Context
@@ -113,13 +113,24 @@ rest follow from "the best behaviour wins": every site refuses rather than cuts;
 exists; Countries and Councils gain the trap and the daily limit; a statement the site removes is called removed.
 Wording, limits and pages stay each site's own.
 
-## Open questions for the owner
+## The four questions, decided
 
-1. Should a statement be in the text search engines read (above)?
-2. A statement nobody decides: the policy gives 20 working days. Should the confirming address of a statement
-   still waiting after, say, three months be deleted and the statement lapse? Today it is kept for as long as it
-   waits. The same for a report that is never closed.
-3. Three sites' privacy notices say the address is "kept while the statement is shown". All four keep it while
-   the statement is waiting too, as Where Countries Stand's notice says ("waiting or shown"). The notices should
-   say what the code does; the sentence is drafted in MIGRATION.md.
-4. Backups hold a deleted address until they are pruned (60 copies off site). Should the notices say so?
+The owner asked the maintainer to decide these (13 November 2026). Each can be changed with a new record.
+
+1. **Statements and search engines.** A statement is shown where the site shows it today, including in pages read
+   without scripts, so that every reader sees the reply beside the item. But it is never part of what a search
+   engine quotes as the site's own words: the package's markup for a statement carries `data-nosnippet`, and a
+   statement is never put in a page's description, title or structured data. Where MPs Stand, which keeps
+   statements out of its server-sent text altogether, stays as it is. A test in each site checks the three places.
+2. **A statement or report nobody decides.** The nightly check fails once anything has waited four working days,
+   so this should not happen. If it does: after three calendar months of waiting, a statement lapses (it is
+   declined with the reason "No decision was made in time; please send it again", which its sender is told if they
+   ask), and a report's contact address is deleted, exactly as if it had been closed. Nothing sent to the charity
+   keeps a person's address for longer than three months without a decision.
+3. **The privacy notices** say what the code does: the confirming address "is kept while the statement is waiting
+   or shown, and deleted three months after it is withdrawn, declined or removed". The owner has accepted the
+   notice changes; they go in with each site's adoption.
+4. **Backups.** Each notice gains one sentence, with the adoption: "Backups of the site's database are kept for up
+   to two months, so a deleted address can remain in a backup until then." (Each site keeps 60 off-site copies; a
+   daily backup makes that about two months. Where Landlords Stand's backups are named by the minute, and its
+   adoption checks the figure before the sentence is used.)

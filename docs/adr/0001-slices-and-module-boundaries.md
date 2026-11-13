@@ -1,6 +1,6 @@
 # ADR 0001: Slices by dependency, modules by reason to change
 
-Status: proposed, for the owner's review (it changes Defaults in the brief: the two slices in section 2 and the
+Status: accepted by the owner on 13 November 2026.
 layout in phase 3). 13 November 2026.
 
 ## Context

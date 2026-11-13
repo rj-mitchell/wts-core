@@ -1,6 +1,6 @@
 # ADR 0003: One event format for a streamed briefing
 
-Status: proposed, for the owner's review. 13 November 2026.
+Status: accepted by the owner on 13 November 2026.
 
 ## Context
 

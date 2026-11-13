@@ -1,6 +1,6 @@
 # ADR 0010: Shared CI, one toolchain, and the nightly family check
 
-Status: proposed, for the owner's review (it refines the Defaults in the brief, sections 3.8 and 3.9). 13 November 2026.
+Status: accepted by the owner on 13 November 2026.
 
 ## Context
 

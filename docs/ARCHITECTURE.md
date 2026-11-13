@@ -1,6 +1,7 @@
 # wts-core: the design
 
-13 November 2026. **For review: no package code has been written.** This page is the design of the shared
+13 November 2026. **Accepted by the owner on 13 November 2026,** with the privacy notice changes; the four questions on
+the right of reply were left to the maintainer and are decided in record 0008. This page is the design of the shared
 foundation for the Where They Stand sites. It rests on a line-by-line study of the four sites' copies
 ([`study/`](study/)) and is decided in twelve short records ([`adr/`](adr/)).
 
@@ -42,9 +43,9 @@ the event format ([0003](adr/0003-event-format.md)), how a site plugs in its own
 | Three privacy notices say the confirming address is "kept while the statement is shown"; the code keeps it while the statement waits too | MPs, Councils, Landlords | **Not changed:** the notices are yours. The sentence is drafted in [`MIGRATION.md`](MIGRATION.md) |
 | The API key given to the build session is refused by Anthropic, and the sites' data is not in the session | | No evaluation run or live briefing could be made. See "What could not be done" in [`PROGRESS.md`](PROGRESS.md) |
 
-**What is needed from you.** A read of this page and the eight records; yes or no to the sentence for the privacy
-notices and to 13 months; answers to the four questions in record 0008; a working API key if you want evaluation
-runs from the build session. Phase 3 (writing the package) waits for your review. Phases 1, 1b and 1c don't.
+**Decided since.** The design, the sentence for the privacy notices and 13 months were accepted. Still needed from
+the owner: a working API key in the environment's settings (for evaluation runs), and, when the nightly check is
+extended, the check token (record 0010).
 
 ---
 

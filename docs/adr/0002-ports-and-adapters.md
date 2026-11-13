@@ -1,6 +1,6 @@
 # ADR 0002: Ports and adapters: which interfaces, and how narrow
 
-Status: proposed, for the owner's review (it changes Defaults in the brief's table 3.1). 13 November 2026.
+Status: accepted by the owner on 13 November 2026.
 
 ## Context
 

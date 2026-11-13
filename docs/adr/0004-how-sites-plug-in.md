@@ -1,6 +1,6 @@
 # ADR 0004: How a site plugs in its own parts
 
-Status: proposed, for the owner's review (it refines the Defaults in the brief, section 3.2). 13 November 2026.
+Status: accepted by the owner on 13 November 2026.
 
 ## Context
 
