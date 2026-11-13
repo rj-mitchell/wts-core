@@ -53,7 +53,7 @@ def _line(event: ModelEvent) -> dict[str, Any]:
     return {"event": "completed",
             "blocks": [{"text": b.text, "citations": [{"document": c.document, "quoted": c.quoted}
                                                       for c in b.citations]} for b in event.blocks],
-            "model": event.model, "stop_reason": event.stop_reason, "usage": asdict(event.usage)}
+            "model": event.model, "stop_reason": event.stop_reason, "usage": {k: v for k, v in asdict(event.usage).items() if v or k != "cache_write_long"}}
 
 
 def _event(raw: dict[str, Any]) -> ModelEvent:

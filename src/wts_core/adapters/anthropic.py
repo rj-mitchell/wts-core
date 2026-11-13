@@ -120,12 +120,17 @@ def _usage_dict(usage: Any) -> dict[str, int]:
     if usage is None:
         return {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0}
     writes = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
-    return {
+    counts = {
         "input_tokens": int(getattr(usage, "input_tokens", 0) or 0) + writes,
         "output_tokens": int(getattr(usage, "output_tokens", 0) or 0),
         "cache_read_tokens": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
         "cache_write_tokens": writes,
     }
+    # the one-hour cache costs more to write, so its share is kept apart for pricing (none on the sites today)
+    long = getattr(getattr(usage, "cache_creation", None), "ephemeral_1h_input_tokens", 0)
+    if isinstance(long, int) and long > 0:
+        counts["cache_write_long_tokens"] = long
+    return counts
 
 
 def _usage(usage: Any) -> Usage:
