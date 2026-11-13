@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from adapters_sites import SITES, site_file
 from wts_core.adapters import model_client
 from wts_core.adapters.anthropic import (
     BASE_URL,
@@ -25,15 +26,12 @@ from wts_core.adapters.anthropic import (
     search_result,
 )
 from wts_core.events import Block, Citation, CitationDelta, Completed, TextDelta, blocks_as_today, to_reader
-from wts_core.ports import Document, ModelClient, ModelRequest, Usage
+from wts_core.ports import ModelClient, ModelRequest, Usage
 from wts_core.settings import Settings, SettingsError, Site
 from wts_core.testing.contracts import ModelClientContract
 from wts_core.testing.models import load_documents, load_stream, recorded
 
 MODEL = "briefing-model"
-SITES = {"mps": ("/home/user/wherempsstand", "hansard", "HANSARD"),
-         "countries": ("/home/user/wherecountriesstand", "wcs", "WCS"),
-         "councils": ("/home/user/wherecouncilsstand", "councils", "COUNCILS")}
 
 
 # --------------------------------------------------------------------------- the SDK, faked
@@ -545,11 +543,7 @@ def test_importing_the_adapters_needs_no_sdk():
 
 
 def site_code(name: str, relative: str) -> ast.Module:
-    root, package, _ = SITES[name]
-    path = Path(root) / "src" / package / relative
-    if not path.exists():
-        pytest.skip(f"{path} is not on this machine")
-    return ast.parse(path.read_text())
+    return ast.parse(site_file(name, relative).read_text())
 
 
 def definition(module: ast.Module, name: str) -> str:
