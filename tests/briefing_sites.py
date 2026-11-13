@@ -32,24 +32,13 @@ import pytest
 
 from test_usage_sites import COUNCILS, COUNTRIES, MPS, SiteFacts, checkout_of
 from wts_core import usage as core_usage
-from wts_core.briefing import Ask, BriefingDesk, Hooks, TooManyRequests, sse
+from wts_core.briefing import Ask, Hooks, TooManyRequests, desk_parts, sse
 from wts_core.observe import briefing_config
 from wts_core.ports import BriefingRecord
+from wts_core.settings import Settings, Site
 from wts_core.state import StateDB
 from wts_core.testing import FixedClock
-from wts_core.usage import (
-    BriefingArchive,
-    BriefingsInProgress,
-    Caps,
-    Failures,
-    Limits,
-    PriceTable,
-    RateLimiter,
-    Spending,
-    SqliteAnswerCache,
-    cache_key,
-    visitor_code,
-)
+from wts_core.usage import cache_key, visitor_code
 
 START = "2026-11-13T12:00:00+00:00"
 SALT = "5a" * 16
@@ -477,6 +466,13 @@ class SiteSide(Side):
                                    (visitor, START[:10])).fetchone()[0])
 
 
+def adopted(settings: Any, facts: SiteFacts) -> Settings:
+    """The site's own settings as they will be once the site has adopted the package: the same values, in the
+    package's ``Settings`` (which each site's own class becomes a subclass of)."""
+    site = Site(name=facts.name, package=facts.package, env_prefix=facts.package.upper(), root=facts.checkout)
+    return Settings(raw=settings.raw, data_dir=settings.data_dir, config_path=settings.config_path, site=site)
+
+
 class ListLog:
     """A briefing log that keeps its records in a list (``ports.BriefingLog``)."""
 
@@ -506,32 +502,24 @@ class DeskSide(Side):
         fix_the_sites_clock(mods, clock, monkeypatch)  # for the site's own counting, where a route still uses it
         monkeypatch.setattr(mods.app if facts is COUNCILS else mods.query_parse, "parse_offline", offline_reader)
         self.settings = settings = site_settings(facts, mods, folder / "desk", usage)
-        cfg = settings.usage
         self.db = db = StateDB(folder / "desk" / "wts.db", migrations=core_usage.migrations(), clock=clock)
         db.set(f"visitor_salt:{START[:10]}", SALT)
         ids = (f"briefing{n:03d}" for n in range(1, 100))
-        self.spending = Spending(db, PriceTable.from_settings(cfg), clock=clock)
-        self.cache = SqliteAnswerCache(db, clock=clock)
-        self.archive = BriefingArchive(db, new_id=lambda: next(ids), clock=clock)
-        self.failures = None if facts is COUNCILS else Failures(db, clock=clock)  # Councils only logs a failure
-        self.caps = Caps(self.spending, Limits.from_settings(cfg), facts.messages, clock)
-        self.cache_hours = float(cfg.get("answer_cache_hours", 168))
+        # What the three differ in, each said once: the site's own name for "briefings at once, for one visitor",
+        # the size at which its limiter forgets idle visitors, and whether it keeps notes of failed briefings
+        # (Where Councils Stand only logs one). Everything else is read from the site's own [usage] settings.
+        self.parts = desk_parts(adopted(settings, facts), db, facts.messages, new_id=lambda chance: next(ids),
+                                at_once_per_visitor=facts.at_once_key, forget_over=facts.forget_over,
+                                keep_failures=facts is not COUNCILS, clock=clock)
         self.log = ListLog()
         self.pipeline = ScriptedPipeline(facts.package, clock, settings.answer["model"], has_model=has_model)
         self.account: int | None = None
         route, hooks = ROUTES[facts.package](self)
-        self.desk = BriefingDesk(
-            messages=facts.messages,
-            limiter=RateLimiter(int(cfg.get("requests_per_minute", 20)), forget_over=facts.forget_over, clock=clock),
-            caps=self.caps,
-            in_progress=BriefingsInProgress(int(cfg.get(facts.at_once_key, 2)), int(cfg.get("briefings_at_once", 8)),
-                                            float(cfg["briefing_estimate_usd"])),
-            spending=self.spending, cache=self.cache, cache_hours=self.cache_hours, archive=self.archive,
-            failures=self.failures, log=self.log,
-            config=briefing_config(log=None, model=settings.answer["model"],
-                                   parse_model=mods.query_parse.parse_model(settings),
-                                   instructions=str(mods.app.INSTRUCTIONS_VERSION), site_version="test"),
-            hooks=hooks, group_of=lambda card: card.get("group"), clock=clock, strict=True)
+        config = briefing_config(log=None, model=settings.answer["model"],
+                                 parse_model=mods.query_parse.parse_model(settings),
+                                 instructions=str(mods.app.INSTRUCTIONS_VERSION), site_version="test")
+        self.desk = self.parts.desk(config, log=self.log, hooks=hooks, group_of=lambda card: card.get("group"),
+                                    strict=True)
         self._route = route
         self.app = FastAPI()
 
@@ -575,7 +563,7 @@ class DeskSide(Side):
             }
 
     def briefings_today(self, visitor: str) -> int:
-        return self.spending.briefings_today(visitor=visitor)
+        return self.parts.spending.briefings_today(visitor=visitor)
 
     def edit_cache(self, change: Callable[[list[dict[str, Any]]], list[dict[str, Any]]]) -> None:
         with self.db.connect() as con:
@@ -626,7 +614,7 @@ def countries_route(side: DeskSide) -> tuple[Route, Hooks]:
         side.limited(who)
         model_on = p.has_model()
         key = None
-        if model_on and side.cache_hours > 0 and not body.history:  # a follow-up is never cached
+        if model_on and side.parts.cache_hours > 0 and not body.history:  # a follow-up is never cached
             key = cache_key({"q": plain_question(body.question), **body.model_dump(exclude={"question"}),
                              "model": settings.answer.get("model"), "data": app.data_stamp(settings),
                              "instructions": app.INSTRUCTIONS_VERSION}, length=64)
@@ -675,7 +663,7 @@ def councils_route(side: DeskSide) -> tuple[Route, Hooks]:
                 plan = offline_plan(body)
             else:  # the model reads the question better, for a fraction of a penny
                 plan, used = p.make_plan(req)
-                side.spending.add("parse", parse_model(settings), used, visitor=v)
+                side.parts.spending.add("parse", parse_model(settings), used, visitor=v)
             result, sources = p.find(plan, req)
             yield {"type": "plan", "plan": plan.to_dict(), "usage": None}
             yield {"type": "sources", "sources": [s.card() for s in sources], "candidates": result.candidates,
@@ -707,7 +695,7 @@ def mps_route(side: DeskSide) -> tuple[Route, Hooks]:
         records_up_to = state.latest_record_date()
         events = [e for e in kept if e["type"] in ("plan", "sources")] + [
             {k: v for k, v in final.items() if k not in ("usage", "briefing_key", "support_reminder")}]
-        saved = side.archive.save(ask.question, ask.options, events,
+        saved = side.parts.archive.save(ask.question, ask.options, events,
                                   extra={"records_up_to": records_up_to, "model": final.get("model")})
         return {"briefing_id": saved.id, "prepared_at": saved.created_at, "records_up_to": records_up_to}
 
@@ -720,7 +708,7 @@ def mps_route(side: DeskSide) -> tuple[Route, Hooks]:
                 # cached before shareable links existed: give it an address now, and remember it
                 assert ask.cache_key is not None
                 hit[-1] = {**final, **keep(ask, hit, final)}
-                side.cache.put(ask.cache_key, hit, side.cache_hours)
+                side.parts.cache.put(ask.cache_key, hit, side.parts.cache_hours)
             return hit
 
         def usages(self, ask: Ask, event: dict[str, Any]) -> list[tuple[str, str | None, Any]]:
@@ -741,7 +729,7 @@ def mps_route(side: DeskSide) -> tuple[Route, Hooks]:
             # the note on costs, after every so many new briefings a visitor has had written today
             if not final.get("usage") or ask.account is not None or not app.donate_url(settings) or not ask.visitor:
                 return final
-            n = side.spending.briefings_today(visitor=ask.visitor)
+            n = side.parts.spending.briefings_today(visitor=ask.visitor)
             due = n > 0 and every > 0 and n % every == 0 and state.get(usage._supporter_key(ask.visitor)) is None
             return {**final, "support_reminder": n} if due else final
 
@@ -752,9 +740,9 @@ def mps_route(side: DeskSide) -> tuple[Route, Hooks]:
             plan, used = p.make_plan(AskRequest(question=body.question, history=body.history_dicts(),
                                                 compare=body.compare))
             if plan.parse_error:
-                side.failures.note("question reading", body.question, plan.parse_error)  # type: ignore[union-attr]
+                side.parts.failures.note("question reading", body.question, plan.parse_error)  # type: ignore[union-attr]
             if used:
-                side.spending.add("parse", parse_model(settings), used, visitor=visitor, account=uid)
+                side.parts.spending.add("parse", parse_model(settings), used, visitor=visitor, account=uid)
         else:
             from hansard.rag import query_parse
 
@@ -774,7 +762,7 @@ def mps_route(side: DeskSide) -> tuple[Route, Hooks]:
 
     def sources_only(body: Any, note: str, uid: int | None, visitor: str | None) -> Iterator[dict[str, Any]]:
         # read the question with the model unless the site's own budget is used up, whatever stopped this reader
-        r = retrieve(body, side.caps.site_paused() is None, uid, visitor)
+        r = retrieve(body, side.parts.caps.site_paused() is None, uid, visitor)
         yield {"type": "plan", "plan": r["plan"], "usage": None}
         yield {"type": "sources", **{k: r[k] for k in ("sources", "candidates", "semantic", "evidence")}}
         yield {"type": "final", "answer": None, "usage": None, "note": note}
@@ -789,7 +777,7 @@ def mps_route(side: DeskSide) -> tuple[Route, Hooks]:
                          history=body.history_dicts(), compare=body.compare)
         model_on = p.has_model()
         key = None
-        if model_on and side.cache_hours > 0:
+        if model_on and side.parts.cache_hours > 0:
             last = state.runs(1)
             key = cache_key({"q": plain_question(body.question), **body.model_dump(exclude={"question"}),
                              "model": settings.answer.get("model"), "data": last[0]["run_id"] if last else None,

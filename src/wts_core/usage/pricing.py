@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from wts_core.ports import Price, Pricing, UnknownModel, Usage
@@ -32,18 +33,22 @@ KEYS = ("price_input_per_mtok", "price_output_per_mtok", "price_cache_read_per_m
 LONG = "cache_write_long_multiplier"
 
 
-def _price(section: str, laid: Mapping[str, float], *given: Mapping[str, Any]) -> Price:
-    long = next((_number(section, LONG, g[LONG]) for g in reversed(given) if LONG in g), None)
+def _price(laid: Mapping[str, float], long: float | None) -> Price:
     price = Price(*(laid[k] for k in KEYS))
     return price if long is None else Price(price.input, price.output, price.cache_read,
                                             price.cache_write_multiplier, long)
 
 
-def _number(section: str, key: str, value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        raise SettingsError(f"[{section}] {key} must be a number, not {value!r}") from None
+def _numbers(section: str, given: Mapping[str, Any], problems: list[str]) -> dict[str, float]:
+    """The prices ``given`` holds, each as a number; one that is not a number is added to ``problems``."""
+    read: dict[str, float] = {}
+    for key in (*KEYS, LONG):
+        if key in given:
+            try:
+                read[key] = float(given[key])
+            except (TypeError, ValueError):
+                problems.append(f"[{section}] {key} must be a number, not {given[key]!r}")
+    return read
 
 
 @dataclass(frozen=True)
@@ -54,24 +59,32 @@ class PriceTable:
     models: tuple[tuple[str, Price], ...] = ()
 
     @classmethod
-    def from_settings(cls, usage: Mapping[str, Any], *, section: str = "usage") -> PriceTable:
+    def from_settings(cls, usage: Mapping[str, Any], *, section: str = "usage",
+                      file: Path | str | None = None) -> PriceTable:
         """Read the prices from a site's ``[usage]`` section (``settings.usage``). ``section`` is only how the
-        section is named in an error, for a site that keeps its prices under another name."""
+        section is named in an error, for a site that keeps its prices under another name. Everything wrong is
+        said in the one error; ``file`` is the settings file, named in it where given (``settings.config_path``)."""
+        problems: list[str] = []
         missing = [k for k in KEYS if k not in usage]
         if missing:
-            raise SettingsError(f"[{section}] needs " + ", ".join(missing) + ": the package has no prices of its own")
-        base = {k: _number(section, k, usage[k]) for k in KEYS}
+            problems.append(f"[{section}] needs " + ", ".join(missing) + ": the package has no prices of its own")
+        base = _numbers(section, usage, problems)
         per_model = usage.get("models") or {}
+        models: list[tuple[str, Mapping[str, float]]] = []
         if not isinstance(per_model, Mapping):
-            raise SettingsError(f"[{section}] models must be tables of prices, one for each model")
-        models: list[tuple[str, Price]] = []
-        for name, own in per_model.items():
-            where = f'{section}.models."{name}"'
-            if not isinstance(own, Mapping):
-                raise SettingsError(f"[{where}] must be a table of prices")
-            laid = {**base, **{k: _number(where, k, own[k]) for k in KEYS if k in own}}
-            models.append((str(name), _price(where, laid, usage, own)))
-        return cls(base=_price(section, base, usage), models=tuple(models))
+            problems.append(f"[{section}] models must be tables of prices, one for each model")
+        else:
+            for name, own in per_model.items():
+                where = f'{section}.models."{name}"'
+                if not isinstance(own, Mapping):
+                    problems.append(f"[{where}] must be a table of prices")
+                else:
+                    models.append((str(name), _numbers(where, own, problems)))
+        if problems:
+            raise SettingsError(("" if file is None else f"{file}: ") + "; ".join(problems), problems=problems)
+        return cls(base=_price(base, base.get(LONG)),
+                   models=tuple((name, _price({**base, **own}, own.get(LONG, base.get(LONG))))
+                                for name, own in models))
 
     def _entry(self, model: str | None) -> Price | None:
         for name, price in self.models:

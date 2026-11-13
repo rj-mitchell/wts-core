@@ -6,10 +6,10 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from wts_core.ports import UnknownModel
 from wts_core.settings import SettingsError
 from wts_core.testing import FixedClock
 
+from parks.app import build
 from parks.site import IMPORTS, ROOT, SITE, ParksSettings, load, open_state
 
 SETTINGS = (ROOT / "config" / "settings.toml").read_text(encoding="utf-8")
@@ -38,24 +38,50 @@ def test_settings_are_layered_the_file_then_the_installations_own_then_overrides
     assert settings.usage["monthly_spend_cap_usd"] == 50.0  # the rest is the site's file
 
 
-@pytest.mark.parametrize("named", [
-    "daily_spend_cap_usd",  # a limit the package reads
-    "price_output_per_mtok",  # a price the package reads
-    "answer_cache_hours",  # a setting the site reads and hands to the package
-    "query_parse_model",
-])
-def test_a_missing_setting_stops_the_site_and_names_the_key(tmp_path: Path, named: str) -> None:
+def without(named: str, tmp_path: Path) -> Path:
+    """The site's settings file with the first line that sets ``named`` taken out."""
     lines = SETTINGS.splitlines()
-    del lines[next(i for i, text in enumerate(lines) if text.startswith(named + " ="))]  # the first place it is set
+    del lines[next(i for i, text in enumerate(lines) if text.startswith(named + " ="))]
     config = tmp_path / "settings.toml"
     config.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    with pytest.raises(SettingsError, match=named):
+    return config
+
+
+def test_a_missing_setting_of_the_sites_own_stops_it_and_names_the_file_and_the_key(tmp_path: Path) -> None:
+    config = without("query_parse_model", tmp_path)
+    with pytest.raises(SettingsError, match=rf"{config}: \[answer\] needs query_parse_model"):
         load(config, env={"PARKS_DATA_DIR": str(tmp_path)})
 
 
+@pytest.mark.parametrize("named", [
+    "daily_spend_cap_usd",  # a limit
+    "price_output_per_mtok",  # a price
+    "answer_cache_hours",  # a figure of the briefing flow that every site names alike
+    "briefings_at_once_per_visitor",  # and one this site names for the package
+])
+def test_a_missing_setting_of_the_briefing_flow_stops_the_site_as_it_is_built(tmp_path: Path, named: str) -> None:
+    config = without(named, tmp_path)
+    with pytest.raises(SettingsError, match=rf"{config}: the briefing desk cannot be built: 1 thing missing or "
+                                            rf"wrong\.\n  - \[usage\] needs {named}"):
+        build(load(config, env={"PARKS_DATA_DIR": str(tmp_path)}), env={})
+
+
+def test_everything_missing_is_said_in_one_error(tmp_path: Path) -> None:
+    lines = [line for line in SETTINGS.splitlines()
+             if not line.startswith(("monthly_spend_cap_usd =", "requests_per_minute =", "cache_write_multiplier ="))]
+    config = tmp_path / "settings.toml"
+    config.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with pytest.raises(SettingsError) as stopped:
+        build(load(config, env={"PARKS_DATA_DIR": str(tmp_path)}), env={})
+    assert "3 things missing or wrong" in str(stopped.value)
+    assert [problem.split(":")[0] for problem in stopped.value.problems] == [
+        "[usage] needs monthly_spend_cap_usd", "[usage] needs cache_write_multiplier",
+        "[usage] needs requests_per_minute"]
+
+
 def test_a_model_with_no_price_of_its_own_stops_the_site(tmp_path: Path) -> None:
-    with pytest.raises(UnknownModel, match="a-new-model"):
-        load(env={"PARKS_DATA_DIR": str(tmp_path)}, **{"answer.model": "a-new-model"})
+    with pytest.raises(SettingsError, match="no price for a-new-model"):
+        build(load(env={"PARKS_DATA_DIR": str(tmp_path)}, **{"answer.model": "a-new-model"}), env={})
 
 
 def test_the_packages_tables_sit_in_the_sites_state_database(settings: ParksSettings) -> None:

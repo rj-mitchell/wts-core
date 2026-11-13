@@ -46,7 +46,7 @@ def test_the_sites_own_steps_are_hung_on_the_flow(client: TestClient, parks: Par
     assert final["records_up_to"] == "2026-10-20"
     # for_this_reader: sent to this reader, and in neither the saved copy nor the cached one
     assert final["briefings_left_today"] == 29
-    saved = parks.archive.get(final["briefing_id"])
+    saved = parks.parts.archive.get(final["briefing_id"])
     assert saved is not None and saved.question == DOGS and saved.options == {"mode": "summary", "park": None}
     assert [e["type"] for e in saved.events] == ["plan", "sources", "text", "final"]
     assert saved.events[-1]["records_up_to"] == "2026-10-20" and "briefings_left_today" not in saved.events[-1]

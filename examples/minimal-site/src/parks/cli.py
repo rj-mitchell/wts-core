@@ -25,7 +25,6 @@ from wts_core.cli import (
 )
 from wts_core.observe import config_id
 from wts_core.replies import Replies
-from wts_core.usage import PriceTable
 
 from parks.evaluation import RUNS, ParksEval
 from parks.pipeline import configuration, embedder_from_settings, load_minutes
@@ -41,6 +40,7 @@ from parks.site import (
     load,
     open_replies,
     open_state,
+    prices,
 )
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help=f"{SITE.name}: the owner's commands.")
@@ -174,7 +174,7 @@ app.add_typer(stats_commands(
     thresholds=lambda: load().section("alerts"),  # empty until the owner sets them
     folder=lambda: load().reports_dir,
     embedder=lambda: embedder_from_settings(load()), similarity=THEME_SIMILARITY,
-    pricing=lambda: PriceTable.from_settings(load().usage),
+    pricing=lambda: prices(load()),
     backup_days=BACKUPS_KEPT_DAYS,  # tidy deletes copies of the database older than the backups are kept
 ))  # stats, weekly-report, tidy
 
@@ -191,7 +191,7 @@ def _configuration() -> Mapping[str, Any]:
 app.add_typer(eval_commands(
     lambda: ParksEval(load()),
     config=_configuration, config_id=config_id,  # the id the record of briefings gives the same parts
-    pricing=lambda: PriceTable.from_settings(load().usage),
+    pricing=lambda: prices(load()),
     thresholds=lambda: load().section("eval")["thresholds"],
     runs=lambda: RUNS,
     max_cost_usd=EVAL_MAX_COST_USD,  # a run costs money, so it never starts without a limit

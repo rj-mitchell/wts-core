@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 import tomllib
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -35,7 +35,13 @@ LOCAL_FILE = "settings.local.toml"
 
 
 class SettingsError(RuntimeError):
-    """A setting the site needs is missing or wrong. The message names the section and key."""
+    """A setting the site needs is missing or wrong. The message names the section and key, and the settings file
+    where whoever raised it knew which. ``problems`` is each thing wrong on its own, without the file's name: for a
+    start-up check that gathers several errors into one (``briefing.desk_settings``)."""
+
+    def __init__(self, message: str, *, problems: Sequence[str] = ()) -> None:
+        super().__init__(message)
+        self.problems: tuple[str, ...] = tuple(problems) or (message,)
 
 
 @dataclass(frozen=True)

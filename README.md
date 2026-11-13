@@ -48,12 +48,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from wts_core import Messages, usage
-from wts_core.briefing import Ask, BriefingDesk, TooManyRequests, sse
+from wts_core import Messages, Settings, Site, usage
+from wts_core.briefing import Ask, TooManyRequests, desk_parts, sse
 from wts_core.checks import COMMON_LOADED_WORDS, EVIDENCE_NOTES_STRICT, LoadedWords, Verifier, check_briefing
 from wts_core.events import Completed, blocks_as_today, to_reader
 from wts_core.observe import briefing_config
-from wts_core.ports import ModelRequest, Price
+from wts_core.ports import ModelRequest
 from wts_core.state import StateDB
 from wts_core.testing.models import ScriptedModel, load_documents, recorded
 
@@ -110,16 +110,21 @@ def sources_only(question, note):  # what a reader gets when a limit stops the b
     yield {"type": "final", "answer": None, "usage": None, "note": note}
 
 
-db = StateDB(Path("data/state.db"), migrations=usage.migrations())
-spending = usage.Spending(db, usage.PriceTable(base=Price(input=3.0, output=15.0, cache_read=0.3)))
-limits = usage.Limits(per_visitor_daily=30, per_account_daily=None, daily_cap_usd=3.0, monthly_cap_usd=50.0)
-desk = BriefingDesk(
-    messages=MESSAGES, limiter=usage.RateLimiter(20, forget_over=50_000),
-    caps=usage.Caps(spending, limits, MESSAGES), in_progress=usage.BriefingsInProgress(2, 8, 0.10),
-    spending=spending, cache=usage.SqliteAnswerCache(db), cache_hours=168,
-    archive=usage.BriefingArchive(db, new_id=lambda: usage.token_id(8)), failures=usage.Failures(db),
-    log=None, config=briefing_config(log=None, model="synthetic-model", parse_model=None, instructions="1",
-                                     site_version="1"))
+# The package has no limit or price of its own. A real site keeps these in config/settings.toml.
+SETTINGS = Settings(
+    site=Site(name="Quick start", package="quickstart", env_prefix="QUICKSTART", root=Path(".")),
+    data_dir=Path("data"), config_path=Path("quickstart.py"), raw={"usage": {
+        "per_visitor_daily_questions": 30, "daily_spend_cap_usd": 3.0, "monthly_spend_cap_usd": 50.0,
+        "requests_per_minute": 20, "answer_cache_hours": 168, "briefing_estimate_usd": 0.10, "briefings_at_once": 8,
+        "price_input_per_mtok": 3.0, "price_output_per_mtok": 15.0, "price_cache_read_per_mtok": 0.3,
+        "cache_write_multiplier": 1.25}})
+
+db = StateDB(SETTINGS.state_db, migrations=usage.migrations())
+# One call checks the settings and makes the spending record, caps, limiter, answer cache and saved briefings.
+parts = desk_parts(SETTINGS, db, MESSAGES, new_id=lambda chance: usage.token_id(8, random=chance),
+                   at_once_per_visitor=2, forget_over=50_000, keep_failures=True)
+desk = parts.desk(briefing_config(log=None, model="synthetic-model", parse_model=None, instructions="1",
+                                  site_version="1"), log=None)  # log=None: no record of each briefing is kept
 
 app = FastAPI()
 

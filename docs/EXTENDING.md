@@ -102,25 +102,23 @@ tests change one setting).
 ### 1.3 What must be in `settings.toml`
 
 The package has no limit, price or model of its own. The package checks the keys it reads itself; a site checks
-the rest, so that a missing key stops the site at start-up and names the key.
+the rest, so that a missing key stops the site at start-up and names the file and the key.
 
 From `examples/minimal-site/src/parks/site.py`:
 
 ```python
 def load(config_path: str | Path | None = None, env: Mapping[str, str] | None = None,
          **overrides: Any) -> ParksSettings:
-    """The site's settings, checked: a missing key, limit or price stops the site here, naming it, and so does a
-    model with no price of its own."""
+    """The site's settings, with the keys the site reads itself checked: a missing one stops the site here, naming
+    it and the file."""
     settings = load_settings(ParksSettings, SITE, config_path, env, **overrides)
     for section, keys in REQUIRED.items():
         require(settings, section, keys)
-    Limits.from_settings(settings.usage)
-    prices = PriceTable.from_settings(settings.usage)
-    prices.require([settings.answer["model"], settings.answer["query_parse_model"]], base_counts=False)
     return settings
 ```
 
-The keys the package reads itself:
+The keys the package reads itself. Those of the briefing flow are checked together when the site builds its desk
+(section 4.1): everything missing or wrong is named in one error, with the settings file.
 
 | Key | Read by | Needed |
 |---|---|---|
@@ -131,6 +129,8 @@ The keys the package reads itself:
 | `[usage] price_input_per_mtok`, `price_output_per_mtok`, `price_cache_read_per_mtok`, `cache_write_multiplier` | `PriceTable.from_settings` | yes |
 | `[usage.models."<name>"]` | `PriceTable.from_settings` | no: a model with no table takes the base prices |
 | `[usage] cache_write_long_multiplier` | `PriceTable.from_settings` | no |
+| `[usage] requests_per_minute`, `answer_cache_hours`, `briefing_estimate_usd`, `briefings_at_once` | `briefing.desk_parts` | yes, on a site that builds its desk with it |
+| two more, under the site's own names: how many briefings one visitor may have in progress, and how many idle visitors the per-minute limiter holds | `briefing.desk_parts`, told the names | yes, unless the site gives the numbers |
 
 Every other key is read by the site and handed to the package as an argument. The example's
 [`config/settings.toml`](../examples/minimal-site/config/settings.toml) is the full list for a site with
@@ -255,50 +255,81 @@ route, the request body, the pipeline and the pages stay the site's.
 
 ### 4.1 Building the desk
 
-A site builds one desk when it starts, from the shared parts. Every part takes the clock, so a test can fix the
-time.
+A site builds one desk when it starts, in two steps. `briefing.desk_parts` makes everything the desk is made of
+from the site's settings: the prices, the limits, the spending record, the caps, the per-minute limiter, the
+count of briefings in progress, the answer cache, the saved briefings and the notes of failures. The clock and
+the source of chance are given once, there, and every part uses them, so a test can fix both. `DeskParts.desk`
+then makes the desk.
 
 From `examples/minimal-site/src/parks/app.py`:
 
 ```python
-    desk = BriefingDesk(
-        messages=MESSAGES,
-        limiter=RateLimiter(int(cfg["requests_per_minute"]), forget_over=int(cfg["forget_idle_visitors_over"]),
-                            clock=clock),
-        caps=caps,
-        in_progress=BriefingsInProgress(int(cfg["briefings_at_once_per_visitor"]), int(cfg["briefings_at_once"]),
-                                        float(cfg["briefing_estimate_usd"])),
-        spending=spending,
-        cache=SqliteAnswerCache(db, clock=clock),
-        cache_hours=float(cfg["answer_cache_hours"]),
-        archive=archive,
-        failures=Failures(db, clock=clock),
+    parts = desk_parts(
+        settings, db, MESSAGES,
+        new_id=new_briefing_id,
+        # this site's names for the two settings the family's sites name differently
+        at_once_per_visitor="briefings_at_once_per_visitor", forget_over="forget_idle_visitors_over",
+        keep_failures=True,  # a failed briefing is noted for the owner (the privacy notice says for how long)
+        # both models must have prices of their own, so a new model is never costed at another's
+        require_prices_for=(settings.answer["model"], settings.answer["query_parse_model"]),
+        clock=clock, random=random)
+```
+
+It is two steps because what a site makes in between needs the parts. The example's pipeline takes the spending
+record, and its hooks take the spending record and the limits.
+
+From `examples/minimal-site/src/parks/app.py`:
+
+```python
+    desk = parts.desk(
+        config,
         log=log,  # the record of each briefing, turned on (docs/adr/0012)
-        config=config,
-        hooks=ParksHooks(spending, limits, pipeline.records_up_to),
+        hooks=ParksHooks(parts.spending, parts.limits, pipeline.records_up_to),
         group_of=lambda card: card.get("park"),  # the record counts each briefing's sources by park
-        clock=clock,
-        random=random,
     )
 ```
 
-- `failures=None` keeps no notes of failed briefings (Where Councils Stand today).
-- `log=None` writes no record of each briefing: a site that has not turned the record on.
-- `archive` saves each briefing at its own address. Its `new_id` is the site's: `usage.token_id(8)` gives eleven
-  characters; `usage.alphabet_id(alphabet, length)` is Where MPs Stand's form.
-- `strict=True` is for tests: text sent before the sources raises an error there, where a live site only logs it.
+- `new_id` makes a saved briefing's id from the source of chance it is given. `usage.token_id(8, random=chance)`
+  gives eleven characters; `usage.alphabet_id(alphabet, length, random=chance)` is Where MPs Stand's form.
+- `at_once_per_visitor` and `forget_over` are each a number, or the name of the setting in `[usage]` that holds
+  it. The family's sites name the first differently (`briefings_at_once_per_reader` on Where MPs Stand) and keep
+  the second in their code, so the package reads neither under a name of its own.
+- `keep_failures=False` keeps no notes of failed briefings (Where Councils Stand today).
+- `log=None` writes no record of each briefing: a site that has not turned the record on. It has no default, so
+  a site says which.
+- `strict=True` (to `desk`) is for tests: text sent before the sources raises an error there, where a live site
+  only logs it.
+- The parts are the site's to use: `parts.spending` for a model call the desk cannot see (section 4.6),
+  `parts.caps.site_paused()` for a status page, `parts.archive` for the pages of saved briefings, `parts.limits`,
+  `parts.cache` and `parts.cache_hours`.
+
+**The start-up check.** `desk_parts` first reads every limit, price and figure the flow needs, and looks at the
+site's messages. Whatever is missing or wrong is said together, in one `SettingsError` that names the settings
+file and each key:
+
+```text
+config/settings.toml: the briefing desk cannot be built: 2 things missing or wrong.
+  - [usage] needs monthly_spend_cap_usd: the package has no limits of its own
+  - [usage] needs requests_per_minute
+```
+
+`briefing.desk_settings` is the check on its own, for a site that wants to run it without a database (in a test
+of its settings file, say). It returns what it read.
+
+The pieces stay public: `BriefingDesk` and everything in `wts_core.usage` can still be built by hand, part by
+part. `desk_parts` is the short way, not the only one.
 
 ### 4.2 Spending caps and prices
 
-Both come from the site's `[usage]` settings. `Limits.from_settings` and `PriceTable.from_settings` stop the site,
-naming the key, when one is missing.
+Both come from the site's `[usage]` settings, and `desk_parts` reads them. An owner's command that needs the
+prices without the desk reads them on its own, naming the file for the error.
 
-From `examples/minimal-site/src/parks/app.py`:
+From `examples/minimal-site/src/parks/site.py`:
 
 ```python
-    limits = Limits.from_settings(cfg)
-    spending = Spending(db, PriceTable.from_settings(cfg), clock=clock)
-    caps = Caps(spending, limits, MESSAGES, clock)
+def prices(settings: ParksSettings) -> PriceTable:
+    """The site's prices, for the owner's commands that work out a cost."""
+    return PriceTable.from_settings(settings.usage, file=settings.config_path)
 ```
 
 From `examples/minimal-site/config/settings.toml`:
@@ -312,9 +343,9 @@ price_output_per_mtok = 15.0
 price_cache_read_per_mtok = 0.3
 ```
 
-`PriceTable.require(models, base_counts=False)` is the strict start-up check: every model named must have a table
-of its own. With `base_counts=True` a model with no table takes the base prices, which is today's rule on the
-three older sites.
+`require_prices_for` is the strict start-up check: every model named must have a table of its own
+(`PriceTable.require(models, base_counts=False)` is the same check on its own). Left out, a model with no table
+takes the base prices, which is today's rule on the three older sites.
 
 ### 4.3 `Ask`: one question, as the route describes it
 

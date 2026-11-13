@@ -128,7 +128,7 @@ def test_a_briefing_hidden_while_a_concern_is_decided_shows_the_note_instead(cli
 
 
 def test_a_withdrawn_briefing_says_so_at_its_address(client: TestClient, parks: Parks, briefing: str) -> None:
-    parks.archive.withdraw(briefing.removeprefix("/b/"), "It gave the wrong year for a decision.")
+    parks.parts.archive.withdraw(briefing.removeprefix("/b/"), "It gave the wrong year for a decision.")
     page = client.get(briefing).text
     assert "This briefing was withdrawn. It gave the wrong year for a decision." in page
     assert "Dogs on leads" not in page

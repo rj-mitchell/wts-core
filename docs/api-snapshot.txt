@@ -110,6 +110,8 @@ def vector_index_due(vectors: 'int', trained_on: 'int | None', has_index: 'bool'
 ## wts_core.briefing
 Ask: from wts_core.briefing.desk
 BriefingDesk: from wts_core.briefing.desk
+DeskParts: from wts_core.briefing.build
+DeskSettings: from wts_core.briefing.build
 Event: from wts_core.briefing.desk
 Hooks: from wts_core.briefing.desk
 KEEP_ALIVE_SECONDS = 15
@@ -117,7 +119,37 @@ Stage: from wts_core.briefing.stages
 Stages: from wts_core.briefing.stages
 TooManyRequests: from wts_core.briefing.desk
 current_stages: from wts_core.briefing.stages
+desk_parts: from wts_core.briefing.build
+desk_settings: from wts_core.briefing.build
 sse: from wts_core.briefing.stream
+
+## wts_core.briefing.build
+class DeskParts
+    messages: Messages
+    prices: PriceTable
+    limits: Limits
+    spending: Spending
+    caps: Caps
+    limiter: RateLimiter
+    in_progress: BriefingsInProgress
+    cache: SqliteAnswerCache
+    cache_hours: float
+    archive: BriefingArchive
+    failures: Failures | None
+    clock: Clock
+    random: Random
+    def desk(self, config: 'BriefingConfig', *, log: 'BriefingLog | None', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, strict: 'bool' = False) -> 'BriefingDesk'
+class DeskSettings
+    prices: PriceTable
+    limits: Limits
+    requests_per_minute: int
+    forget_over: int
+    at_once_per_visitor: int
+    at_once: int
+    estimate_usd: float
+    cache_hours: float
+def desk_parts(settings: 'Settings', db: 'StateDB', messages: 'Messages', *, new_id: 'Callable[[Random], str]', at_once_per_visitor: 'int | str', forget_over: 'int | str', keep_failures: 'bool', require_prices_for: 'Iterable[str | None]' = (), section: 'str' = 'usage', clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'DeskParts'
+def desk_settings(settings: 'Settings', messages: 'Messages', *, at_once_per_visitor: 'int | str', forget_over: 'int | str', require_prices_for: 'Iterable[str | None]' = (), section: 'str' = 'usage') -> 'DeskSettings'
 
 ## wts_core.briefing.desk
 class Ask
@@ -1164,6 +1196,7 @@ class Settings
     property state_db
     property usage
 class SettingsError(RuntimeError)
+    def __init__(self, message: 'str', *, problems: 'Sequence[str]' = ()) -> 'None'
 class Site
     name: str
     package: str
@@ -1365,7 +1398,7 @@ class Limits
     per_account_daily: int | None
     daily_cap_usd: float
     monthly_cap_usd: float
-    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage') -> 'Limits'
+    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage', file: 'Path | str | None' = None) -> 'Limits'
 class Refusal
     kind: Literal['visitor_limit', 'account_limit', 'daily_cap', 'monthly_cap', 'busy_visitor', 'busy_site']
     message: str
@@ -1445,7 +1478,7 @@ class PriceTable
     base: Price
     models: tuple[tuple[str, Price], ...] = ...
     def cost(self, usage: 'Usage | None', model: 'str | None') -> 'float'
-    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage') -> 'PriceTable'
+    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage', file: 'Path | str | None' = None) -> 'PriceTable'
     def price_for(self, model: 'str | None') -> 'Price'
     def require(self, models: 'Iterable[str | None]', *, base_counts: 'bool') -> 'None'
 

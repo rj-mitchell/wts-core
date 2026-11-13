@@ -10,7 +10,7 @@ The line `api: <hash>` under a version is the fingerprint of the public interfac
 The rough edges the example site found, removed before the three AI sites adopt the package. No site uses the
 briefing desk yet, so its interface could still change; the bytes a reader receives through it have not.
 
-api: 30aec6d7d152
+api: ff12b44f8642
 
 ### Changed
 
@@ -21,8 +21,22 @@ api: 30aec6d7d152
   *What a site must do:* nothing yet (no site has adopted the desk). At adoption, make the configuration with
   `observe.briefing_config` and pass it as `config`.
 
+- **`Limits.from_settings` and `PriceTable.from_settings` say everything that is wrong at once,** and name the
+  key of a figure that is not a number (`[usage] daily_spend_cap_usd is not a number: 'lots'`). Both take
+  `file=`, the settings file to name in the error. `SettingsError` gains `problems`, each thing wrong on its own.
+  *What a site must do:* nothing. The sentences for a missing key are unchanged.
+
 ### Added
 
+- **`briefing.desk_parts(settings, db, messages, new_id=…, at_once_per_visitor=…, forget_over=…,
+  keep_failures=…)`** builds everything a desk is made of from a site's settings (prices, limits, the spending
+  record, caps, the per-minute limiter, briefings in progress, the answer cache, saved briefings, failures) on one
+  clock and one source of chance, and returns them as `briefing.DeskParts`; `DeskParts.desk(config, log=…,
+  hooks=…, group_of=…)` makes the desk. The parts are the site's to use in its pipeline, hooks and other routes.
+  Building the pieces by hand still works.
+- **The start-up check,** `briefing.desk_settings` (which `desk_parts` runs first): every limit, price, figure
+  and message the briefing flow needs, with everything missing or wrong reported in one error that names the
+  settings file and each key.
 - `observe.briefing_config(log=…, model=…, parse_model=…, instructions=…, site_version=…, also=…)`: makes a
   site's `BriefingConfig`, works out its id (`config_id` of the parts, with the package's version added) and
   keeps the parts in `wts_configs` in the same call. `log=None`, said out loud, is for a site that has not turned

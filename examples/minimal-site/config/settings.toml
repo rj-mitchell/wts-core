@@ -44,14 +44,16 @@ use_fallbacks = true
 per_visitor_daily_questions = 30   # package: new briefings a visitor may have in a day
 daily_spend_cap_usd = 3.0          # package: over this, briefings stop for the day and the sources are shown instead
 monthly_spend_cap_usd = 50.0       # package
-requests_per_minute = 20           # questions a visitor may ask in a minute
-forget_idle_visitors_over = 50000  # how many visitors the per-minute limiter remembers before it forgets idle ones
-answer_cache_hours = 168           # the same question is answered from the cache for a week; 0 turns the cache off
+requests_per_minute = 20           # package: questions a visitor may ask in a minute
+# how many visitors the per-minute limiter remembers before it forgets idle ones (the site tells the package this
+# setting's name: the family's sites keep the figure in different places)
+forget_idle_visitors_over = 50000
+answer_cache_hours = 168           # package: the same question is answered from the cache for a week; 0 turns it off
 # A briefing's cost is known only when it finishes, so each one being written counts against the caps at this
 # estimate meanwhile; and only so many are written at once, for one visitor and in all.
-briefing_estimate_usd = 0.10
-briefings_at_once_per_visitor = 2
-briefings_at_once = 8
+briefing_estimate_usd = 0.10       # package
+briefings_at_once_per_visitor = 2  # the site tells the package this setting's name too
+briefings_at_once = 8              # package
 # US dollars per million tokens. These four are the base prices (package), used for any model with no table below.
 price_input_per_mtok = 3.0
 price_output_per_mtok = 15.0

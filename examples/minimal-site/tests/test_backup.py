@@ -37,11 +37,11 @@ def test_a_backup_is_made_under_the_sites_own_name_and_put_back(client: TestClie
     # the site goes on, and then the database is lost
     later = final_of(ask(client, HOURS, sources_only=True))
     assert later["answer"] is None
-    parks.archive.withdraw(first, "Withdrawn after the backup was made.")
+    parks.parts.archive.withdraw(first, "Withdrawn after the backup was made.")
     kept = restore_backup(archive, settings.state_db, BACKUPS)
 
     # everything is as it was when the backup was made
-    saved = parks.archive.get(first)
+    saved = parks.parts.archive.get(first)
     assert saved is not None and saved.withdrawn_at is None
     assert len(rows(parks, "SELECT 1 FROM wts_spending")) == 2 and len(rows(parks, "SELECT 1 FROM wts_briefing_log")) == 1
     assert client.get(f"/b/{first}").status_code == 200
