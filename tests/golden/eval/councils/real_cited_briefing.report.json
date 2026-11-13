@@ -1,0 +1,137 @@
+{
+ "segments": [
+  {
+   "text": "- Northbridge Borough Council: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "the Cabinet agreed on 26 February 2025 that weekly collections of food waste would begin in April 2026",
+   "sources": [
+    1
+   ],
+   "cited": [
+    {
+     "source": 1,
+     "cited_text": "The Cabinet agreed that weekly collections of food waste would begin in April 2026."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": ", and ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "members noted that the cost of the new service would be met from the capital programme",
+   "sources": [
+    1
+   ],
+   "cited": [
+    {
+     "source": 1,
+     "cited_text": "Members noted that the cost of the new service would be met from the capital programme."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": ".\n- Eastmere District Council: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "the Council resolved on 4 March 2025 to keep fortnightly collections of general waste",
+   "sources": [
+    2
+   ],
+   "cited": [
+    {
+     "source": 2,
+     "cited_text": "The Council resolved to keep fortnightly collections of general waste."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": ", and ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "an amendment to bring in a charge for garden waste was lost",
+   "sources": [
+    2
+   ],
+   "cited": [
+    {
+     "source": 2,
+     "cited_text": "An amendment to bring in a charge for garden waste was lost."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": ".\n- Northbridge Borough Council: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "the Overview and Scrutiny Committee heard on 11 March 2025 that the recycling rate had fallen to 34 per cent",
+   "sources": [
+    3
+   ],
+   "cited": [
+    {
+     "source": 3,
+     "cited_text": "The Committee heard that the recycling rate had fallen to 34 per cent."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": ".",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  }
+ ],
+ "markdown": "- Northbridge Borough Council: the Cabinet agreed on 26 February 2025 that weekly collections of food waste would begin in April 2026 [Source 1], and members noted that the cost of the new service would be met from the capital programme [Source 1].\n- Eastmere District Council: the Council resolved on 4 March 2025 to keep fortnightly collections of general waste [Source 2], and an amendment to bring in a charge for garden waste was lost [Source 2].\n- Northbridge Borough Council: the Overview and Scrutiny Committee heard on 11 March 2025 that the recycling rate had fallen to 34 per cent [Source 3].",
+ "no_records": false,
+ "citations_total": 5,
+ "citations_invalid": 0,
+ "grounded_ratio": 1.0,
+ "unsupported_segments": 0,
+ "loaded_words": 0,
+ "quotes_total": 0,
+ "quotes_unverified": 0,
+ "rules": 1
+}

@@ -155,6 +155,9 @@ def _write_report(path: Path, report: Answer) -> None:
 
 _FLAGGED = ("unsupported", "invalid")
 _SENTENCE_END = re.compile(r"[.!?][\"'”’)\]]*\s+")
+# a short capitalised word before a full stop is taken for a title ("Cllr. Shah"), which ends no sentence: only for
+# naming the sentence a difference is in, so "in May. The" merely names two sentences where one would do
+_TITLE = re.compile(r"\b[A-Z][a-z]{1,4}$")
 # the report's counts, and whether a rise means more is flagged (None: neither stricter nor weaker in itself)
 _COUNTS: tuple[tuple[str, bool | None], ...] = (
     ("citations_total", None), ("citations_invalid", True), ("loaded_words", True), ("quotes_total", None),
@@ -212,7 +215,8 @@ def _sentence(text: str, a: int, b: int) -> str:
     end = text.find("\n", b)
     line = text[start:len(text) if end < 0 else end]
     a, b = a - start, b - start
-    bounds = [0, *(m.end() for m in _SENTENCE_END.finditer(line)), len(line)]
+    bounds = [0, *(m.end() for m in _SENTENCE_END.finditer(line) if not _TITLE.search(line, 0, m.start())),
+              len(line)]
     return line[max(x for x in bounds if x <= a):min(x for x in bounds if x >= b)].strip()
 
 
