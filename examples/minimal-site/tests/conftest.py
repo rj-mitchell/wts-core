@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
+
+# Typer draws its help with colour codes when it thinks a terminal is watching, which it does on GitHub Actions;
+# the codes split an option's name in two. It reads these when first imported, so they are set before it is.
+os.environ["_TYPER_FORCE_DISABLE_TERMINAL"] = "1"
+os.environ["NO_COLOR"] = "1"
 
 import pytest
 from fastapi.testclient import TestClient
