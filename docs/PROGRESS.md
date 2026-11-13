@@ -41,8 +41,10 @@ Last updated: 13 November 2026, 04:30 UTC (session 1).
 **A suggested order for merging:** the six toolchain pull requests (independent of everything); the four ports;
 the four "why" pull requests; then the charity repository's drift pull request (#28, after the ports, so its
 baseline matches `main`); the design (#1) whenever it has been reviewed; Where MPs Stand's library versions (#43)
-only after an evaluation run. In each site the three or four pull requests touch different files, with one
-exception to watch: in Where MPs Stand, #42 and #43 both touch what CI installs, so merge #42 first.
+only after an evaluation run. Checked by merging every open branch of each repository onto `main` together in a throwaway copy: all merge
+cleanly, with one exception. In Where Countries Stand, the ports (#31) and the "why" pull request (#32) both change
+the last rows of the table in `docs/DECISIONS.md`. Merge one, then on the other choose "Resolve conflicts" and keep
+both rows (row 16 as #31 words it, and row 17).
 
 ## What could not be done, and why
 
