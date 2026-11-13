@@ -275,3 +275,19 @@ def test_working_days_are_monday_to_friday():
             end = start + timedelta(days=length)
             by_hand = sum(1 for n in range(1, length + 1) if (start + timedelta(days=n)).weekday() < 5)
             assert working_days_between(start, end) == by_hand, (start, end)
+
+
+def test_the_owner_is_shown_everything_hidden_now_so_nothing_stays_hidden_by_oversight(site):
+    """Hiding is for while a concern is decided. What is hidden now is listed, longest hidden first, and counted in
+    what is waiting for the owner, so the update report and the nightly check both remind them."""
+    assert site.replies.all_hidden() == []
+    assert site.replies.waiting().hidden == 0
+    site.replies.hide("/b/first", "Hidden while we look into a concern about it.")
+    site.clock.advance(days=1)
+    site.replies.hide("/b/second", "Hidden while the trustees take advice.")
+    assert [h["item"] for h in site.replies.all_hidden()] == ["/b/first", "/b/second"]
+    assert set(site.replies.all_hidden()[0]) == {"item", "note", "at"}
+    assert site.replies.waiting().hidden == 2
+    site.replies.unhide("/b/first")
+    assert [h["item"] for h in site.replies.all_hidden()] == ["/b/second"]
+    assert site.replies.waiting().hidden == 1

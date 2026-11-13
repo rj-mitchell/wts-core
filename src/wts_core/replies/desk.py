@@ -66,11 +66,13 @@ _GONE = "[address deleted]"
 @dataclass(frozen=True)
 class Waiting:
     """What is waiting for the owner: open reports, statements not yet decided, and how long the oldest of them
-    has waited, in working days (None when nothing is waiting). The sites promise a reply within five."""
+    has waited, in working days (None when nothing is waiting). The sites promise a reply within five. ``hidden``
+    is how many items are hidden now: hiding is for while a concern is decided, so each one is waiting too."""
 
     reports: int
     statements: int
     oldest_working_days: int | None
+    hidden: int = 0
 
 
 class Replies:
@@ -414,6 +416,13 @@ class Replies:
                               ((item or "").strip(),)).fetchone()
         return dict(row) if row else None
 
+    def all_hidden(self) -> list[dict[str, Any]]:
+        """Every item hidden now, longest hidden first (``item``, ``note``, ``at``): for the owner, so that an item
+        hidden while a concern was decided is not left hidden by oversight."""
+        with self.db.connect() as con:
+            return [dict(r) for r in con.execute("SELECT item, note, at FROM wts_hidden WHERE shown_at IS NULL "
+                                                 "ORDER BY at, id")]
+
     # ---- for the owner, the update report and the nightly check --------------------------------------------------
 
     def waiting(self) -> Waiting:
@@ -422,9 +431,10 @@ class Replies:
                                                 "WHERE closed_at IS NULL").fetchone()
             statements, first_statement = con.execute("SELECT count(*), min(at) FROM wts_statements "
                                                       "WHERE status = 'pending'").fetchone()
+            hidden = con.execute("SELECT count(*) FROM wts_hidden WHERE shown_at IS NULL").fetchone()[0]
         oldest = min((at for at in (first_report, first_statement) if at), default=None)
         days = working_days_between(date.fromisoformat(oldest[:10]), self.clock.now().date()) if oldest else None
-        return Waiting(reports=reports, statements=statements, oldest_working_days=days)
+        return Waiting(reports=reports, statements=statements, oldest_working_days=days, hidden=hidden)
 
     # ---- private ------------------------------------------------------------------------------------------------
 
