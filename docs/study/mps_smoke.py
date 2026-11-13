@@ -1,11 +1,6 @@
 """Real briefings on Where MPs Stand's bundled sample data: one JSON line per question (timings, usage, checks)."""
-import json
-import sys
-import time
-
-import anthropic
-import duckdb
-import fastapi
+import json, sys, time
+import anthropic, duckdb, fastapi
 from hansard.config import load_settings
 from hansard.rag.pipeline import AskRequest, Pipeline
 
