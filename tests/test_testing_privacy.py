@@ -91,7 +91,7 @@ class SmallSite:
         self.asked += 1
         archive = usage.BriefingArchive(self.state, new_id=lambda: f"abc{self.asked:03d}", clock=self.clock)
         archive.save(question, {}, kept)
-        usage.SqliteAnswerCache(self.state, clock=self.clock).put(usage.cache_key({"q": question}), events, 24)
+        usage.SqliteAnswerCache(self.state, clock=self.clock).put(usage.cache_key({"q": question}, length=64), events, 24)
         usage.Spending(self.state, Free(), clock=self.clock).add("answer", "a-model", Usage(), visitor=visitor)
         observe.SqliteBriefingLog(self.state, clock=self.clock).write(BriefingRecord(
             id=f"r{self.asked}", at=self.clock.now().isoformat(timespec="seconds"), outcome="completed",
