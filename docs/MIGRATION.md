@@ -67,9 +67,10 @@ declares one import, run once:
 - **Parity:** a database built by the site's current code with rows of every kind; after the import: every row
   present; today's and the month's spending, each visitor's count today, every cached answer and saved briefing
   read the same through the package as through the old code; the old tables byte-identical.
-- **For the owner to check on the server first** (the study could not see it): on Where Councils Stand,
-  `PRAGMA table_info(usage)` should show ten columns ending in `cost_usd`. Its code inserts by position, so a table
-  made before `cache_write_tokens` was added would be failing every insert today.
+- **Checked, and not a worry:** Where Councils Stand inserts into `usage` by position, so a table made before
+  `cache_write_tokens` was added would have failed every insert. The repository's history shows the column was
+  there in the file's first commit (25 October 2026), before the site was first deployed, and phase 1 replaces the
+  positional insert with named columns.
 
 ### 1.3 Limits, cost and caps (`wts_core.usage`)
 
@@ -261,7 +262,7 @@ listed").
 | Site | Installs | Files deleted (roughly) | What the owner will notice | Before it starts |
 |---|---|---|---|---|
 | Where Landlords Stand | `wts-core[cli,offsite]` | `offsite.py`, the backup in `cli.py`, the limiter and state helpers in `api.py`, most of `statements.py`, the loader in `config.py` | new commands (`restore`, `backup-check`, `statements publish`…); the nightly check replaces the weekly alert on what is waiting | nothing |
-| Where Councils Stand | `wts-core[cli,offsite,duckdb,ai]` | `rag/verify.py`, `neutral.py` (but its word list), `british.py`, `answer.py`, `embed/base.py`, the base of `index/lance.py`, `api/usage.py`, `api/state.py`, `api/statements.py`, `backup.py`, `offsite.py`, the flow and `sse` in `api/app.py`, the loader in `config.py` | a public corrections log; `restore`; renamed statements commands; the weekly report | the owner's check of its `usage` table (1.2); agreement to the privacy sentence |
+| Where Councils Stand | `wts-core[cli,offsite,duckdb,ai]` | `rag/verify.py`, `neutral.py` (but its word list), `british.py`, `answer.py`, `embed/base.py`, the base of `index/lance.py`, `api/usage.py`, `api/state.py`, `api/statements.py`, `backup.py`, `offsite.py`, the flow and `sse` in `api/app.py`, the loader in `config.py` | a public corrections log; `restore`; renamed statements commands; the weekly report | agreement to the privacy sentence |
 | Where Countries Stand | the same | the same list, plus `store/shared.py`, `rag/typography.py` | renamed statements commands; the weekly report | agreement to the privacy sentence |
 | Where MPs Stand | the same | the same list, plus `api/reports.py`, most of `api/briefings.py`, the shared tables in `store/state.py` | `backup-check` and its timer; the weekly report on the admin page | its library upgrade merged and deployed for a week; the front door's handling of `X-Forwarded-For` read (1.3) |
 

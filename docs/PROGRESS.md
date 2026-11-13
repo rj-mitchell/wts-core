@@ -38,9 +38,10 @@ Last updated: 13 November 2026, 04:30 UTC (session 1).
   site's evaluation of briefings needs its own archive and index, which are on the server
   (`NOTES/what-the-build-session-cannot-do.md`). This blocks: the before-and-after evaluation for Where MPs Stand's
   library upgrade, and recording model streams as fixtures for the package.
-- **Nothing on the server was looked at.** Three questions for the owner come from that: Where Councils Stand's
-  `usage` table (MIGRATION 1.2), the front door's handling of `X-Forwarded-For` (MIGRATION 1.3), and whether Where
-  MPs Stand's `restore` works across file systems in its container (fixed in phase 1 either way).
+- **Nothing on the server was looked at.** Two questions for the owner come from that: the front door's handling of
+  `X-Forwarded-For` (MIGRATION 1.3), and whether Where MPs Stand's `restore` works across file systems in its
+  container (fixed in phase 1 either way). A third, about Where Councils Stand's `usage` table, was settled from the
+  repository's history: the column was always there.
 
 ## Open, for the owner
 
