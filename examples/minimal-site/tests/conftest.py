@@ -10,12 +10,13 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from parks.app import Parks, build, create_app, start_logging
-from parks.pipeline import scripted_model
-from parks.site import ParksSettings, load
 from wts_core.observe import LOGGER
 from wts_core.testing import FixedClock, FixedRandom
 from wts_core.testing.models import ScriptedModel
+
+from parks.app import Parks, build, create_app, start_logging
+from parks.pipeline import scripted_model
+from parks.site import ParksSettings, load
 
 DOGS = "What have park committees decided about dogs?"
 HOURS = "When do the parks open and close?"
