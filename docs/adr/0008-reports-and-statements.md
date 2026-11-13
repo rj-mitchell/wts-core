@@ -43,7 +43,8 @@ Three things are missing from all four:
 
 **`wts_core.replies` owns:**
 
-- the tables (`wts_reports`, `wts_statements`, `wts_statement_log`, `wts_hidden`, `wts_corrections`);
+- the tables (`wts_reports`, `wts_statements`, `wts_statement_log`, `wts_hidden`, `wts_reply_counts`; the
+  corrections log is worked out from closed reports and removed statements, so it has no table of its own);
 - **a statement's life:** received → published, or declined (never shown); published → withdrawn (its author
   asked) or **removed** (the site took it down for breaking the rules); updated while waiting or shown. Five
   statuses, so the log always says what happened. A reason is required to decline or remove, and is recorded
