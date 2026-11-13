@@ -461,6 +461,15 @@ def test_a_failure_while_writing_becomes_the_sites_error_event(told, caplog):
     assert "the stream broke" not in repr(r)  # the class of the error, never its message
 
 
+def test_a_pipeline_that_cannot_even_start_is_an_error_event_too(told):
+    def write() -> Iterator[dict[str, Any]]:
+        raise ConnectionError("the index could not be opened")
+
+    assert told.run(write=write) == [{"type": "error", "message": told.messages.briefing_failed}]
+    assert (told.record.outcome, told.record.error_type) == ("error", "ConnectionError")
+    assert told.in_progress.running == {}
+
+
 def test_a_site_that_keeps_no_notes_of_failures(site, tmp_path):  # noqa: F811
     told = Told(site, tmp_path, failures=None)
     assert told.run(write=told.written(fail=RuntimeError("x"), plan={"parse_error": "bad key"}))[-1]["type"] == "error"

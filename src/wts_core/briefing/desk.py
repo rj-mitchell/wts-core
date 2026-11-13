@@ -392,8 +392,9 @@ class BriefingDesk:
         kept: list[Event] = []  # every event but the text and the citations
         text: list[str] = []
         last: Event = {}  # the last event that was not text
-        pipeline = marking(run.stages, ask.write())
+        pipeline: Iterator[Event] | None = None
         try:
+            pipeline = marking(run.stages, ask.write())
             for raw in pipeline:
                 event = dict(raw)
                 kind = event["type"]
@@ -440,7 +441,8 @@ class BriefingDesk:
             yield {"type": "error", "message": self._messages.briefing_failed}
             return
         finally:
-            _close(pipeline)
+            if pipeline is not None:
+                _close(pipeline)
         if run.outcome is None:
             run.failed(NO_FINAL)
         if key is not None and last.get("type") == "final" and last.get("answer"):

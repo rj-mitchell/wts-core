@@ -32,6 +32,8 @@ Q = "What has been said about climate finance since 2020?"
 Q2 = "And what did the small island states say?"
 EARLIER = [{"question": Q, "answer": "Kenya said that climate finance was too slow."}]
 
+TABLES = ("spending", "cache", "briefings", "failures")
+
 type Sent = list[tuple[int, bytes]]
 type Scenario = Callable[[Side], Sent]
 
@@ -50,7 +52,8 @@ def both(site: SiteFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # n
     Returns the two sides, for anything more a test wants to say about them."""
     site_code(site)
 
-    def play(scenario: Scenario, *, has_model: bool = True, **usage: Any) -> tuple[SiteSide, DeskSide, Sent]:
+    def play(scenario: Scenario, *, has_model: bool = True, tables: tuple[str, ...] = TABLES,
+             **usage: Any) -> tuple[SiteSide, DeskSide, Sent]:
         clock = FixedClock(START)
         theirs = SiteSide(site, tmp_path, clock, monkeypatch, has_model=has_model, **usage)
         sent_by_site = scenario(theirs)
@@ -63,7 +66,7 @@ def both(site: SiteFacts, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):  # n
             assert events_of(our_body) == events_of(body)  # the readable comparison first
             assert our_body == body  # then every byte
         written, ours_written = theirs.rows(), ours.rows()
-        for table in ("spending", "cache", "briefings", "failures"):
+        for table in tables:
             assert ours_written[table] == written[table], table
         assert theirs.pipeline.calls == ours.pipeline.calls
         code = visitor_code(ours.db, "testclient", clock=clock)
@@ -103,6 +106,21 @@ def test_a_fresh_question_and_the_same_again_from_the_cache(both, site):  # noqa
     assert theirs.pipeline.calls == ["written"]  # the model was asked once
     assert len(ours.rows()["briefings"]) == 1 and len(ours.rows()["cache"]) == 1
     assert outcomes(ours) == ["completed", "cached"]
+    # A cached answer's marks are judged again by today's rules on two sites, through their hook: the word marked
+    # as judgemental is on no list now. Where MPs Stand's flow replays what it stored (it rechecks saved briefings).
+    assert first["answer"]["loaded_words"] == 1
+    assert again["answer"]["loaded_words"] == (1 if site is MPS else 0)
+    assert ("\u201ctoo slow\u201d" in again["answer"]["markdown"]) is (site is COUNTRIES)  # and its quotes curled
+
+
+def test_with_no_hours_to_keep_an_answer_every_question_is_written_afresh(both, site):  # noqa: F811
+    """The bytes are the same on every site. Where Councils Stand's own flow still stored a row that could never
+    be read; the desk stores none, as the other two sites' flows do not."""
+    theirs, ours, sent = both(lambda side: [side.ask(Q), side.ask(Q)], answer_cache_hours=0,
+                              tables=tuple(t for t in TABLES if t != "cache"))
+    assert theirs.pipeline.calls == ["written", "written"] and outcomes(ours) == ["completed", "completed"]
+    assert ours.rows()["cache"] == [] and len(theirs.rows()["cache"]) == (1 if site is COUNCILS else 0)
+    assert "briefing_key" not in final_of(sent[0][1])  # Where MPs Stand adds one only for an answer that is cached
 
 
 def test_a_follow_up_is_cached_on_two_sites_and_written_again_on_the_third(both, site):  # noqa: F811
