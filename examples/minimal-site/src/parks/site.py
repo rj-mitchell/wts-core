@@ -222,6 +222,9 @@ BACKUPS = BackupSpec(
     # Nothing else that holds old data may be kept longer (`parks tidy` is told this figure too).
     keep_offsite=60,
     required_tables=("wts_schema", "wts_spending", "wts_briefings", "wts_reports", "wts_statements"),
+    # This site has no table of its own, so a sister site's backup has all the tables above. Its state database is
+    # marked as this site's when it is opened (open_state below), and a restore refuses one marked as another's.
+    site=SITE.package,
 )
 
 BACKUP_ALERTS = AlertWording(
@@ -258,8 +261,9 @@ IMPORTS = (
 
 
 def open_state(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> StateDB:
-    """The site's state database, with the package's tables made (and any import run) on the way in."""
-    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock)
+    """The site's state database, with the package's tables made (and any import run) on the way in. It is marked
+    as this site's the first time it is opened, and a file marked as another site's is refused."""
+    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock, site=SITE.package)
 
 
 def new_briefing_id(chance: Random) -> str:

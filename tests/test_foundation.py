@@ -105,6 +105,34 @@ def test_the_state_database_keeps_keys_and_runs_each_migration_once(tmp_path):
         StateDB(db.path, migrations=[extra, Migration(10, "clash", ())])
 
 
+def test_a_state_database_is_marked_as_its_sites_and_another_sites_is_refused_untouched(tmp_path):
+    path = tmp_path / "state.db"
+    db = StateDB(path, site="councils")
+    assert db.get("site") == "councils"
+    assert StateDB(path, site="councils").get("site") == "councils"  # opened again by the same site: as it was
+    before = path.read_bytes()
+    more = (Migration(10, "more", ("CREATE TABLE wts_more (x)",)),)
+    with pytest.raises(RuntimeError) as refused:
+        StateDB(path, migrations=more, site="wcs")
+    said = str(refused.value)
+    assert said.startswith(f"{path} is the state database of another site: it is marked 'councils', and this site "
+                           "is 'wcs'.")
+    assert path.read_bytes() == before and "wts_more" not in db.tables()  # nothing in it was made or changed
+    assert db.get("site") == "councils"  # and the mark is never written over
+
+
+def test_a_database_from_before_the_mark_is_marked_the_first_time_its_site_opens_it(tmp_path):
+    path = tmp_path / "state.db"
+    unmarked = StateDB(path)  # as every state database was before, and as one is with no site given
+    unmarked.set("visitor_salt:2026-11-13", "5a" * 16)
+    assert unmarked.get("site") is None
+    assert StateDB(path).get("site") is None  # no site given: none written
+    assert StateDB(path, site="hansard").get("site") == "hansard"
+    assert StateDB(path).get("visitor_salt:2026-11-13") == "5a" * 16
+    with pytest.raises(RuntimeError, match="marked 'hansard', and this site is 'councils'"):
+        StateDB(path, site="councils")
+
+
 def test_a_failed_operation_changes_nothing(tmp_path):
     db = StateDB(tmp_path / "state.db")
     with pytest.raises(sqlite3.OperationalError), db.connect() as con:

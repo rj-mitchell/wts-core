@@ -446,6 +446,91 @@ def test_restore_refuses_a_damaged_or_foreign_file_and_changes_nothing(site, tmp
         assert (db.parent / name).read_text() == "# live\n"
 
 
+# ---- a sister site's backup ---------------------------------------------------------------------------------------
+
+
+def marked_database(path: Path, spec, package: str | None, value: str) -> Path:
+    """A state database as a site on the package has it: the spec's tables, and in ``wts_kv`` the mark of whose it
+    is (none: a database from before the mark, or of a site that gives none)."""
+    db = state_database(path, spec, value)
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE IF NOT EXISTS wts_kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    if package is not None:
+        con.execute("INSERT OR REPLACE INTO wts_kv VALUES ('site', ?)", (package,))
+    con.commit()
+    con.close()
+    return db
+
+
+@each_site
+def test_restore_refuses_a_sister_sites_backup_that_has_the_same_tables(site, tmp_path):
+    """Two sites built on the package can have exactly the same tables, so the tables cannot tell them apart."""
+    ours = dataclasses.replace(site.spec, site="councils")
+    db = marked_database(tmp_path / "data" / site.state_file, ours, "councils", "live")
+    theirs = marked_database(tmp_path / "sister" / site.state_file, ours, "wcs", "the sister site's")
+    sisters = make_backup(theirs, tmp_path / "b", ours, clock=at(DAYS[0]))
+    folder = names(db.parent)
+    for archive in (sisters, theirs):  # its archive, and its database uncompressed
+        with pytest.raises(RestoreRefused) as refused:
+            restore_backup(archive, db, ours)
+        assert refused.value.why == "other-site"
+        assert str(refused.value) == (f"{archive.name} is a backup of another site's state database: it is marked "
+                                      "'wcs', and this site is 'councils'")
+        assert names(db.parent) == folder and marker(db) == "live"  # nothing was changed
+    # the site's own is put back as ever
+    own = make_backup(db, tmp_path / "own", ours, clock=at(DAYS[1]))
+    write(db, "changed since").close()
+    assert restore_backup(own, db, ours) is not None and marker(db) == "live"
+
+
+@each_site
+def test_a_backup_with_no_mark_is_accepted_as_before(site, tmp_path):
+    """Every backup made before the mark existed has none: it is judged by its tables, as it always was."""
+    ours = dataclasses.replace(site.spec, site="councils")
+    db = marked_database(tmp_path / "data" / site.state_file, ours, "councils", "live")
+    with_table = marked_database(tmp_path / "older" / site.state_file, ours, None, "from before the mark")
+    old = make_backup(with_table, tmp_path / "b", ours, clock=at(DAYS[0]))
+    assert restore_backup(old, db, ours) is not None and marker(db) == "from before the mark"
+    (db.parent / f"{db.name}.before-restore").unlink()
+    for beside in db.parent.glob(f"{db.name}.before-restore-*"):
+        beside.unlink()
+    # and one with no wts_kv table at all: a site's backup from before it took the package
+    oldest = make_backup(state_database(tmp_path / "oldest" / site.state_file, ours, "from before the package"),
+                         tmp_path / "c", ours, clock=at(DAYS[0]))
+    assert restore_backup(oldest, db, ours) is not None and marker(db) == "from before the package"
+
+
+@each_site
+def test_a_spec_that_names_no_site_takes_any_backup_with_the_sites_tables(site, tmp_path):
+    """Today's rule, and each site's own restore's: none of the four sites' specs names a site until it adopts
+    the mark, so nothing changes for them."""
+    assert site.spec.site is None
+    db = marked_database(tmp_path / "data" / site.state_file, site.spec, "councils", "live")
+    theirs = marked_database(tmp_path / "sister" / site.state_file, site.spec, "wcs", "the sister site's")
+    sisters = make_backup(theirs, tmp_path / "b", site.spec, clock=at(DAYS[0]))
+    assert restore_backup(sisters, db, site.spec) is not None and marker(db) == "the sister site's"
+
+
+def test_a_database_opened_by_its_site_makes_backups_only_that_site_restores(tmp_path):
+    """End to end with the real state database: the mark ``StateDB`` writes is the one a restore reads."""
+    from wts_core.ops import BackupSpec
+    from wts_core.state import StateDB
+
+    def spec(package: str) -> BackupSpec:
+        return BackupSpec(prefix="state-", keep=3, required_tables=("wts_schema", "wts_kv"), site=package)
+
+    parks = StateDB(tmp_path / "parks" / "state.db", site="parks")
+    rivers = StateDB(tmp_path / "rivers" / "state.db", site="rivers")
+    parks.set("marker", "the parks site's")
+    archive = make_backup(parks.path, tmp_path / "b", spec("parks"), clock=at(DAYS[0]))
+    with pytest.raises(RestoreRefused, match="marked 'parks', and this site is 'rivers'") as refused:
+        restore_backup(archive, rivers.path, spec("rivers"))
+    assert refused.value.why == "other-site" and rivers.get("marker") is None
+    parks.set("marker", "changed since")
+    restore_backup(archive, parks.path, spec("parks"))
+    assert parks.get("marker") == "the parks site's" and parks.get("site") == "parks"
+
+
 @each_site
 def test_the_database_a_restore_kept_can_itself_be_put_back(site, tmp_path):
     """An uncompressed database file is accepted, so ``<name>.before-restore`` is a backup like any other once it has

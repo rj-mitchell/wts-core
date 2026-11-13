@@ -624,9 +624,12 @@ IMPORTS = (
 
 
 def open_state(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> StateDB:
-    """The site's state database, with the package's tables made (and any import run) on the way in."""
-    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock)
+    """The site's state database, with the package's tables made (and any import run) on the way in. It is marked
+    as this site's the first time it is opened, and a file marked as another site's is refused."""
+    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock, site=SITE.package)
 ```
+
+`site=` marks the file as this site's (section 10 says what the mark is for).
 
 An import must give every `NOT NULL` column a value. The copy made before an import holds everything the site
 deletes on a schedule, as it was that day, so it must not outlive the site's backups. The package's `tidy`
@@ -874,6 +877,9 @@ BACKUPS = BackupSpec(
     # Nothing else that holds old data may be kept longer (`parks tidy` is told this figure too).
     keep_offsite=60,
     required_tables=("wts_schema", "wts_spending", "wts_briefings", "wts_reports", "wts_statements"),
+    # This site has no table of its own, so a sister site's backup has all the tables above. Its state database is
+    # marked as this site's when it is opened (open_state below), and a restore refuses one marked as another's.
+    site=SITE.package,
 )
 ```
 
@@ -912,9 +918,16 @@ From `examples/minimal-site/src/parks/cli.py`:
     max_cost_usd=lambda: float(load().section("eval")["max_cost_usd"]),  # no run starts without a limit
 ```
 
-A restore accepts any file that has the tables `required_tables` names. A site with a table of its own should
-name it there, so that a sister site's backup is refused. The example has no table of its own, so its list holds
-the package's tables only.
+**A restore refuses a sister site's backup.** A restore takes a file that has the tables `required_tables`
+names. Two sites built on the package can have exactly the same tables, so the state database also carries a mark
+of whose it is. `StateDB(..., site=SITE.package)` writes the site's package name into `wts_kv` (key `site`) the
+first time the site opens the file, never writes over another's, and refuses to open a file marked as another
+site's. With `site=` in its `BackupSpec`, a site's restore refuses a backup marked as another's
+(`RestoreRefused.why` is `"other-site"`).
+
+The example's `open_state` (section 6) does this. A backup with no mark is accepted as before, on its tables:
+every backup made before the site started marking its database has none, and must still be restorable. A site
+with a table of its own should still name it in `required_tables`.
 
 **The check route** answers the nightly family check ([ADR 0010](adr/0010-ci-and-nightly-check.md)). `check_route`
 returns a plain function; the site's own route calls it.

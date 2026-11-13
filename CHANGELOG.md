@@ -10,7 +10,7 @@ The line `api: <hash>` under a version is the fingerprint of the public interfac
 The rough edges the example site found, removed before the three AI sites adopt the package. No site uses the
 briefing desk yet, so its interface could still change; the bytes a reader receives through it have not.
 
-api: 76812dd2d34b
+api: fc1ffae5e58a
 
 ### Changed
 
@@ -44,6 +44,11 @@ api: 76812dd2d34b
   of reply's step (`forget_old_emails`, `lapse_undecided`, `forget_old_counts`), so a site with no check token
   set still keeps the privacy notice's three months on a night nobody writes in. `replies_commands` adds the same
   as a command of its own, `tidy-replies` (`RepliesCommands.tidy`), for a site with no record of briefings.
+- **A restore refuses a sister site's backup.** `StateDB(..., site=…)` marks a state database with its site's
+  package name (`wts_kv`, key `site`), never writes over another site's mark and refuses to open a file that has
+  one. `ops.BackupSpec(site=…)` makes `restore_backup` refuse a backup marked as another site's
+  (`RestoreRefused.why == "other-site"`). Both are optional. A backup with no mark, as every backup made before
+  this has none, is accepted as before.
 - `eval_commands(max_cost_usd=…)` and `stats_commands(similarity=…)` each take a function as well as a number,
   called when the command runs, so the figure can come from the site's settings.
 - `ops.BackupSpec.keep_offsite` (60 by default): how many of a site's copies stay in the off-site store. The

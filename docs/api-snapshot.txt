@@ -834,6 +834,7 @@ class BackupSpec
     keep_offsite: int = ...
     required_tables: tuple[str, ...]
     wal: bool = ...
+    site: str | None = ...
     def archives(self, folder: 'Path') -> 'list[Path]'
     property suffix
 class RestoreRefused(RuntimeError)
@@ -1232,7 +1233,7 @@ class Migration
     name: str
     statements: tuple[str, ...]
 class StateDB
-    def __init__(self, path: 'Path', *, migrations: 'Sequence[Migration]' = (), imports: 'Sequence[Import]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def __init__(self, path: 'Path', *, migrations: 'Sequence[Migration]' = (), imports: 'Sequence[Import]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>, site: 'str | None' = None) -> 'None'
     def connect(self) -> 'Iterator[sqlite3.Connection]'
     def delete(self, key: 'str') -> 'None'
     def delete_like(self, pattern: 'str', *, keep: 'str | None' = None) -> 'None'
