@@ -259,6 +259,8 @@ class LanceIndex:
     def _open(self, wanted: IndexMeta | None) -> IndexMeta:
         stored = stored_meta(self.path)
         facts = self._table_facts()
+        if stored is not None and not {self.passages_name, self.vectors_name} & self.names():
+            stored = None  # a folder with a note and no tables: nothing was built, so nothing binds
         if wanted is None:  # as it stands
             if stored is not None:
                 return replace(stored, number_type=facts[1]) if facts else stored
