@@ -42,3 +42,24 @@ def test_every_quotation_is_in_the_file_it_names(guide: str, source: str, quoted
     starts = [i for i, line in enumerate(lines) if line == wanted[0]]
     assert any(lines[i:i + len(wanted)] == wanted for i in starts), (
         f"{guide} quotes these lines from {source}, and they are no longer there as quoted:\n\n{quoted}")
+
+
+def slug(heading: str) -> str:
+    """A heading's anchor as GitHub makes it: lower case, punctuation dropped, spaces to hyphens."""
+    return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+
+
+def test_every_link_into_a_guide_points_at_a_heading_that_is_there():
+    for guide in GUIDES:
+        text = (ROOT / guide).read_text(encoding="utf-8")
+        for target, anchor in re.findall(r"\]\(((?:docs/)?[A-Z-]+\.md)#([^)]+)\)", text):
+            linked = (ROOT / guide).parent / target
+            anchors = {slug(h) for h in re.findall(r"^#+ (.+)$", linked.read_text(encoding="utf-8"), re.M)}
+            assert anchor in anchors, f"{guide} links to {target}#{anchor}, and there is no such heading"
+
+
+def test_every_file_a_guide_links_to_is_there():
+    for guide in GUIDES:
+        text = (ROOT / guide).read_text(encoding="utf-8")
+        for target in re.findall(r"\]\((?!https?:)([^)#]+)(?:#[^)]*)?\)", text):
+            assert ((ROOT / guide).parent / target).exists(), f"{guide} links to {target}, which is not there"
