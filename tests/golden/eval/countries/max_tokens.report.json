@@ -1,0 +1,45 @@
+{
+ "segments": [
+  {
+   "text": "**Collections**\n\n- In Northbridge: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "The Cabinet agreed that weekly collections of food waste would begin in April 2026.",
+   "sources": [
+    1
+   ],
+   "cited": [
+    {
+     "source": 1,
+     "cited_text": "The Cabinet agreed that weekly collections of food waste would begin in April 2026."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "\n- In Eastmere, the full Council resolved to keep fortn",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  }
+ ],
+ "markdown": "**Collections**\n\n- In Northbridge: The Cabinet agreed that weekly collections of food waste would begin in April 2026. [Source 1]\n- In Eastmere, the full Council resolved to keep fortn",
+ "no_records": false,
+ "citations_total": 1,
+ "citations_invalid": 0,
+ "grounded_ratio": 1.0,
+ "unsupported_segments": 0,
+ "loaded_words": 0,
+ "quotes_total": 0,
+ "quotes_unverified": 0,
+ "rules": 1
+}

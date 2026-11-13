@@ -411,6 +411,7 @@ class BriefingRecord:
     input_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    cache_write_long_tokens: int = 0  # of the cache writes, those to the one-hour cache
     output_tokens: int = 0
     cost_usd: float = 0.0
     stop_reason: str | None = None
@@ -448,6 +449,11 @@ class BriefingLog(Protocol):
              followed_up: bool = False) -> None:
         """Note what a reader did after a briefing, on that briefing's record. A later question is never linked to
         an earlier one: ``followed_up`` is a yes or no on the earlier briefing."""
+        ...
+
+    def since(self, start: datetime, end: datetime | None = None,
+              kinds: Sequence[str] = ("reader",)) -> Sequence[BriefingRecord]:
+        """The records from ``start`` up to but not including ``end``, oldest first, of the kinds named."""
         ...
 
 
