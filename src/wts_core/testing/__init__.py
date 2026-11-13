@@ -65,7 +65,13 @@ class FixedClock:
 
 class FixedRandom:
     """Chance that is decided beforehand (``ports.Random``): tokens are handed out in order, then numbered; choices
-    are the indexes given, in order, then always the first item."""
+    are the indexes given, in order, then always the first item.
+
+    A numbered token has the shape of a real one for the bytes asked: as many characters as
+    ``secrets.token_urlsafe`` gives (11 for 8 bytes), all of them URL-safe. So an id made in a test passes
+    wherever a real one would: the structured log, for one, writes a briefing's id only if it is eleven
+    characters. The sequence is still fixed: ``token000001``, ``token000002``, and so on, whatever is asked for
+    in between."""
 
     def __init__(self, tokens: Sequence[str] = (), choices: Sequence[int] = ()) -> None:
         self._tokens = list(tokens)
@@ -76,7 +82,9 @@ class FixedRandom:
         if self._tokens:
             return self._tokens.pop(0)
         self._made += 1
-        return f"token{self._made:04d}"
+        length = -(-nbytes * 4 // 3)  # what ``secrets.token_urlsafe(nbytes)`` gives: base64 with no padding
+        word = "token" if length > len("token") else ""  # too short for the word: the number alone
+        return word + str(self._made).zfill(length - len(word))
 
     def token_hex(self, nbytes: int) -> str:
         if self._tokens:

@@ -24,6 +24,7 @@ __all__ = [
     "CitationEvent",
     "Completed",
     "ErrorEvent",
+    "Event",
     "FinalEvent",
     "ModelEvent",
     "PlanEvent",
@@ -144,11 +145,19 @@ class ErrorEvent(TypedDict):
     message: str
 
 
+# The shapes of the events every site sends: for reading, and for a function that makes one kind of event.
 type ReaderEvent = PlanEvent | SourcesEvent | TextEvent | CitationEvent | FinalEvent | ErrorEvent
 
+# One event of a briefing as it is passed about: what a site's pipeline makes, the briefing desk passes on, the
+# answer cache and a saved briefing hold, and a reader receives. A plain dictionary, and honestly so: a site may
+# send events of its own that ``ReaderEvent`` does not describe (Where MPs Stand's ``progress`` and
+# ``interests``), and every key the package does not know passes through untouched. Everything that takes or
+# gives events takes or gives this one type, so a site needs no cast between them.
+type Event = dict[str, Any]
 
-def to_reader(event: TextDelta | CitationDelta) -> TextEvent | CitationEvent:
-    """A model event in the shape the sites send to a reader today."""
+
+def to_reader(event: TextDelta | CitationDelta) -> Event:
+    """A model event in the shape the sites send to a reader today (``TextEvent`` or ``CitationEvent``)."""
     if isinstance(event, TextDelta):
         return {"type": "text", "text": event.text}
     return {"type": "citation", "search_result_index": event.document, "cited_text": event.quoted}

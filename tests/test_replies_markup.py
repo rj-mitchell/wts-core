@@ -143,6 +143,14 @@ def test_the_heading_gives_the_date_of_the_words_shown(site):
     assert site.case.statement["email"] not in html
 
 
+def test_the_date_format_has_a_home_a_pipeline_may_import_and_is_the_same_function_here():
+    import wts_core.dates
+    from wts_core import replies
+
+    assert replies.long_date is wts_core.dates.long_date and "long_date" in replies.__all__
+    assert wts_core.dates.long_date("2026-11-02") == "2 November 2026"
+
+
 def test_dates_are_written_as_the_sites_write_them():
     assert long_date("2026-11-02") == "2 November 2026" and long_date("2026-11-12T10:00:00+00:00") == "12 November 2026"
     assert long_date(date(2028, 2, 29)) == "29 February 2028" and long_date(None) == "" and long_date("") == ""

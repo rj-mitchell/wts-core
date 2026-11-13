@@ -61,6 +61,16 @@ def test_an_event_is_one_json_object_with_the_named_fields_in_order(log, path):
                                                  "error_type")
 
 
+def test_an_id_made_by_the_fixed_chance_of_the_tests_is_written_as_a_real_one_is(log, path):
+    """A site's tests build their desk on ``testing.FixedRandom``: its ids have the real shape, so the lines a
+    test reads name their briefing as a live site's do."""
+    from wts_core.testing import FixedRandom
+
+    made = FixedRandom().token(8)  # what the desk asks for a record's id
+    log_event("briefing.completed", briefing=made, ms=3700)
+    assert made == "token000001" and lines(path)[0]["briefing"] == made
+
+
 def test_an_error_is_noted_by_its_type_and_level(log, path):
     log_event("briefing.error", briefing="4f2a9c01xYz", stage="written", ms=9400, error_type="APITimeoutError",
               level=logging.ERROR)

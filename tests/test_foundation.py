@@ -133,6 +133,42 @@ def test_a_database_from_before_the_mark_is_marked_the_first_time_its_site_opens
         StateDB(path, site="councils")
 
 
+def test_fixed_chance_gives_ids_of_the_real_shape_in_a_fixed_order():
+    import re
+    import secrets
+
+    from wts_core.testing import FixedRandom
+
+    chance = FixedRandom()
+    assert [chance.token(8), chance.token(8), chance.token(8)] == ["token000001", "token000002", "token000003"]
+    for nbytes in (1, 2, 3, 4, 6, 8, 9, 16, 32):  # as long as a real one for the bytes asked, and URL-safe
+        made = FixedRandom().token(nbytes)
+        assert len(made) == len(secrets.token_urlsafe(nbytes)), nbytes
+        assert re.fullmatch(r"[A-Za-z0-9_-]+", made) and made.endswith("1")
+    mixed = FixedRandom()  # one sequence, whatever is asked for in between
+    assert [mixed.token(8), mixed.token(16), mixed.token(3), mixed.token_hex(4)] == [
+        "token000001", "token00000000000000002", "0003", "00000004"]
+    given = FixedRandom(tokens=["first"])  # tokens a test gives are handed out first, exactly as given
+    assert [given.token(8), given.token(8)] == ["first", "token000001"]
+
+
+def test_events_are_one_plain_type_wherever_they_are_passed():
+    """A site's pipeline makes them, the desk passes them on, the harness reads them: with one type for all of
+    it, a site needs no cast (its own mypy run is the proof: the example site's has none)."""
+    from collections.abc import Iterator
+    from typing import Any, get_type_hints
+
+    from wts_core import briefing, events
+    from wts_core.checks import curl_event
+    from wts_core.eval import EvalSite
+
+    assert briefing.Event is events.Event and events.Event.__value__ == dict[str, Any]
+    assert get_type_hints(events.to_reader)["return"] is events.Event
+    assert get_type_hints(EvalSite.ask)["return"] == Iterator[events.Event]
+    assert get_type_hints(curl_event)["return"] is events.Event
+    assert events.to_reader(events.TextDelta("word")) == {"type": "text", "text": "word"}
+
+
 def test_a_failed_operation_changes_nothing(tmp_path):
     db = StateDB(tmp_path / "state.db")
     with pytest.raises(sqlite3.OperationalError), db.connect() as con:

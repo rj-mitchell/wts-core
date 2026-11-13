@@ -64,7 +64,7 @@ def test_the_public_sees_the_public_fields_of_a_statement_and_nothing_else(clien
 
 @pytest.mark.parametrize("changed, said", [
     ({"item": "/parks/alder-park"}, "Please paste the address of a briefing: it looks like /b/ and then some letters."),
-    ({"item": "https://elsewhere.example/b/token0002"}, "That address is not on this site. Please paste the address "
+    ({"item": "https://elsewhere.example/b/token000002"}, "That address is not on this site. Please paste the address "
                                                         "of a briefing."),
     ({"item": "/b/nosuchbriefing"}, REPLY_MESSAGES.item_not_shown),
     ({"text": "word " * 151}, "A statement may be up to 150 words. Yours has 151."),

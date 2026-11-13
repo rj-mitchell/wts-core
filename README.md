@@ -97,7 +97,7 @@ def write(question):  # the site's pipeline: sources first, then the model's wor
                            documents=DOCUMENTS)
     for event in MODEL.stream(request):
         if not isinstance(event, Completed):
-            yield dict(to_reader(event))
+            yield to_reader(event)
             continue
         sources = [Source(d.number, d.title, d.passages) for d in DOCUMENTS]
         report = check_briefing(blocks_as_today(event), sources, VERIFIER, LOADED_WORDS)

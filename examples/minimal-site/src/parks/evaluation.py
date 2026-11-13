@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from wts_core.eval import Case, Recording, load_cases
-from wts_core.events import ReaderEvent
+from wts_core.events import Event
 from wts_core.ports import ModelClient
 
 from parks.pipeline import Pipeline, embedder_from_settings, model_from_settings, new_index, scripted_model
@@ -49,7 +49,7 @@ class ParksEval:
             return scripted_model(self.settings.recordings_dir / f"{case.id}.jsonl")
         return self._model
 
-    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[ReaderEvent]:
+    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[Event]:
         """Ask one question of the pipeline itself: never through the briefing desk, so never from the answer
         cache. ``config`` is the configuration this site was built from (``parks.pipeline.configuration``)."""
         pipeline = Pipeline(self.settings, model=self._model_for(case), embedder=self.embedder,
@@ -59,7 +59,7 @@ class ParksEval:
         def keep(documents: Any, blocks: Any) -> None:
             self._kept[case.id] = Recording(documents, blocks)
 
-        return cast(Iterator[ReaderEvent], pipeline.write(case.question, keep=keep))
+        return pipeline.write(case.question, keep=keep)
 
     def group_of(self, source: Mapping[str, Any]) -> str:
         """The group a source belongs to on this site: its park."""

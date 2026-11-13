@@ -728,7 +728,7 @@ checks found, the spread of sources, the time and the cost. The site gives it th
 From `examples/minimal-site/src/parks/evaluation.py`:
 
 ```python
-    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[ReaderEvent]:
+    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[Event]:
         """Ask one question of the pipeline itself: never through the briefing desk, so never from the answer
         cache. ``config`` is the configuration this site was built from (``parks.pipeline.configuration``)."""
         pipeline = Pipeline(self.settings, model=self._model_for(case), embedder=self.embedder,
@@ -738,7 +738,7 @@ From `examples/minimal-site/src/parks/evaluation.py`:
         def keep(documents: Any, blocks: Any) -> None:
             self._kept[case.id] = Recording(documents, blocks)
 
-        return cast(Iterator[ReaderEvent], pipeline.write(case.question, keep=keep))
+        return pipeline.write(case.question, keep=keep)
 
     def group_of(self, source: Mapping[str, Any]) -> str:
         """The group a source belongs to on this site: its park."""

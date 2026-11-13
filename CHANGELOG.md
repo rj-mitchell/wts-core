@@ -10,7 +10,7 @@ The line `api: <hash>` under a version is the fingerprint of the public interfac
 The rough edges the example site found, removed before the three AI sites adopt the package. No site uses the
 briefing desk yet, so its interface could still change; the bytes a reader receives through it have not.
 
-api: fc1ffae5e58a
+api: e0f94a7716a5
 
 ### Changed
 
@@ -31,6 +31,16 @@ api: fc1ffae5e58a
   scripted model are unchanged in what they do. *What a site must do:* nothing; a model adapter of a site's own
   must return something with `close()` (the contract test checks).
 
+- **Events are one plain type everywhere, `events.Event` (`dict[str, Any]`).** `events.to_reader` returned a
+  typed dictionary and the desk took plain ones, so a site's pipeline needed a cast. `to_reader`,
+  `EvalSite.ask`, `checks.curl_event` and `checks.curl_events` now give and take `Event`, and `briefing.Event` is
+  the same alias. `events.ReaderEvent` stays, as the description of the events every site sends.
+  *What a site must do:* nothing; a `dict(...)` or `cast(...)` around these can go.
+- **`testing.FixedRandom.token()` gives ids of the real shape:** as long as `secrets.token_urlsafe` gives for the
+  bytes asked (`token000001` for 8 bytes; it was `token0001`). The sequence is still fixed and numbered.
+  *What a site must do:* nothing unless one of its tests writes such an id out by hand.
+- **The owner's `tidy` and the statistics page count in the singular** ("1 record", "1 day"; they said "1
+  records", "1 days"). *What a site must do:* nothing.
 - **`cli.RepliesWording` has a new line, `tidied`,** for what the right of reply's nightly housekeeping did (the
   counts `lapsed`, `contacts`, `emails` and `counts`). Like every line of that group it has no default.
   *What a site must do:* give the line when it adopts the commands (no site has yet).
@@ -53,6 +63,8 @@ api: fc1ffae5e58a
   called when the command runs, so the figure can come from the site's settings.
 - `ops.BackupSpec.keep_offsite` (60 by default): how many of a site's copies stay in the off-site store. The
   backup command follows it.
+- `wts_core.dates.long_date`: the family's date format ("12 November 2026") in a module that imports nothing
+  else from the package, so a pipeline may use it. `replies.long_date` is the same function, still exported.
 - `adapters.has_model(settings, site, env=None)`: whether the provider named in the settings has what it is
   called with, so a site imports no provider's module to ask.
 - **`briefing.desk_parts(settings, db, messages, new_id=…, at_once_per_visitor=…, forget_over=…,

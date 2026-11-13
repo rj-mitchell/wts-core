@@ -202,24 +202,30 @@ def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Call
         def tidy() -> None:
             tidied = SqliteBriefingLog(state(), clock=clock).tidy(retention)
             reports = tidy_reports(folder(), retention, clock=clock)
-            typer.echo(f"Deleted {tidied.deleted:,} records of briefings older than {retention.months} months.")
-            typer.echo(f"Removed the question from {tidied.blanked:,} records of failed briefings older than "
-                       f"{retention.failed_question_days} days.")
-            typer.echo(f"Deleted {reports:,} weekly report files older than {retention.months} months.")
+            months = _counted(retention.months, "month")
+            typer.echo(f"Deleted {_counted(tidied.deleted, 'record')} of briefings older than {months}.")
+            typer.echo(f"Removed the question from {_counted(tidied.blanked, 'record')} of failed briefings older "
+                       f"than {_counted(retention.failed_question_days, 'day')}.")
+            typer.echo(f"Deleted {_counted(reports, 'weekly report file')} older than {months}.")
             db = state()
             if "wts_spending" in db.tables():
                 # the first model call of each day does this too; here it is done on a day with none
                 forgotten = forget_visitors(db, clock=clock)
-                typer.echo(f"Forgot the visitor codes on {forgotten:,} spending rows from before today.")
+                typer.echo(f"Forgot the visitor codes on {_counted(forgotten, 'spending row')} from before today.")
             if backup_days is not None:
                 gone = db.forget_old_copies(backup_days)
-                typer.echo(f"Deleted {len(gone):,} copies of the database made before an import, older than "
-                           f"{backup_days} days.")
+                typer.echo(f"Deleted {_counted(len(gone), 'copy', 'copies')} of the database made before an import, "
+                           f"older than {_counted(backup_days, 'day')}.")
             for step in also_tidy:  # the rest of the site's nightly housekeeping, in its own words
                 for line in step():
                     typer.echo(line)
 
     return app
+
+
+def _counted(n: int, one: str, several: str | None = None) -> str:
+    """A count with its noun, as it is said: "1 record", "2 records", "0 copies"."""
+    return f"{n:,} {one if n == 1 else several or one + 's'}"
 
 
 def _moment(text: str) -> datetime:

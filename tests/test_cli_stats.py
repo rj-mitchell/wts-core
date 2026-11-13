@@ -216,8 +216,8 @@ def test_tidy_applies_the_retention_the_owner_accepted_and_says_what_went(office
     for name in ("2025-W30.md", "2025-W30.json", "2026-W45.md", "notes.txt"):
         (reports / name).write_text("x")
     before = len(office.log.since("2000-01-01T00:00:00+00:00", kinds=("reader", "check", "eval")))
-    assert office("tidy") == Said(0, "Deleted 1 records of briefings older than 13 months.\n"
-                                     "Removed the question from 1 records of failed briefings older than 90 days.\n"
+    assert office("tidy") == Said(0, "Deleted 1 record of briefings older than 13 months.\n"
+                                     "Removed the question from 1 record of failed briefings older than 90 days.\n"
                                      "Deleted 2 weekly report files older than 13 months.\n", "", None)
     rows = {r.id: r for r in office.log.since("2000-01-01T00:00:00+00:00", kinds=("reader", "check", "eval"))}
     assert len(rows) == before - 1 and "old" not in rows and rows["failed"].question == ""

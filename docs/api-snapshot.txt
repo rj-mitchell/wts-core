@@ -113,7 +113,7 @@ Ask: from wts_core.briefing.desk
 BriefingDesk: from wts_core.briefing.desk
 DeskParts: from wts_core.briefing.build
 DeskSettings: from wts_core.briefing.build
-Event: from wts_core.briefing.desk
+Event: from wts_core.events
 Hooks: from wts_core.briefing.desk
 KEEP_ALIVE_SECONDS = 15
 Stage: from wts_core.briefing.stages
@@ -173,7 +173,7 @@ class BriefingDesk
     def __init__(self, *, messages: 'Messages', limiter: 'Limiter', caps: 'Caps', in_progress: 'InProgress', spending: 'SpendingRecord', cache: 'AnswerCache', cache_hours: 'float', archive: 'SavedBriefings | None', failures: 'FailureLog | None', log: 'BriefingLog | None', config: 'BriefingConfig', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>, strict: 'bool' = False) -> 'None'
     def allow(self, key: 'str') -> 'None'
     def handle(self, ask: 'Ask') -> 'Iterator[Event]'
-type Event = dict[str, typing.Any]
+Event: from wts_core.events
 class Hooks
     def finish(self, ask: 'Ask', final: 'Event', kept: 'list[Event]') -> 'Event'
     def for_this_reader(self, ask: 'Ask', final: 'Event') -> 'Event'
@@ -247,8 +247,8 @@ def check_briefing(blocks: 'Sequence[Mapping[str, Any]]', sources: 'Sequence[Tit
 
 ## wts_core.checks.typography
 def curl_answer(answer: 'Answer | None') -> 'Answer | None'
-def curl_event(event: 'ReaderEvent') -> 'ReaderEvent'
-def curl_events(events: 'list[ReaderEvent]') -> 'list[ReaderEvent]'
+def curl_event(event: 'Event') -> 'Event'
+def curl_events(events: 'list[Event]') -> 'list[Event]'
 def curl_quotes(text: 'str') -> 'str'
 
 ## wts_core.checks.verify
@@ -416,6 +416,9 @@ class StatsNames
     tidy: str | None = ...
 def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | Callable[[], float] | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, also_tidy: 'Sequence[Callable[[], Iterable[str]]]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
 
+## wts_core.dates
+def long_date(iso: 'str | date | None') -> 'str'
+
 ## wts_core.eval
 Case: from wts_core.eval.cases
 CaseOutcome: from wts_core.eval.run
@@ -550,7 +553,7 @@ class CaseResult
     fixture: str | None = ...
 class EvalSite(Protocol)
     def __init__(self, *args, **kwargs)
-    def ask(self, case: 'Case', config: 'Mapping[str, Any]') -> 'Iterator[ReaderEvent]'
+    def ask(self, case: 'Case', config: 'Mapping[str, Any]') -> 'Iterator[Event]'
     def cases(self) -> 'Sequence[Case]'
     def group_of(self, source: 'Mapping[str, Any]') -> 'str'
 FIGURES = dict of 35
@@ -596,6 +599,7 @@ class Completed
     usage: Usage
 EVENTS_VERSION = 1
 class ErrorEvent(dict)
+type Event = dict[str, typing.Any]
 class FinalEvent(dict)
 type ModelEvent = wts_core.events.TextDelta | wts_core.events.CitationDelta | wts_core.events.Completed
 class PlanEvent(dict)
@@ -605,7 +609,7 @@ class TextDelta
     text: str
 class TextEvent(dict)
 def blocks_as_today(done: 'Completed') -> 'list[dict[str, Any]]'
-def to_reader(event: 'TextDelta | CitationDelta') -> 'TextEvent | CitationEvent'
+def to_reader(event: 'TextDelta | CitationDelta') -> 'Event'
 
 ## wts_core.observe
 ALERTS = tuple of 5
@@ -1060,7 +1064,7 @@ STATUSES = tuple of 5
 StatementStatus: from wts_core.replies.rules
 TAKEDOWN = 'takedown'
 Waiting: from wts_core.replies.desk
-long_date: from wts_core.replies.markup
+long_date: from wts_core.dates
 migrations: from wts_core.replies.tables
 months_before: from wts_core.replies.days
 safe_link: from wts_core.replies.rules
@@ -1104,7 +1108,7 @@ class Waiting
     hidden: int = ...
 
 ## wts_core.replies.markup
-def long_date(iso: 'str | date | None') -> 'str'
+long_date: from wts_core.dates
 def statement_html(statement: 'Mapping[str, Any]', messages: 'ReplyMessages', *, level: 'int' = 2) -> 'str'
 
 ## wts_core.replies.rules

@@ -18,7 +18,6 @@ import json
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +26,7 @@ from wts_core.adapters import has_model, model_client
 from wts_core.adapters.hashing import HashingEmbedder
 from wts_core.briefing import Event, Stage, current_stages
 from wts_core.checks import blend, check_briefing, round_robin
+from wts_core.dates import long_date
 from wts_core.events import Answer, Block, Completed, blocks_as_today, to_reader
 from wts_core.observe import SqliteBriefingLog, briefing_config
 from wts_core.ports import (
@@ -96,8 +96,8 @@ class Source:
 
 
 def _source(n: int, minute: Minute) -> Source:
-    day = date.fromisoformat(minute.date)
-    title = f"Minutes of the {minute.committee}, {day.day} {day:%B %Y}: item {minute.item}, {minute.title}"
+    # the family's date format, from the one module of the package that a pipeline and the right of reply share
+    title = f"Minutes of the {minute.committee}, {long_date(minute.date)}: item {minute.item}, {minute.title}"
     return Source(n, title, minute.url, minute.passages,
                   {"id": minute.id, "park": minute.park, "date": minute.date})
 
@@ -276,7 +276,7 @@ class Pipeline:
                 if isinstance(event, Completed):
                     done = event
                 else:
-                    yield dict(to_reader(event))  # text and citations, as they are written
+                    yield to_reader(event)  # text and citations, as they are written
         finally:
             stream.close()  # if the reader has gone, this stops the model: nothing more is written or paid for
         _reached("written")

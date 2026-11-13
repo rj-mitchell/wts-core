@@ -28,7 +28,7 @@ from wts_core.eval import (
     run,
     summarise,
 )
-from wts_core.events import Answer, ReaderEvent
+from wts_core.events import Answer, Event
 from wts_core.ports import Price
 from wts_core.testing import FixedClock
 from wts_core.usage import PriceTable
@@ -104,7 +104,7 @@ class Plain:
     def cases(self) -> Sequence[Case]:
         return self._cases
 
-    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[ReaderEvent]:
+    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[Event]:
         self.asked.append((case.id, config))
         for step in self.scripts[case.id]:
             if isinstance(step, int | float):

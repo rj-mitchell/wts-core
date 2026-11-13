@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from wts_core.briefing.stages import STAGES, Stages, marking
+from wts_core.events import Event
 from wts_core.ports import (
     SYSTEM_CLOCK,
     SYSTEM_RANDOM,
@@ -67,11 +68,6 @@ log = logging.getLogger(__name__)
 # the structured log (``observe.LOGGER``: a test keeps the names alike) and the fixed message other handlers see
 _lines_log = logging.getLogger("wts.briefings")
 _LINE = "briefing event"
-
-# One event of a briefing, as a site's pipeline makes it and a reader receives it: today's JSON. The common ones
-# are described in ``wts_core.events``; a site may send others of its own (Where MPs Stand's ``progress`` and
-# ``interests``), and every key the desk does not know passes through untouched.
-type Event = dict[str, Any]
 
 # what a hook may ask to be recorded: the kind of call, the model it is priced as, the token counts
 type Spent = tuple[str, str | None, Usage | Mapping[str, Any] | None]
@@ -146,9 +142,18 @@ class Hooks:
         return events
 
     def usages(self, ask: Ask, event: Event) -> Iterable[Spent]:
-        """More model calls this event reports, to be recorded before the event's own (the reading of the question
-        on a ``plan``, the answer on a ``final``): each a kind, the model it is priced as, and the token counts.
-        Where MPs Stand's final event carries what matching registered interests cost."""
+        """More model calls this event reports, to be recorded before the event's own: each a kind, the model it
+        is priced as, and the token counts.
+
+        Only Where MPs Stand needs this. The desk records two calls by itself: the reading of the question, from
+        a ``plan`` event's ``usage``, and the writing of the briefing, from a ``final`` event's. Where MPs Stand's
+        pipeline makes a third (matching the registered interests of the members a briefing names) and reports
+        its token counts on the final event, as ``interests_usage``. This hook is how that call reaches the
+        spending record, and so the caps, and the briefing's own record of what it cost.
+
+        No other site has such a call, and the example site does not fill this hook in: until Where MPs Stand
+        adopts the desk it is exercised only by the package's own tests (``tests/test_briefing_desk.py``, and
+        ``tests/test_briefing_parity.py`` beside that site's own flow), and should be treated as provisional."""
         return ()
 
     def on_event(self, ask: Ask, event: Event) -> Event | None:
