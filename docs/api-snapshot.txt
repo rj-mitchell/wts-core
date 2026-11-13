@@ -1,0 +1,1450 @@
+## wts_core
+Messages: from wts_core.settings
+Settings: from wts_core.settings
+Site: from wts_core.settings
+__version__ = <the version>
+load_settings: from wts_core.settings
+
+## wts_core.adapters
+def model_client(settings: 'Settings', site: 'Site', env: 'Mapping[str, str] | None' = None) -> 'ModelClient'
+
+## wts_core.adapters.anthropic
+class AnthropicClient
+    def __init__(self, api_key: 'str | None', *, base_url: 'str', timeout: 'float' = 300.0, connect: 'float' = 10.0, max_retries: 'int' = 2, client: 'Any' = None) -> 'None'
+    property client
+    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
+BASE_URL = 'https://api.anthropic.com'
+FALLBACK_BETA = 'server-side-fallback-2026-07-01'
+KEY_FILE = 'anthropic_api_key'
+def api_key(site: 'Site', settings: 'Settings', env: 'Mapping[str, str] | None' = None) -> 'str | None'
+def base_url(site: 'Site', env: 'Mapping[str, str] | None' = None) -> 'str'
+def from_settings(settings: 'Settings', site: 'Site', env: 'Mapping[str, str] | None' = None) -> 'AnthropicClient'
+def has_credentials(site: 'Site', settings: 'Settings', env: 'Mapping[str, str] | None' = None) -> 'bool'
+def search_result(document: 'Document') -> 'dict[str, Any]'
+
+## wts_core.adapters.b2
+class B2Store
+    def __init__(self, bucket: 'str', key_id: 'str', application_key: 'str', client: 'httpx.Client | None' = None, *, env_prefix: 'str | None' = None) -> 'None'
+    def close(self) -> 'None'
+    def delete(self, file: 'StoredFile') -> 'None'
+    def list(self, prefix: 'str') -> 'list[StoredFile]'
+    def put(self, path: 'Path', tries: 'int' = 3) -> 'StoredFile'
+def configured(site: 'Site', env: 'Mapping[str, str] | None' = None, *, client: 'httpx.Client | None' = None) -> 'B2Store | None'
+def how_to_set_up(site: 'Site') -> 'str'
+
+## wts_core.adapters.duckdb
+class SharedConnection
+    def __init__(self, con: 'duckdb.DuckDBPyConnection | None' = None)
+    def cursor_for_thread(self) -> 'duckdb.DuckDBPyConnection'
+def shared(con: 'duckdb.DuckDBPyConnection | SharedConnection | None' = None) -> 'SharedConnection'
+
+## wts_core.adapters.fastembed
+DOC_PREFIXES = dict of 1
+class FastEmbedEmbedder
+    def __init__(self, model: 'str', cache_dir: 'Path', threads: 'int | None' = None, batch_size: 'int' = 64)
+    def embed_documents(self, texts: 'Sequence[str]') -> 'Any'
+    def embed_query(self, text: 'str') -> 'Any'
+QUERY_PREFIXES = dict of 5
+def model_fingerprint(cache_dir: 'Path') -> 'str'
+
+## wts_core.adapters.hashing
+class HashingEmbedder
+    def __init__(self, dim: 'int' = 256)
+    def embed_documents(self, texts: 'Sequence[str]') -> 'Any'
+    def embed_query(self, text: 'str') -> 'Any'
+
+## wts_core.adapters.lancedb
+class IndexSchema
+    filter_fields: Sequence[tuple[str, Any]]
+    passage_fields: Sequence[tuple[str, Any]]
+    version: int = ...
+    row_columns: tuple[str, ...] = ...
+    property filter_names
+KEEP_OLD_VERSIONS = timedelta
+class LanceIndex
+    def __init__(self, path: 'Path', embedder: 'Embedder | IndexMeta | None', *, schema: 'IndexSchema', scalar_columns: 'ScalarColumns', passages: 'str' = 'passages', vectors: 'str' = 'vectors', number_type: 'str' = 'float32', min_vector_index_rows: 'int' = 10000, vector_index_growth: 'float' = 1.2) -> 'None'
+    def add_vectors(self, keys: 'Sequence[str]', rows: 'Sequence[Mapping[str, Any]]', vectors: 'Any') -> 'None'
+    def build_indexes(self, vectors: 'bool' = True) -> 'None'
+    def build_scalar_indexes(self, tbl: 'Any' = None) -> 'None'
+    def build_vector_index(self) -> 'int | None'
+    def delete_copies(self, pairs: 'Sequence[tuple[str, str]]', chunk: 'int' = 500) -> 'int'
+    def embedded_ids(self, keys: 'Sequence[str]') -> 'set[str]'
+    def ensure_scalar_indexes(self, columns: 'Sequence[str]') -> 'bool'
+    def ensure_vector_ids(self) -> 'bool'
+    def has_data(self) -> 'bool'
+    def has_index(self, name: 'str', column: 'str') -> 'bool'
+    def has_word_index(self) -> 'bool'
+    def names(self) -> 'set[str]'
+    def note_trained(self, n: 'int') -> 'None'
+    def passages(self) -> 'Any'
+    def passages_for(self, passage_ids: 'Sequence[str]') -> 'dict[str, dict[str, Any]]'
+    def rebuild_vector_index(self, rows_per_partition: 'int' = 8192) -> 'None'
+    def refresh(self, full: 'bool' = False) -> 'str'
+    def replace(self, keys: 'Sequence[str]', rows: 'Sequence[Mapping[str, Any]]') -> 'None'
+    def rows_for_keys(self, keys: 'Sequence[str]') -> 'list[dict[str, Any]]'
+    def search_meaning(self, vector: 'Any', where: 'str | None', limit: 'int', nprobes: 'int | None' = None, refine_factor: 'int | None' = None, columns: 'Sequence[str] | None' = None, exact: 'bool' = False) -> 'list[dict[str, Any]]'
+    def search_words(self, query: 'str', where: 'str | None', limit: 'int') -> 'list[dict[str, Any]]'
+    def start_again(self, embedder: 'Embedder | IndexMeta', *, passages: 'bool' = False, number_type: 'str' = 'float32') -> 'None'
+    def stats(self) -> 'dict[str, int]'
+    def tidy(self) -> 'None'
+    def trained_on(self) -> 'int | None'
+    def unmerged(self) -> 'int'
+    def vectors(self) -> 'Any'
+    def vectors_for_keys(self, keys: 'Sequence[str]') -> 'dict[str, Any]'
+    def versions(self) -> 'dict[str, int]'
+META_FILE = 'wts_index.json'
+class ScalarColumns
+    btree: tuple[str, ...]
+    bitmap: tuple[str, ...]
+    label_list: tuple[str, ...] = ...
+TRAINED_FILE = 'vector_index.json'
+def date_lit(d: 'date') -> 'str'
+def retry_once(fn: 'Callable[[], T]') -> 'T'
+def sanitise_query(text: 'str') -> 'str'
+def sql_list(values: 'Iterable[str]') -> 'str'
+def sql_str(value: 'str') -> 'str'
+def stored_meta(path: 'Path') -> 'IndexMeta | None'
+def vector_index_due(vectors: 'int', trained_on: 'int | None', has_index: 'bool', *, minimum: 'int' = 10000, growth: 'float' = 1.2) -> 'bool'
+
+## wts_core.briefing
+Ask: from wts_core.briefing.desk
+BriefingDesk: from wts_core.briefing.desk
+Event: from wts_core.briefing.desk
+Hooks: from wts_core.briefing.desk
+KEEP_ALIVE_SECONDS = 15
+Stage: from wts_core.briefing.stages
+Stages: from wts_core.briefing.stages
+TooManyRequests: from wts_core.briefing.desk
+current_stages: from wts_core.briefing.stages
+sse: from wts_core.briefing.stream
+
+## wts_core.briefing.desk
+class Ask
+    question: str
+    visitor: str | None
+    write: Callable[[], Iterator[Event]]
+    sources_only: Callable[[str, bool], Iterator[Event]]
+    account: int | None = ...
+    limiter_key: str | None = ...
+    cache_key: str | None = ...
+    only_sources: bool = ...
+    model_available: bool = ...
+    follow_up: bool = ...
+    mode: str = ...
+    filters_set: tuple[str, ...] = ...
+    kind: Literal['reader', 'check', 'eval'] = ...
+    options: Mapping[str, Any] = ...
+    save: Callable[[Event, list[Event], str], Mapping[str, Any]] | None = ...
+class BriefingDesk
+    def __init__(self, *, messages: 'Messages', limiter: 'Limiter', caps: 'Caps', in_progress: 'InProgress', spending: 'SpendingRecord', cache: 'AnswerCache', cache_hours: 'float', archive: 'SavedBriefings | None', failures: 'FailureLog | None', log: 'BriefingLog | None', parse_model: 'str | None', config: 'Mapping[str, Any]', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>, strict: 'bool' = False) -> 'None'
+    def allow(self, key: 'str') -> 'None'
+    def handle(self, ask: 'Ask') -> 'Iterator[Event]'
+type Event = dict[str, typing.Any]
+class Hooks
+    def finish(self, ask: 'Ask', final: 'Event', kept: 'list[Event]') -> 'Event'
+    def for_this_reader(self, ask: 'Ask', final: 'Event') -> 'Event'
+    def on_cached(self, ask: 'Ask', events: 'list[Event]') -> 'list[Event]'
+    def on_event(self, ask: 'Ask', event: 'Event') -> 'Event | None'
+    def usages(self, ask: 'Ask', event: 'Event') -> 'Iterable[Spent]'
+class TooManyRequests(Exception)
+    def __init__(self, message: 'str') -> 'None'
+
+## wts_core.briefing.stages
+STAGES = tuple of 7
+type Stage = typing.Literal['parsed', 'searched', 'ranked', 'sources_sent', 'first_token', 'written', 'checked']
+class Stages
+    def __init__(self, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def at(self, stage: 'Stage') -> 'int | None'
+    def elapsed(self) -> 'int'
+    property last
+    def mark(self, stage: 'Stage') -> 'None'
+    def spent(self, usage: 'Usage | Mapping[str, Any] | None', cost: 'float') -> 'None'
+def current_stages() -> 'Stages'
+def marking(stages: 'Stages', events: 'Iterator[T]') -> 'Iterator[T]'
+
+## wts_core.briefing.stream
+KEEP_ALIVE_SECONDS = 15
+def sse(events: 'Iterator[Mapping[str, Any]]', keep_alive: 'float' = 15) -> 'Iterator[bytes]'
+
+## wts_core.checks
+COMMON_HONORIFICS = tuple of 8
+COMMON_LOADED_WORDS = 'lied|liar|liars|misled|misleading|dishonest|dishonesty|hypocrisy|hypocrite|hypocrites|hypocritical|u-turn|u-turns|u-turned|backtracked|backtracking|flip-flopped|flip-flop|flip-flops|admitted|conceded|claimed(?=\\s*(?:that|to|the|a|an|it|there|this|these|he|she|they|we)\\b|\\s*[,:\\"“]|\\s*$)|attacked|slammed|blasted|dodged|evaded|evasive|refused to answer|gaffe|gaffes|scandal|scandals|scandalous|disgraceful|shameful|incompetent|incompetence'
+EVIDENCE_NOTES_STRICT = Pattern
+EVIDENCE_NOTES_WIDE = Pattern
+LoadedWords: from wts_core.checks.neutral
+RULES_VERSION = 1
+Segment: from wts_core.checks.verify
+SourceText: from wts_core.checks.verify
+Status: from wts_core.checks.verify
+TitledSource: from wts_core.checks.verify
+Verification: from wts_core.checks.verify
+Verifier: from wts_core.checks.verify
+blend: from wts_core.checks.balance
+britishise_segments: from wts_core.checks.british
+check_briefing: from wts_core.checks.report
+curl_answer: from wts_core.checks.typography
+curl_event: from wts_core.checks.typography
+curl_events: from wts_core.checks.typography
+curl_quotes: from wts_core.checks.typography
+outside_quotes: from wts_core.checks.british
+recency_factor: from wts_core.checks.balance
+round_robin: from wts_core.checks.balance
+to_british: from wts_core.checks.british
+
+## wts_core.checks.balance
+def blend(word_scores: 'Sequence[float | None]', meaning_scores: 'Sequence[float | None]', *, word_weight: 'float', meaning_floor: 'float', meaning_ceiling: 'float') -> 'list[float]'
+def recency_factor(d: 'date', today: 'date', *, recency: 'float', floor: 'float', min_half_life_years: 'float') -> 'float'
+def round_robin(pool: 'Sequence[T]', limit: 'int', *, group_of: 'Callable[[T], str]', key_of: 'Callable[[T], str]', score_of: 'Callable[[T], float]', caps: 'Sequence[tuple[Callable[[T], str], int]]' = (), seeds: 'Sequence[T]' = ()) -> 'list[T]'
+
+## wts_core.checks.british
+def britishise_segments(segments: 'Sequence[Segment]') -> 'None'
+def outside_quotes(segments: 'Sequence[Segment]') -> 'list[tuple[int, int, str]]'
+def to_british(text: 'str') -> 'str'
+
+## wts_core.checks.neutral
+COMMON_LOADED_WORDS = 'lied|liar|liars|misled|misleading|dishonest|dishonesty|hypocrisy|hypocrite|hypocrites|hypocritical|u-turn|u-turns|u-turned|backtracked|backtracking|flip-flopped|flip-flop|flip-flops|admitted|conceded|claimed(?=\\s*(?:that|to|the|a|an|it|there|this|these|he|she|they|we)\\b|\\s*[,:\\"“]|\\s*$)|attacked|slammed|blasted|dodged|evaded|evasive|refused to answer|gaffe|gaffes|scandal|scandals|scandalous|disgraceful|shameful|incompetent|incompetence'
+class LoadedWords
+    def __init__(self, pattern: 're.Pattern[str]') -> 'None'
+    def flag(self, segments: 'list[Segment]') -> 'int'
+    def still_loaded(self, answer: 'Answer | None') -> 'Answer | None'
+
+## wts_core.checks.report
+def check_briefing(blocks: 'Sequence[Mapping[str, Any]]', sources: 'Sequence[TitledSource]', verifier: 'Verifier', loaded_words: 'LoadedWords', *, curled: 'bool' = False) -> 'Answer'
+
+## wts_core.checks.typography
+def curl_answer(answer: 'Answer | None') -> 'Answer | None'
+def curl_event(event: 'ReaderEvent') -> 'ReaderEvent'
+def curl_events(events: 'list[ReaderEvent]') -> 'list[ReaderEvent]'
+def curl_quotes(text: 'str') -> 'str'
+
+## wts_core.checks.verify
+COMMON_HONORIFICS = tuple of 8
+EVIDENCE_NOTES_STRICT = Pattern
+EVIDENCE_NOTES_WIDE = Pattern
+RULES_VERSION = 1
+class Segment
+    text: str
+    sources: list[int] = ...
+    cited: list[dict[str, Any]] = ...
+    status: Status = ...
+    loaded: list[dict[str, Any]] = ...
+    misquotes: list[dict[str, Any]] = ...
+    def to_dict(self) -> 'dict[str, Any]'
+class SourceText(Protocol)
+    def __init__(self, *args, **kwargs)
+    property blocks
+    property n
+type Status = typing.Literal['cited', 'connective', 'unsupported', 'invalid']
+class TitledSource(Protocol)
+    def __init__(self, *args, **kwargs)
+    property blocks
+    property meta
+    property n
+    property title
+class Verification
+    segments: list[Segment]
+    no_records: bool
+    citations_total: int
+    citations_invalid: int
+    unsupported_chars: int
+    cited_chars: int
+    quotes_total: int = ...
+    quotes_unverified: int = ...
+    rules: int = ...
+    property grounded_ratio
+    def markdown(self) -> 'str'
+    def to_dict(self) -> 'Answer'
+class Verifier
+    def __init__(self, *, no_records: 'str', evidence_notes: 're.Pattern[str]', honorifics: 'Sequence[str]' = ('Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'Sr', 'Jr', 'St')) -> 'None'
+    def check_quotes(self, report: 'Verification', sources: 'Sequence[TitledSource]') -> 'int'
+    def drop_preambles(self, segments: 'list[Segment]') -> 'int'
+    def recheck(self, answer: 'Answer | None', *, curled: 'bool' = False) -> 'Answer | None'
+    def verify(self, blocks: 'Sequence[Mapping[str, Any]]', sources: 'Sequence[SourceText]') -> 'Verification'
+
+## wts_core.cli
+BackupCheckWords: from wts_core.cli.ops
+BackupWords: from wts_core.cli.ops
+OpsWording: from wts_core.cli.ops
+RepliesCommands: from wts_core.cli.replies
+RepliesWording: from wts_core.cli.replies
+RestoreWords: from wts_core.cli.ops
+StatsNames: from wts_core.cli.stats
+backup_ages: from wts_core.cli.check
+check_route: from wts_core.cli.check
+eval_commands: from wts_core.cli.eval
+last_day_figures: from wts_core.cli.check
+ops_commands: from wts_core.cli.ops
+replies_commands: from wts_core.cli.replies
+stats_commands: from wts_core.cli.stats
+
+## wts_core.cli.check
+def backup_ages(folder: 'Path', spec: 'BackupSpec', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, float | bool | None]'
+def check_route(site: 'Site', *, token: 'str | None', replies: 'Replies | Callable[[], Replies] | None' = None, backups: 'Callable[[], Mapping[str, Any]] | None' = None, figures: 'Callable[[], Mapping[str, Any]] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'Callable[[str | None], tuple[int, dict[str, Any]]]'
+def last_day_figures(log: 'BriefingLog', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
+
+## wts_core.cli.eval
+def eval_commands(site: 'Callable[[], EvalSite]', *, config: 'Callable[[], Mapping[str, Any]]', config_id: 'Callable[[Mapping[str, Any]], str]', pricing: 'Callable[[], Pricing]', thresholds: 'Callable[[], Mapping[str, float]]', runs: 'Callable[[], Path]', max_cost_usd: 'float | None', verifier: 'Callable[[], Verifier] | None' = None, loaded_words: 'Callable[[], LoadedWords] | None' = None, curled: 'bool' = False, group: 'str | None' = 'eval', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+
+## wts_core.cli.ops
+class BackupCheckWords
+    folder: str
+    no_folder: str
+    alert: str
+    up_to_date: str
+    alerts: AlertWording
+    name: str = ...
+    help: str | None = ...
+    folder_help: str | None = ...
+class BackupWords
+    folder: str | None
+    keep: int
+    nothing_to_back_up: str
+    backed_up: str
+    failed: str | None
+    offsite_stored: str
+    offsite_not_set_up: str
+    offsite_failed: str
+    name: str = ...
+    help: str | None = ...
+    to_help: str | None = ...
+    keep_help: str | None = ...
+class OpsWording
+    backup: BackupWords
+    restore: RestoreWords | None
+    backup_check: BackupCheckWords | None
+    errors_to_stderr: bool
+    offsite_name: str = ...
+    offsite_help: str | None = ...
+class RestoreWords
+    archive_must_exist: bool
+    confirm: str
+    says_aborted: bool
+    restored: str
+    replaced: str
+    not_restored: str
+    name: str = ...
+    help: str | None = ...
+    archive_help: str | None = ...
+    yes_help: str | None = ...
+def ops_commands(site: 'Site', settings: 'Callable[[], Settings]', spec: 'BackupSpec', wording: 'OpsWording', *, store: 'Callable[[], OffsiteStore | None] | None' = None, how_to_set_up: 'str | None' = None, env: 'Mapping[str, str] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, before: 'Callable[[], None] | None' = None) -> 'typer.Typer'
+
+## wts_core.cli.replies
+class RepliesCommands
+    listed: tuple[str, ...]
+    reports_list: str | None = ...
+    reports_show: str | None = ...
+    reports_close: str | None = ...
+    statements_list: str | None = ...
+    statements_show: str | None = ...
+    statements_publish: str | None = ...
+    statements_decline: str | None = ...
+    statements_update: str | None = ...
+    statements_withdraw: str | None = ...
+    statements_remove: str | None = ...
+    statements_log: str | None = ...
+    hide: str | None = ...
+    unhide: str | None = ...
+    hidden: str | None = ...
+    waiting: str | None = ...
+    also: Mapping[str, str] = ...
+    about_option: str | None = ...
+    withdraw_note: str | None = ...
+    withdraw_note_required: bool = ...
+    outcome: str | None = ...
+    help: Mapping[str, str] = ...
+class RepliesWording
+    report: Lines
+    statement: Lines
+    log_entry: Lines
+    hidden_item: Lines
+    waiting: Line
+    published: Line
+    declined: Line
+    updated: Line
+    withdrawn: Line
+    removed: Line
+    closed: Line
+    hid: Line
+    unhid: Line
+    not_done: str
+    refused: str
+    errors_to_stderr: bool
+def replies_commands(replies: 'Callable[[], Replies]', commands: 'RepliesCommands', wording: 'RepliesWording', *, about: 'Callable[[str], str] | None' = None, changed: 'Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None' = None) -> 'typer.Typer'
+
+## wts_core.cli.stats
+class StatsNames
+    stats: str | None = ...
+    weekly_report: str | None = ...
+    tidy: str | None = ...
+def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+
+## wts_core.eval
+Case: from wts_core.eval.cases
+CaseOutcome: from wts_core.eval.run
+CaseResult: from wts_core.eval.run
+Change: from wts_core.eval.compare
+Comparison: from wts_core.eval.compare
+Difference: from wts_core.eval.replay
+EvalSite: from wts_core.eval.run
+FIGURES = dict of 35
+Fixture: from wts_core.eval.replay
+Judgement: from wts_core.eval.cases
+Judges: from wts_core.eval.run
+Kind: from wts_core.eval.replay
+PASSED_FILE = 'passed.jsonl'
+Recording: from wts_core.eval.run
+Records: from wts_core.eval.run
+Run: from wts_core.eval.run
+Scores: from wts_core.eval.run
+Verdict: from wts_core.eval.compare
+assert_never_weaker: from wts_core.eval.replay
+check_thresholds: from wts_core.eval.compare
+checked: from wts_core.eval.replay
+compare: from wts_core.eval.compare
+has_passed: from wts_core.eval.compare
+load: from wts_core.eval.compare
+load_cases: from wts_core.eval.cases
+load_fixture: from wts_core.eval.replay
+load_judgements: from wts_core.eval.cases
+mark_passed: from wts_core.eval.compare
+passed_line: from wts_core.eval.compare
+percentile: from wts_core.eval.run
+read_as_if: from wts_core.eval.cases
+replay: from wts_core.eval.replay
+run: from wts_core.eval.run
+save: from wts_core.eval.compare
+save_fixture: from wts_core.eval.replay
+summarise: from wts_core.eval.run
+
+## wts_core.eval.cases
+class Case
+    id: str
+    question: str
+    expect: Mapping[str, Any]
+class Judgement
+    id: str
+    record_id: str
+    grade: int
+    judge: str = ...
+def load_cases(path: 'Path') -> 'list[Case]'
+def load_judgements(path: 'Path') -> 'list[Judgement]'
+def read_as_if(path: 'Path') -> 'date | None'
+
+## wts_core.eval.compare
+class Change
+    figure: str
+    a: Any
+    b: Any
+    verdict: Verdict
+class Comparison
+    a: Run
+    b: Run
+    figures: tuple[Change, ...]
+    questions: Mapping[str, tuple[Change, ...]]
+    only_in_a: tuple[str, ...]
+    only_in_b: tuple[str, ...]
+    property better
+    def to_markdown(self) -> 'str'
+    property unchanged
+    def verdict(self, question: 'str') -> 'Verdict'
+    property worse
+PASSED_FILE = 'passed.jsonl'
+type Verdict = typing.Literal['better', 'worse', 'unchanged', 'changed']
+def check_thresholds(run: 'Run', thresholds: 'Mapping[str, float]') -> 'list[str]'
+def compare(a: 'Run', b: 'Run', *, same_within: 'float' = 0.0) -> 'Comparison'
+def has_passed(folder: 'Path', config_id: 'str', thresholds: 'Mapping[str, float] | None' = None) -> 'bool'
+def load(path: 'Path') -> 'Run'
+def mark_passed(run: 'Run', thresholds: 'Mapping[str, float]', folder: 'Path') -> 'Path'
+def passed_line(run: 'Run', thresholds: 'Mapping[str, float]') -> 'dict[str, Any]'
+def save(run: 'Run', folder: 'Path') -> 'Path'
+
+## wts_core.eval.replay
+class Difference
+    fixture: str
+    check: str
+    sentence: str | None
+    before: Any
+    after: Any
+    kind: Kind
+class Fixture
+    name: str
+    question: str
+    documents: tuple[Document, ...]
+    blocks: tuple[Block, ...]
+    report: Answer | None = ...
+    headings: tuple[str, ...] = ...
+type Kind = typing.Literal['stricter', 'weaker', 'other']
+def assert_never_weaker(differences: 'Iterable[Difference]') -> 'None'
+def checked(blocks: 'Sequence[Block]', documents: 'Sequence[Document]', verifier: 'Verifier', loaded_words: 'LoadedWords', *, headings: 'Sequence[str]' = (), curled: 'bool' = False) -> 'Answer'
+def load_fixture(path: 'Path', *, report: 'Path | None' = None) -> 'Fixture'
+def replay(fixtures: 'Iterable[Fixture]', verifier: 'Verifier', loaded_words: 'LoadedWords', *, curled: 'bool' = False) -> 'list[Difference]'
+def save_fixture(fixture: 'Fixture', folder: 'Path') -> 'Path'
+
+## wts_core.eval.run
+type CaseOutcome = typing.Literal['completed', 'no_records', 'sources_only', 'cached', 'error', 'not_run']
+class CaseResult
+    id: str
+    question: str
+    category: str = ...
+    outcome: CaseOutcome = ...
+    error_type: str | None = ...
+    note: str | None = ...
+    citations_total: int | None = ...
+    citations_invalid: int | None = ...
+    grounded_ratio: float | None = ...
+    unsupported: int | None = ...
+    quotes_total: int | None = ...
+    quotes_unverified: int | None = ...
+    loaded_words: int | None = ...
+    judged: float | None = ...
+    sources: int = ...
+    spread: dict[str, int] = ...
+    ms_to_first_word: int | None = ...
+    ms_to_end: int | None = ...
+    cost_usd: float = ...
+    input_tokens: int = ...
+    output_tokens: int = ...
+    cache_read_tokens: int = ...
+    cache_write_tokens: int = ...
+    model: str | None = ...
+    stop_reason: str | None = ...
+    expect_met: dict[str, bool] = ...
+    fixture: str | None = ...
+class EvalSite(Protocol)
+    def __init__(self, *args, **kwargs)
+    def ask(self, case: 'Case', config: 'Mapping[str, Any]') -> 'Iterator[ReaderEvent]'
+    def cases(self) -> 'Sequence[Case]'
+    def group_of(self, source: 'Mapping[str, Any]') -> 'str'
+FIGURES = dict of 35
+class Judges(Protocol)
+    def __init__(self, *args, **kwargs)
+    def judge(self, case: 'Case', answer: 'Answer') -> 'float | None'
+class Recording
+    documents: tuple[Document, ...]
+    blocks: tuple[Block, ...]
+    headings: tuple[str, ...] = ...
+class Records(Protocol)
+    def __init__(self, *args, **kwargs)
+    def recording(self, case: 'Case') -> 'Recording | None'
+class Run
+    config_id: str
+    config: dict[str, Any]
+    started_at: str
+    results: list[CaseResult]
+    summary: dict[str, float]
+class Scores(Protocol)
+    def __init__(self, *args, **kwargs)
+    def score(self, case: 'Case', plan: 'Mapping[str, Any] | None', sources: 'Sequence[Mapping[str, Any]]') -> 'Mapping[str, bool]'
+def percentile(values: 'Sequence[float]', p: 'float') -> 'float'
+def run(site: 'EvalSite', config: 'Mapping[str, Any]', *, config_id: 'str', pricing: 'Pricing', clock: 'Clock' = <wts_core.ports.SystemClock object>, record_fixtures: 'Path | None' = None, only: 'Sequence[str] | None' = None, limit: 'int | None' = None, max_cost_usd: 'float | None' = None, progress: 'Callable[[CaseResult], None] | None' = None) -> 'Run'
+def summarise(results: 'Sequence[CaseResult]', *, cases: 'int | None' = None) -> 'dict[str, float]'
+
+## wts_core.events
+class Answer(dict)
+class Block
+    text: str
+    citations: tuple[Citation, ...] = ...
+class Citation
+    document: int | None
+    quoted: str
+class CitationDelta
+    document: int | None
+    quoted: str
+class CitationEvent(dict)
+class Completed
+    blocks: tuple[Block, ...]
+    model: str
+    stop_reason: str | None
+    usage: Usage
+EVENTS_VERSION = 1
+class ErrorEvent(dict)
+class FinalEvent(dict)
+type ModelEvent = wts_core.events.TextDelta | wts_core.events.CitationDelta | wts_core.events.Completed
+class PlanEvent(dict)
+type ReaderEvent = wts_core.events.PlanEvent | wts_core.events.SourcesEvent | wts_core.events.TextEvent | wts_core.events.CitationEvent | wts_core.events.FinalEvent | wts_core.events.ErrorEvent
+class SourcesEvent(dict)
+class TextDelta
+    text: str
+class TextEvent(dict)
+def blocks_as_today(done: 'Completed') -> 'list[dict[str, Any]]'
+def to_reader(event: 'TextDelta | CitationDelta') -> 'TextEvent | CitationEvent'
+
+## wts_core.observe
+ALERTS = tuple of 5
+ArmComparison: from wts_core.observe.figures
+FIELDS = tuple of 8
+Figures: from wts_core.observe.figures
+Headline: from wts_core.observe.figures
+LOGGER = 'wts.briefings'
+MARGIN = 0.25
+OWNER_ACCEPTED: from wts_core.observe.log
+PROPORTIONS = tuple of 6
+Retention: from wts_core.observe.log
+SqliteBriefingLog: from wts_core.observe.log
+Stats: from wts_core.observe.figures
+Tidied: from wts_core.observe.log
+config_id: from wts_core.observe.config
+count: from wts_core.observe.log
+counts: from wts_core.observe.log
+json_logging: from wts_core.observe.logs
+log_event: from wts_core.observe.logs
+migrations: from wts_core.observe.log
+proposed_thresholds: from wts_core.observe.report
+save_week: from wts_core.observe.log
+stats: from wts_core.observe.figures
+tidy_reports: from wts_core.observe.report
+tripped: from wts_core.observe.report
+two_proportion_test: from wts_core.observe.figures
+weekly_report: from wts_core.observe.report
+weeks: from wts_core.observe.log
+
+## wts_core.observe.config
+def canonical_json(parts: 'Mapping[str, Any]') -> 'str'
+def config_id(parts: 'Mapping[str, Any]') -> 'str'
+
+## wts_core.observe.figures
+class ArmComparison
+    experiment: str
+    figure: str
+    a: str
+    b: str
+    a_rate: Rate
+    b_rate: Rate
+    z: float | None
+    p_value: float | None
+    enough: bool
+    test: str
+class Asked
+    question: str
+    times: int
+class Figures
+    start: str
+    end: str
+    days: float
+    questions: int
+    by_outcome: dict[str, int]
+    by_kind: dict[str, int]
+    times: dict[str, Spread]
+    steps: dict[str, Spread]
+    cached_total: Spread
+    cost_usd: float
+    cost_per_written_usd: float | None
+    cost_per_question_usd: float | None
+    cost_per_day_usd: float | None
+    cost_by_day: dict[str, float]
+    cache_hits: Rate
+    prompt_cache: PromptCache
+    invalid_citation: Rate
+    unsupported: Rate
+    unverified_quote: Rate
+    loaded_word: Rate
+    any_check: Rate
+    no_records: Rate
+    not_useful: Rate
+    left: Rate
+    left_at: dict[str, int]
+    errors: Rate
+    errors_by_type: dict[str, int]
+    reported: Rate
+    corrected: Rate
+    followed_up: Rate
+class Headline
+    questions: int
+    written: int
+    first_token: Spread
+    full_briefing: Spread
+    cost_per_written_usd: float | None
+    cache_hits: Rate
+    any_check: Rate
+    no_records: Rate
+    not_useful: Rate
+    left: Rate
+    errors: Rate
+class Listed
+    id: str
+    at: str
+    config_id: str
+    briefing_id: str | None
+    question: str | None
+    t_first_token: int | None
+    t_written: int | None
+    t_total: int | None
+    citations_invalid: int | None
+    unsupported: int | None
+    quotes_unverified: int | None
+    loaded_words: int | None
+    grounded_ratio: float | None
+    corrected: bool
+MARKS = tuple of 8
+PROPORTIONS = tuple of 6
+class PromptCache
+    read_tokens: int
+    write_tokens: int
+    saved_usd: float | None
+    extra_usd: float | None
+    paid_back: bool | None
+class Rate
+    count: int
+    of: int
+    rate: float | None
+class Spread
+    n: int
+    median: float | None
+    p95: float | None
+class Stats
+    since: str
+    until: str
+    compare_weeks: int
+    scale: float
+    period: Figures
+    earlier: Figures
+    headline: Headline
+    by_config: dict[str, Headline]
+    by_config_earlier: dict[str, Headline]
+    by_arm: dict[str, dict[str, Headline]]
+    decided_by: str | None
+    arms: tuple[ArmComparison, ...]
+    slowest: tuple[Listed, ...]
+    worst_checked: tuple[Listed, ...]
+    no_record_questions: tuple[Asked, ...]
+    themes: tuple[Theme, ...]
+    themes_by: str
+    def as_dict(self) -> 'dict[str, Any]'
+    def to_json(self) -> 'str'
+    def to_markdown(self, site: 'Site', *, thresholds: 'Mapping[str, Any] | None' = None, margin: 'float | None' = None) -> 'str'
+class Theme
+    example: str
+    questions: int
+    wordings: int
+class TwoProportions
+    z: float | None
+    p_value: float | None
+    enough: bool
+def median(values: 'Iterable[float]') -> 'float | None'
+def p95(values: 'Iterable[float]') -> 'float | None'
+def stats(log: 'BriefingLog', *, since: 'datetime | timedelta', until: 'datetime | None' = None, compare_weeks: 'int' = 4, embedder: 'Embedder | None' = None, similarity: 'float | None' = None, pricing: 'Pricing | None' = None, decided_by: 'str | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'Stats'
+def two_proportion_test(x1: 'int', n1: 'int', x2: 'int', n2: 'int') -> 'TwoProportions'
+
+## wts_core.observe.log
+KINDS = tuple of 3
+OUTCOMES = tuple of 9
+OWNER_ACCEPTED = Retention
+class Retention
+    months: int
+    failed_question_days: int
+class SqliteBriefingLog
+    def __init__(self, db: 'StateDB', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def config(self, config_id: 'str') -> 'dict[str, Any] | None'
+    def mark(self, briefing_id: 'str', *, useful: 'bool | None' = None, reported: 'bool' = False, corrected: 'bool' = False, followed_up: 'bool' = False) -> 'None'
+    def remember_config(self, config_id: 'str', settings: 'Mapping[str, Any]') -> 'None'
+    def since(self, start: 'datetime | str', end: 'datetime | str | None' = None, kinds: 'Sequence[str]' = ('reader',)) -> 'list[BriefingRecord]'
+    def tidy(self, retention: 'Retention') -> 'Tidied'
+    def write(self, record: 'BriefingRecord') -> 'None'
+class Tidied
+    deleted: int
+    blanked: int
+def count(db: 'StateDB', name: 'str', clock: 'Clock' = <wts_core.ports.SystemClock object>, *, n: 'int' = 1) -> 'None'
+def counts(db: 'StateDB', since: 'date | str') -> 'dict[str, dict[str, int]]'
+def migrations() -> 'tuple[Migration, ...]'
+def months_before(when: 'datetime', months: 'int') -> 'datetime'
+def save_week(db: 'StateDB', week: 'str', config_id: 'str', figures: 'Mapping[str, Any]', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+def weeks(db: 'StateDB', since: 'str' = '') -> 'dict[str, dict[str, dict[str, Any]]]'
+
+## wts_core.observe.logs
+FIELDS = tuple of 8
+LOGGER = 'wts.briefings'
+def json_logging(path: 'Path', *, site: 'Site', max_bytes: 'int', keep: 'int', days: 'int', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'logging.Handler'
+def log_event(event: 'str', *, briefing: 'str | None' = None, stage: 'str | None' = None, ms: 'int | None' = None, error_type: 'str | None' = None, level: 'int' = 20) -> 'None'
+
+## wts_core.observe.report
+ALERTS = tuple of 5
+MARGIN = 0.25
+def markdown(stats: 'Stats', site: 'Site', *, thresholds: 'Mapping[str, Any] | None' = None, margin: 'float' = 0.25) -> 'str'
+def proposed_thresholds(stats: 'Stats', margin: 'float' = 0.25) -> 'dict[str, float]'
+def tidy_reports(folder: 'Path', retention: 'Retention', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'int'
+def tripped(stats: 'Stats', thresholds: 'Mapping[str, Any] | None') -> 'list[str]'
+def week_name(week: 'date') -> 'str'
+def weekly_report(stats: 'Stats', folder: 'Path', *, site: 'Site', week: 'date', db: 'StateDB', thresholds: 'Mapping[str, Any] | None' = None, margin: 'float' = 0.25, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'tuple[Path, Path]'
+
+## wts_core.ops
+Alert: from wts_core.ops.offsite
+AlertWording: from wts_core.ops.offsite
+BackupSpec: from wts_core.ops.backup
+OffsiteError: from wts_core.ports
+OffsiteUnavailable: from wts_core.ports
+RestoreRefused: from wts_core.ops.backup
+backup_alerts: from wts_core.ops.offsite
+check_offsite: from wts_core.ops.offsite
+make_backup: from wts_core.ops.backup
+restore_backup: from wts_core.ops.backup
+send_offsite: from wts_core.ops.offsite
+
+## wts_core.ops.backup
+class BackupSpec
+    prefix: str
+    stamp: str = ...
+    format: Literal['gzip', 'tar'] = ...
+    member: str = ...
+    extra_files: tuple[str, ...] = ...
+    keep: int
+    required_tables: tuple[str, ...]
+    wal: bool = ...
+    def archives(self, folder: 'Path') -> 'list[Path]'
+    property suffix
+class RestoreRefused(RuntimeError)
+    def __init__(self, message: 'str', *, why: 'str') -> 'None'
+def make_backup(state_db: 'Path', dest: 'Path', spec: 'BackupSpec', *, keep: 'int | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'Path | None'
+def restore_backup(archive: 'Path', state_db: 'Path', spec: 'BackupSpec') -> 'Path | None'
+
+## wts_core.ops.offsite
+class Alert
+    level: Literal['error', 'warning']
+    text: str
+class AlertWording
+    no_backups: str
+    backup_stale: str
+    server_only: str
+    no_offsite_yet: str
+    offsite_failed: str
+    offsite_stale: str
+OffsiteError: from wts_core.ports
+OffsiteUnavailable: from wts_core.ports
+def backup_alerts(folder: 'Path', spec: 'BackupSpec', *, offsite_set_up: 'bool', wording: 'AlertWording', stale_hours: 'int' = 50, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'list[Alert]'
+def check_offsite(store: 'OffsiteStore | None', spec: 'BackupSpec', *, how_to_set_up: 'str | None' = None) -> 'dict[str, Any]'
+def send_offsite(archive: 'Path', store: 'OffsiteStore | None', spec: 'BackupSpec', *, keep: 'int' = 60, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
+
+## wts_core.ports
+class AnswerCache(Protocol)
+    def __init__(self, *args, **kwargs)
+    def get(self, key: 'str', max_hours: 'float') -> 'list[dict[str, Any]] | None'
+    def put(self, key: 'str', events: 'list[dict[str, Any]]', max_hours: 'float') -> 'None'
+class BriefingLog(Protocol)
+    def __init__(self, *args, **kwargs)
+    def mark(self, briefing_id: 'str', *, useful: 'bool | None' = None, reported: 'bool' = False, corrected: 'bool' = False, followed_up: 'bool' = False) -> 'None'
+    def since(self, start: 'datetime', end: 'datetime | None' = None, kinds: 'Sequence[str]' = ('reader',)) -> 'Sequence[BriefingRecord]'
+    def write(self, record: 'BriefingRecord') -> 'None'
+class BriefingRecord
+    id: str
+    at: str
+    outcome: Outcome
+    kind: Literal['reader', 'check', 'eval'] = ...
+    question: str = ...
+    follow_up: bool = ...
+    mode: str = ...
+    filters_set: tuple[str, ...] = ...
+    config_id: str = ...
+    model: str | None = ...
+    parse_model: str | None = ...
+    instructions: str = ...
+    package_version: str = ...
+    site_version: str = ...
+    experiment: str | None = ...
+    arm: str | None = ...
+    sources: int = ...
+    spread: Mapping[str, int] | None = ...
+    input_tokens: int = ...
+    cache_read_tokens: int = ...
+    cache_write_tokens: int = ...
+    cache_write_long_tokens: int = ...
+    output_tokens: int = ...
+    cost_usd: float = ...
+    stop_reason: str | None = ...
+    citations_total: int | None = ...
+    citations_invalid: int | None = ...
+    grounded_ratio: float | None = ...
+    unsupported: int | None = ...
+    quotes_unverified: int | None = ...
+    loaded_words: int | None = ...
+    t_parse: int | None = ...
+    t_search: int | None = ...
+    t_rank: int | None = ...
+    t_sources_sent: int | None = ...
+    t_first_token: int | None = ...
+    t_written: int | None = ...
+    t_checked: int | None = ...
+    t_total: int | None = ...
+    left_at: str | None = ...
+    error_type: str | None = ...
+    briefing_id: str | None = ...
+    useful: bool | None = ...
+    reported: bool = ...
+    corrected: bool = ...
+    followed_up: bool = ...
+class Busy
+    reason: Literal['visitor', 'site']
+class Clock(Protocol)
+    def __init__(self, *args, **kwargs)
+    def monotonic(self) -> 'float'
+    def now(self) -> 'datetime'
+class Document
+    number: int
+    title: str
+    source: str
+    passages: tuple[str, ...]
+class Embedder(Protocol)
+    def __init__(self, *args, **kwargs)
+    def embed_documents(self, texts: 'Sequence[str]') -> 'Vectors'
+    def embed_query(self, text: 'str') -> 'Vector'
+class InProgress(Protocol)
+    def __init__(self, *args, **kwargs)
+    def finish(self, key: 'str') -> 'None'
+    def pending_usd(self, besides: 'int' = 0) -> 'float'
+    def start(self, key: 'str') -> 'Busy | None'
+class IndexMeta
+    embedder_id: str
+    dimension: int
+    number_type: str = ...
+    schema_version: int = ...
+class IndexOutOfDate(RuntimeError)
+    def __init__(self, stored: 'IndexMeta', wanted: 'IndexMeta')
+class KeyValue(Protocol)
+    def __init__(self, *args, **kwargs)
+    def delete(self, key: 'str') -> 'None'
+    def delete_like(self, pattern: 'str', *, keep: 'str | None' = None) -> 'None'
+    def get(self, key: 'str') -> 'str | None'
+    def set(self, key: 'str', value: 'str') -> 'None'
+    def set_if_absent(self, key: 'str', value: 'str') -> 'None'
+class Limiter(Protocol)
+    def __init__(self, *args, **kwargs)
+    def allow(self, key: 'str') -> 'bool'
+class ModelClient(Protocol)
+    def __init__(self, *args, **kwargs)
+    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
+class ModelRequest
+    model: str
+    instructions: str
+    question: str
+    documents: tuple[Document, ...] = ...
+    max_tokens: int = ...
+    effort: str | None = ...
+    cache_instructions: Literal['off', 'short', 'long'] = ...
+    fallbacks: bool = ...
+class OffsiteError(RuntimeError)
+class OffsiteStore(Protocol)
+    def __init__(self, *args, **kwargs)
+    def close(self) -> 'None'
+    def delete(self, file: 'StoredFile') -> 'None'
+    def list(self, prefix: 'str') -> 'list[StoredFile]'
+    def put(self, path: 'Path') -> 'StoredFile'
+class OffsiteUnavailable(OffsiteError)
+type Outcome = typing.Literal['completed', 'cached', 'no_records', 'sources_only', 'paused_cap', 'paused_limit', 'busy', 'left', 'error']
+class Price
+    input: float
+    output: float
+    cache_read: float
+    cache_write_multiplier: float = ...
+    cache_write_long_multiplier: float = ...
+class Pricing(Protocol)
+    def __init__(self, *args, **kwargs)
+    def cost(self, usage: 'Usage | None', model: 'str | None') -> 'float'
+    def price_for(self, model: 'str | None') -> 'Price'
+class Random(Protocol)
+    def __init__(self, *args, **kwargs)
+    def choice(self, items: 'Sequence[T]', weights: 'Sequence[float]') -> 'T'
+    def token(self, nbytes: 'int') -> 'str'
+    def token_hex(self, nbytes: 'int') -> 'str'
+SYSTEM_CLOCK = SystemClock
+SYSTEM_RANDOM = SystemRandom
+class Schema(Protocol)
+    def __init__(self, *args, **kwargs)
+    classmethod model_json_schema(cls) -> 'dict[str, Any]'
+    classmethod model_validate(cls, obj: 'Any') -> 'Self'
+class SpendingRecord(Protocol)
+    def __init__(self, *args, **kwargs)
+    def add(self, kind: 'str', model: 'str | None', usage: 'Usage | Mapping[str, Any] | None', *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'float'
+    def briefings_today(self, *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'int'
+    def spent_since(self, since: 'str') -> 'float'
+class StoredFile
+    name: str
+    id: str = ...
+    size: int = ...
+class SystemClock
+    def monotonic(self) -> 'float'
+    def now(self) -> 'datetime'
+class SystemRandom
+    def choice(self, items: 'Sequence[T]', weights: 'Sequence[float]') -> 'T'
+    def token(self, nbytes: 'int') -> 'str'
+    def token_hex(self, nbytes: 'int') -> 'str'
+class UnknownModel(LookupError)
+class Usage
+    input_uncached: int = ...
+    cache_write: int = ...
+    cache_read: int = ...
+    output: int = ...
+    cache_write_long: int = ...
+    def __add__(self, other: 'Usage') -> 'Usage'
+    def as_stored(self) -> 'dict[str, int]'
+    classmethod from_mapping(cls, raw: 'Mapping[str, Any] | None') -> 'Usage'
+type Vector = typing.Any
+class VectorIndex(Protocol)
+    def __init__(self, *args, **kwargs)
+    def add_vectors(self, keys: 'Sequence[str]', rows: 'Sequence[Mapping[str, Any]]', vectors: 'Vectors') -> 'None'
+    def build_indexes(self) -> 'None'
+    def replace(self, keys: 'Sequence[str]', rows: 'Sequence[Mapping[str, Any]]') -> 'None'
+    def search_meaning(self, vector: 'Vector', where: 'str | None', limit: 'int') -> 'list[dict[str, Any]]'
+    def search_words(self, query: 'str', where: 'str | None', limit: 'int') -> 'list[dict[str, Any]]'
+    def tidy(self) -> 'None'
+type Vectors = typing.Any
+
+## wts_core.replies
+Item: from wts_core.replies.rules
+Items: from wts_core.replies.rules
+NotDone: from wts_core.replies.rules
+PUBLIC_FIELDS = tuple of 9
+REPORT_OUTCOMES = tuple of 2
+Refused: from wts_core.replies.rules
+Replies: from wts_core.replies.desk
+ReplyMessages: from wts_core.replies.rules
+ReplyRules: from wts_core.replies.rules
+STATUSES = tuple of 5
+StatementStatus: from wts_core.replies.rules
+TAKEDOWN = 'takedown'
+Waiting: from wts_core.replies.desk
+long_date: from wts_core.replies.markup
+migrations: from wts_core.replies.tables
+months_before: from wts_core.replies.days
+safe_link: from wts_core.replies.rules
+statement_html: from wts_core.replies.markup
+word_count: from wts_core.replies.rules
+working_days_between: from wts_core.replies.days
+
+## wts_core.replies.days
+def months_before(when: 'datetime', months: 'int') -> 'datetime'
+def working_days_between(start: 'date', end: 'date') -> 'int'
+
+## wts_core.replies.desk
+class Replies
+    def __init__(self, db: 'StateDB', *, items: 'Items', rules: 'ReplyRules', messages: 'ReplyMessages', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def all_hidden(self) -> 'list[dict[str, Any]]'
+    def close(self, rid: 'int', *, outcome: 'str', note: 'str | None' = None, public_note: 'str | None' = None) -> 'None'
+    def corrections(self, limit: 'int' = 100, *, withdrawn: 'Iterable[Mapping[str, Any]] | Callable[[], Iterable[Mapping[str, Any]]]' = (), removed: 'bool' = False) -> 'list[dict[str, Any]]'
+    def decline(self, sid: 'int', reason: 'str') -> 'None'
+    def forget_old_emails(self) -> 'int'
+    def hidden(self, item: 'str') -> 'dict[str, Any] | None'
+    def hide(self, item: 'str', note: 'str') -> 'None'
+    def lapse_undecided(self) -> 'tuple[int, int]'
+    def log(self, sid: 'int') -> 'list[dict[str, Any]]'
+    def publish(self, sid: 'int', *, checked: 'str', about: 'str | None' = None) -> 'None'
+    def published(self, *, items: 'Sequence[str | Item]' = (), about: 'str | None' = None, everywhere: 'bool' = False) -> 'list[dict[str, Any]]'
+    def remove(self, sid: 'int', reason: 'str') -> 'None'
+    def report(self, *, kind: 'str | None', page: 'str | None', message: 'str', contact: 'str | None' = None, briefing_id: 'str | None' = None, visitor: 'str | None' = None, trap: 'str | None' = '') -> 'int | None'
+    def reports(self, open_only: 'bool' = True) -> 'list[dict[str, Any]]'
+    def statement(self, sid: 'int') -> 'dict[str, Any] | None'
+    def statements(self, status: 'StatementStatus | None' = None) -> 'list[dict[str, Any]]'
+    def submit(self, *, name: 'str', role: 'str', item: 'str | Item', text: 'str', link: 'str | None', email: 'str', visitor: 'str | None' = None, trap: 'str | None' = '') -> 'int | None'
+    def unhide(self, item: 'str') -> 'None'
+    def update(self, sid: 'int', *, text: 'str | None' = None, name: 'str | None' = None, role: 'str | None' = None, link: 'str | None' = None, clear_link: 'bool' = False, about: 'str | None' = None, note: 'str | None' = None) -> 'None'
+    def waiting(self) -> 'Waiting'
+    def withdraw(self, sid: 'int', note: 'str | None' = None) -> 'None'
+class Waiting
+    reports: int
+    statements: int
+    oldest_working_days: int | None
+    hidden: int = ...
+
+## wts_core.replies.markup
+def long_date(iso: 'str | date | None') -> 'str'
+def statement_html(statement: 'Mapping[str, Any]', messages: 'ReplyMessages', *, level: 'int' = 2) -> 'str'
+
+## wts_core.replies.rules
+class Item
+    address: str
+    about: str | None = ...
+    part: str = ...
+class Items(Protocol)
+    def __init__(self, *args, **kwargs)
+    def resolve(self, pasted: 'str') -> 'Item'
+    def shown(self, item: 'Item') -> 'bool'
+class NotDone(ValueError)
+PUBLIC_FIELDS = tuple of 9
+REPORT_OUTCOMES = tuple of 2
+class Refused(ValueError)
+    def __init__(self, message: 'str', why: 'str' = '') -> 'None'
+class ReplyMessages
+    too_few_words: str
+    too_many_words: str
+    too_many_chars: str
+    name_missing: str
+    name_too_long: str
+    role_missing: str
+    role_too_long: str
+    bad_link: str
+    link_too_long: str
+    bad_email: str
+    item_not_shown: str
+    daily_statements: str
+    daily_reports: str
+    report_kind: str
+    report_too_short: str
+    report_too_long: str
+    contact_too_long: str
+    lapsed: str
+    heading: str
+    disclaimer: str
+    record_link: str
+    site: str
+class ReplyRules
+    min_words: int
+    max_chars: int
+    name_max: int
+    role_max: int
+    link_max: int
+    email_max: int
+    daily_statements: int
+    daily_reports: int
+    about_required: bool
+    report_kinds: Mapping[str, str]
+    report_kind_required: bool
+    report_min: int
+    report_max: int
+    page_max: int
+    contact_max: int
+    max_words: int = ...
+    email_kept_months: int = ...
+STATUSES = tuple of 5
+type StatementStatus = typing.Literal['pending', 'published', 'declined', 'withdrawn', 'removed']
+TAKEDOWN = 'takedown'
+def check_email(email: 'str | None', rules: 'ReplyRules', messages: 'ReplyMessages') -> 'str'
+def check_line(value: 'str | None', longest: 'int', missing: 'str', too_long: 'str', why: 'str') -> 'str'
+def check_link(link: 'str | None', rules: 'ReplyRules', messages: 'ReplyMessages') -> 'str | None'
+def check_text(text: 'str | None', rules: 'ReplyRules', messages: 'ReplyMessages') -> 'str'
+def clean_text(text: 'str | None') -> 'str'
+def safe_link(link: 'str | None') -> 'str | None'
+def word_count(text: 'str') -> 'int'
+
+## wts_core.replies.tables
+def migrations() -> 'tuple[Migration, ...]'
+
+## wts_core.settings
+class EnvSetting
+    suffix: str
+    section: str
+    key: str
+    kind: Literal['text', 'flag'] = ...
+class Messages
+    too_many_requests: str
+    visitor_daily_limit: str
+    daily_cap: str
+    monthly_cap: str
+    busy_visitor: str
+    busy_site: str
+    sources_follow: str
+    sources_only: str
+    briefing_failed: str
+    model_declined: str
+    account_daily_limit: str | None = ...
+    def with_sources(self, reason: 'str') -> 'str'
+class Settings
+    raw: dict[str, Any]
+    data_dir: Path
+    config_path: Path
+    site: Site
+    overrides: dict[str, Any] = ...
+    property answer
+    def section(self, name: 'str') -> 'dict[str, Any]'
+    property state_db
+    property usage
+class SettingsError(RuntimeError)
+class Site
+    name: str
+    package: str
+    env_prefix: str
+    root: Path
+    hosts: tuple[str, ...] = ...
+    state_file: str = ...
+    version: str = ...
+    instructions_version: str = ...
+    env_settings: tuple[EnvSetting, ...] = ...
+    def env(self, suffix: 'str', env: 'Mapping[str, str] | None' = None) -> 'str | None'
+    def env_name(self, suffix: 'str') -> 'str'
+def load_settings(cls: 'type[S]', site: 'Site', config_path: 'str | Path | None' = None, env: 'Mapping[str, str] | None' = None, **overrides: 'Any') -> 'S'
+def require(settings: 'Settings', section: 'str', keys: 'Iterable[str]') -> 'dict[str, Any]'
+def save_local_settings(data_dir: 'Path', updates: 'Mapping[str, Mapping[str, Any]]', written_by: 'str') -> 'Path'
+
+## wts_core.state
+class Import
+    name: str
+    statements: tuple[str, ...]
+    needs: tuple[str, ...] = ...
+class Migration
+    number: int
+    name: str
+    statements: tuple[str, ...]
+class StateDB
+    def __init__(self, path: 'Path', *, migrations: 'Sequence[Migration]' = (), imports: 'Sequence[Import]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def connect(self) -> 'Iterator[sqlite3.Connection]'
+    def delete(self, key: 'str') -> 'None'
+    def delete_like(self, pattern: 'str', *, keep: 'str | None' = None) -> 'None'
+    def forget_old_copies(self, days: 'int') -> 'list[Path]'
+    def get(self, key: 'str') -> 'str | None'
+    def set(self, key: 'str', value: 'str') -> 'None'
+    def set_if_absent(self, key: 'str', value: 'str') -> 'None'
+    def tables(self) -> 'set[str]'
+def core_migrations() -> 'tuple[Migration, ...]'
+def iso(clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'str'
+def today(clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'str'
+
+## wts_core.testing
+class FixedClock
+    def __init__(self, start: 'datetime | str' = '2026-11-13T12:00:00+00:00') -> 'None'
+    def advance(self, seconds: 'float' = 0.0, **delta: 'float') -> 'None'
+    def monotonic(self) -> 'float'
+    def now(self) -> 'datetime'
+    def set(self, when: 'datetime | str') -> 'None'
+class FixedRandom
+    def __init__(self, tokens: 'Sequence[str]' = (), choices: 'Sequence[int]' = ()) -> 'None'
+    def choice(self, items: 'Sequence[T]', weights: 'Sequence[float]') -> 'T'
+    def token(self, nbytes: 'int') -> 'str'
+    def token_hex(self, nbytes: 'int') -> 'str'
+MemoryOffsiteStore: from wts_core.testing.offsite
+assert_no_reader_data: from wts_core.testing.privacy
+assert_statements_stay_out: from wts_core.testing.privacy
+golden: from wts_core.testing.golden
+
+## wts_core.testing.contracts
+class EmbedderContract
+    def test_different_texts_give_different_vectors(self, embedder: 'Embedder') -> 'None'
+    def test_every_vector_has_its_dimension(self, embedder: 'Embedder') -> 'None'
+    def test_it_says_what_it_is(self, embedder: 'Embedder') -> 'None'
+    def test_no_texts_give_no_vectors(self, embedder: 'Embedder') -> 'None'
+    def test_the_same_text_always_gives_the_same_vector(self, embedder: 'Embedder') -> 'None'
+class ModelClientContract
+    def test_a_question_is_read_into_the_schema_it_is_given(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_a_stream_is_text_and_citations_then_exactly_one_completed(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_closing_the_iterator_stops_the_stream(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_every_citation_names_a_document_in_the_request(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_it_says_who_it_is_and_what_it_can_do(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_the_text_as_it_arrives_is_the_text_of_the_finished_blocks(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_token_counts_are_never_negative(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+type ModelFactory = collections.abc.Callable[[collections.abc.Sequence[ModelEvent], typing.Any], tuple[wts_core.ports.ModelClient, collections.abc.Callable[[], bool]]]
+class OffsiteStoreContract
+    staticmethod backup(folder: 'Path', name: 'str', content: 'bytes' = b'a backup') -> 'Path'
+    def test_a_deleted_file_is_gone_and_the_others_stay(self, store: 'OffsiteStore', tmp_path: 'Path') -> 'None'
+    def test_a_file_is_stored_under_its_own_name_with_its_size(self, store: 'OffsiteStore', tmp_path: 'Path') -> 'None'
+    def test_a_file_stored_again_is_listed_once_as_it_now_is(self, store: 'OffsiteStore', tmp_path: 'Path') -> 'None'
+    def test_an_empty_store_lists_nothing(self, store: 'OffsiteStore') -> 'None'
+    def test_files_are_listed_oldest_first_by_name(self, store: 'OffsiteStore', tmp_path: 'Path') -> 'None'
+    def test_it_can_be_used_again_after_it_is_closed(self, store: 'OffsiteStore', tmp_path: 'Path') -> 'None'
+    def test_it_has_a_name_for_messages(self, store: 'OffsiteStore') -> 'None'
+    def test_only_files_whose_names_start_with_the_prefix_are_listed(self, store: 'OffsiteStore', tmp_path: 'Path') -> 'None'
+class Reading
+    def __init__(self, search_text: 'str', wants_votes: 'bool' = False) -> 'None'
+    classmethod model_json_schema(cls) -> 'dict[str, Any]'
+    classmethod model_validate(cls, obj: 'Any') -> 'Self'
+class VectorIndexContract
+    def filled(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'Embedder') -> 'VectorIndex'
+    def ids_by_meaning(self, index: 'VectorIndex', embedder: 'Embedder') -> 'list[str]'
+    staticmethod passage(n: 'int', text: 'str', key: 'str' = 'k1') -> 'dict[str, Any]'
+    def test_an_embedder_with_another_dimension_is_refused(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_an_embedder_with_another_id_is_refused(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_it_opens_again_for_the_embedder_it_was_built_with(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_it_says_what_it_was_built_with(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_rows_and_vectors_replace_those_with_the_same_key(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_search_by_meaning_puts_the_nearest_first(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_search_by_words_finds_a_passage_by_its_words(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_tidying_loses_nothing(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    def test_vectors_from_two_embedders_are_never_mixed(self, open_index: 'Callable[[Embedder], VectorIndex]', embedder: 'RecordingEmbedder') -> 'None'
+    staticmethod vector_row(row: 'Mapping[str, Any]') -> 'dict[str, Any]'
+
+## wts_core.testing.golden
+def golden(path: 'Path', value: 'Any', *, update: 'bool' = False, env: 'Mapping[str, str] | None' = None) -> 'None'
+
+## wts_core.testing.index
+class MemoryIndex
+    def __init__(self, embedder: 'Embedder | IndexMeta', *, matches: 'Callable[[str, Mapping[str, Any]], bool] | None' = None) -> 'None'
+    def add_vectors(self, keys: 'Sequence[str]', rows: 'Sequence[Mapping[str, Any]]', vectors: 'Any') -> 'None'
+    def build_indexes(self) -> 'None'
+    def reopen(self, embedder: 'Embedder | IndexMeta') -> 'MemoryIndex'
+    def replace(self, keys: 'Sequence[str]', rows: 'Sequence[Mapping[str, Any]]') -> 'None'
+    def search_meaning(self, vector: 'Any', where: 'str | None', limit: 'int') -> 'list[dict[str, Any]]'
+    def search_words(self, query: 'str', where: 'str | None', limit: 'int') -> 'list[dict[str, Any]]'
+    def tidy(self) -> 'None'
+class RecordingEmbedder
+    def __init__(self, dimension: 'int' = 8, id: 'str | None' = None) -> 'None'
+    def embed_documents(self, texts: 'Sequence[str]') -> 'list[list[float]]'
+    def embed_query(self, text: 'str') -> 'list[float]'
+
+## wts_core.testing.models
+RECORDING_VERSION = 1
+class ScriptedModel
+    def __init__(self, script: 'Sequence[ModelEvent] | Path', *, structured: 'Any' = None, structured_usage: 'Usage | None' = None, error: 'Exception | None' = None) -> 'None'
+    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
+def load_documents(path: 'Path') -> 'tuple[Document, ...]'
+def load_header(path: 'Path') -> 'dict[str, Any]'
+def load_stream(path: 'Path') -> 'list[ModelEvent]'
+def record_stream(path: 'Path', events: 'Iterable[ModelEvent]', *, documents: 'Sequence[Document] | int' = 0, **about: 'Any') -> 'Path'
+def recorded(name: 'str') -> 'Path'
+
+## wts_core.testing.offsite
+class MemoryOffsiteStore
+    def __init__(self, name: 'str' = 'wts-backups', *, can_delete: 'bool' = True, newest_first: 'bool' = False) -> 'None'
+    def close(self) -> 'None'
+    def delete(self, file: 'StoredFile') -> 'None'
+    def list(self, prefix: 'str') -> 'list[StoredFile]'
+    def put(self, path: 'Path') -> 'StoredFile'
+
+## wts_core.testing.privacy
+def assert_no_reader_data(state: 'StateDB', log_lines: 'Iterable[str]', *, question: 'str', address: 'str', visitor: 'str | None' = None) -> 'None'
+def assert_statements_stay_out(*, replies: 'Replies', ask: 'Callable[[str], Iterable[Any]]', model: 'ScriptedModel', embedder: 'RecordingEmbedder', index: 'MemoryIndex', state: 'StateDB', log_lines: 'Callable[[], Iterable[str]] | Iterable[str]', item: 'str', question: 'str', about: 'str | None' = None, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'None'
+
+## wts_core.usage
+AccountSpending: from wts_core.usage.interfaces
+BriefingArchive: from wts_core.usage.briefings
+BriefingListing: from wts_core.usage.interfaces
+BriefingsInProgress: from wts_core.usage.inprogress
+Caps: from wts_core.usage.caps
+DaySpending: from wts_core.usage.interfaces
+FailureLog: from wts_core.usage.interfaces
+Failures: from wts_core.usage.failures
+Limits: from wts_core.usage.caps
+PriceTable: from wts_core.usage.pricing
+RateLimiter: from wts_core.usage.limiter
+Refusal: from wts_core.usage.caps
+SavedBriefing: from wts_core.usage.interfaces
+SavedBriefings: from wts_core.usage.interfaces
+Spending: from wts_core.usage.spending
+SpendingFigures: from wts_core.usage.interfaces
+SpendingTotals: from wts_core.usage.interfaces
+SqliteAnswerCache: from wts_core.usage.cache
+alphabet_id: from wts_core.usage.briefings
+busy_refusal: from wts_core.usage.caps
+cache_key: from wts_core.usage.cache
+client_address: from wts_core.usage.visitor
+migrations: from wts_core.usage.tables
+network_of: from wts_core.usage.visitor
+token_id: from wts_core.usage.briefings
+visitor_code: from wts_core.usage.visitor
+
+## wts_core.usage.briefings
+class BriefingArchive
+    def __init__(self, db: 'StateDB', *, new_id: 'Callable[[], str]', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def get(self, id: 'str') -> 'SavedBriefing | None'
+    def new_id(self) -> 'str'
+    def recent(self, limit: 'int' = 50) -> 'list[BriefingListing]'
+    def save(self, question: 'str', options: 'Mapping[str, Any]', events: 'Sequence[Mapping[str, Any]]', *, id: 'str | None' = None, extra: 'Mapping[str, Any] | None' = None) -> 'SavedBriefing'
+    def withdraw(self, id: 'str', reason: 'str') -> 'bool'
+    def withdrawn(self) -> 'list[BriefingListing]'
+def alphabet_id(alphabet: 'str', length: 'int', *, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'str'
+def token_id(nbytes: 'int', *, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'str'
+
+## wts_core.usage.cache
+class SqliteAnswerCache
+    def __init__(self, db: 'StateDB', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def get(self, key: 'str', max_hours: 'float') -> 'list[dict[str, Any]] | None'
+    def put(self, key: 'str', events: 'list[dict[str, Any]]', max_hours: 'float') -> 'None'
+def cache_key(parts: 'Mapping[str, Any]', *, length: 'int') -> 'str'
+
+## wts_core.usage.caps
+class Caps
+    def __init__(self, spending: 'SpendingRecord', limits: 'Limits', messages: 'Messages', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def refusal(self, *, visitor: 'str | None', account: 'int | None' = None, pending_usd: 'float' = 0.0) -> 'Refusal | None'
+    def site_paused(self, pending_usd: 'float' = 0.0) -> 'Refusal | None'
+class Limits
+    per_visitor_daily: int
+    per_account_daily: int | None
+    daily_cap_usd: float
+    monthly_cap_usd: float
+    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage') -> 'Limits'
+class Refusal
+    kind: Literal['visitor_limit', 'account_limit', 'daily_cap', 'monthly_cap', 'busy_visitor', 'busy_site']
+    message: str
+def busy_refusal(busy: 'Busy', messages: 'Messages') -> 'Refusal'
+
+## wts_core.usage.failures
+class Failures
+    def __init__(self, db: 'StateDB', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def note(self, kind: 'str', question: 'str | None', error: 'str') -> 'None'
+    def recent(self, limit: 'int | None' = 20, *, since: 'str | None' = None) -> 'list[dict[str, Any]]'
+
+## wts_core.usage.inprogress
+class BriefingsInProgress
+    def __init__(self, per_key: 'int', total: 'int', estimate_usd: 'float') -> 'None'
+    def finish(self, key: 'str') -> 'None'
+    def pending_usd(self, besides: 'int' = 0) -> 'float'
+    property running
+    def start(self, key: 'str') -> 'Busy | None'
+
+## wts_core.usage.interfaces
+class AccountSpending
+    account: int | None
+    public: bool
+    spent_usd: float
+    calls: int
+    visitors: int
+class BriefingListing
+    id: str
+    created_at: str
+    question: str
+    withdrawn_at: str | None
+    withdrawn_reason: str | None
+class DaySpending
+    day: str
+    spent_usd: float
+    calls: int
+    briefings: int
+class FailureLog(Protocol)
+    def __init__(self, *args, **kwargs)
+    def note(self, kind: 'str', question: 'str | None', error: 'str') -> 'None'
+    def recent(self, limit: 'int | None' = 20, *, since: 'str | None' = None) -> 'list[dict[str, Any]]'
+class SavedBriefing
+    id: str
+    created_at: str
+    question: str
+    options: dict[str, Any]
+    events: list[dict[str, Any]]
+    extra: dict[str, Any] = ...
+    withdrawn_at: str | None = ...
+    withdrawn_reason: str | None = ...
+class SavedBriefings(Protocol)
+    def __init__(self, *args, **kwargs)
+    def get(self, id: 'str') -> 'SavedBriefing | None'
+    def new_id(self) -> 'str'
+    def recent(self, limit: 'int' = 50) -> 'list[BriefingListing]'
+    def save(self, question: 'str', options: 'Mapping[str, Any]', events: 'Sequence[Mapping[str, Any]]', *, id: 'str | None' = None, extra: 'Mapping[str, Any] | None' = None) -> 'SavedBriefing'
+    def withdraw(self, id: 'str', reason: 'str') -> 'bool'
+    def withdrawn(self) -> 'list[BriefingListing]'
+class SpendingFigures(Protocol)
+    def __init__(self, *args, **kwargs)
+    def by_account(self, since: 'str') -> 'list[AccountSpending]'
+    def by_day(self, since: 'str') -> 'list[DaySpending]'
+    def totals(self, since: 'str') -> 'SpendingTotals'
+class SpendingTotals
+    spent_usd: float
+    calls: int
+    briefings: int
+    visitors: int
+
+## wts_core.usage.limiter
+class RateLimiter
+    def __init__(self, per_minute: 'int', *, forget_over: 'int', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def allow(self, key: 'str') -> 'bool'
+
+## wts_core.usage.pricing
+class PriceTable
+    base: Price
+    models: tuple[tuple[str, Price], ...] = ...
+    def cost(self, usage: 'Usage | None', model: 'str | None') -> 'float'
+    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage') -> 'PriceTable'
+    def price_for(self, model: 'str | None') -> 'Price'
+    def require(self, models: 'Iterable[str | None]', *, base_counts: 'bool') -> 'None'
+
+## wts_core.usage.spending
+class Spending
+    def __init__(self, db: 'StateDB', pricing: 'Pricing', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def add(self, kind: 'str', model: 'str | None', usage: 'Usage | Mapping[str, Any] | None', *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'float'
+    def briefings_today(self, *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'int'
+    def by_account(self, since: 'str') -> 'list[AccountSpending]'
+    def by_day(self, since: 'str') -> 'list[DaySpending]'
+    def spent_since(self, since: 'str') -> 'float'
+    def totals(self, since: 'str') -> 'SpendingTotals'
+
+## wts_core.usage.tables
+def migrations() -> 'tuple[Migration, ...]'
+
+## wts_core.usage.visitor
+def client_address(headers: 'Mapping[str, str]', peer: 'str | None', *, behind_proxy: 'bool', trust_forwarded_first: 'bool') -> 'str | None'
+def network_of(address: 'str | None') -> 'str'
+def visitor_code(kv: 'KeyValue', address: 'str | None', *, day: 'str | None' = None, forget_undated_salt: 'bool' = False, clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'str'

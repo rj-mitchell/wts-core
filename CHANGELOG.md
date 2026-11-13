@@ -9,6 +9,8 @@ The line `api: <hash>` under a version is the fingerprint of the public interfac
 
 The first release: everything the four sites did alike, in one place.
 
+api: 9287441fecce
+
 ### Added
 
 - The foundation: `wts_core.ports` (every interface something may be swapped behind), `wts_core.events` (the
