@@ -140,11 +140,6 @@ Left, and why:
   a site passes `BriefingConfig.settings` and `observe.config_id`, as the example does. Taking the
   `BriefingConfig` itself would be tidier and can wait for the first site that runs the harness.
 
-## Next step
-
-Where Councils Stand's adoption (MIGRATION.md), on 0.2.0 once it is released: merge this branch's pull request,
-then release as CONTRIBUTING.md says.
-
 ## What could not be done, and why
 
 - **No full evaluation run.** Each site's evaluation of briefings needs its own archive and index, which are on
