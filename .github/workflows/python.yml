@@ -62,14 +62,26 @@ jobs:
       - name: Install (${{ inputs.resolution }} versions the ranges allow)
         if: inputs.resolution != 'locked'
         run: uv sync --python ${{ inputs.python }} --resolution ${{ inputs.resolution }} --upgrade ${{ inputs.sync-args }}
+      # On GitHub Actions Typer draws a command's --help with colour codes (it sees GITHUB_ACTIONS), and the codes
+      # split an option's name in two: a test that reads --help then passes on a developer's machine and fails
+      # here. The two variables below turn that off for every site's checks, so the output is the same in both
+      # places. (A site's tests/conftest.py should set them too, before Typer is imported, for a developer who
+      # has FORCE_COLOR set: docs/NEW-SITE.md, step 9.)
       - name: Lint
         run: uv run --no-sync ruff check ${{ inputs.lint-paths }}
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+          NO_COLOR: "1"
       - name: Type check
         if: inputs.type-check != ''
         run: ${{ inputs.type-check }}
         env:
           UV_NO_SYNC: "1"
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+          NO_COLOR: "1"
       - name: Tests
         run: ${{ inputs.test-command }}
         env:
           UV_NO_SYNC: "1"
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+          NO_COLOR: "1"

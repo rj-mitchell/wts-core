@@ -69,6 +69,17 @@ def test_the_environment_names_the_config_file_the_data_folder_and_a_sites_own_s
     assert s.start_year == 2018 and s.section("site") == {"launched": False}
 
 
+def test_a_section_an_environment_setting_may_fill_is_there_even_when_nothing_fills_it(tmp_path):
+    """Each site's own loader always made the section (Where Landlords Stand's ``[site]``), so an accessor that
+    reads ``raw["site"]`` found a table. The settings file here has no ``[site]`` at all."""
+    site = make_site(tmp_path, env_settings=(EnvSetting("SITE_URL", "site", "url"),
+                                             EnvSetting("LAUNCHED", "site", "launched", "flag")))
+    s = load_settings(MySettings, site, env={})
+    assert s.raw["site"] == {} and s.section("site") == {} and "site" in s.raw
+    assert s.raw["usage"] == load_settings(MySettings, make_site(tmp_path), env={}).raw["usage"]  # nothing else moved
+    assert "site" not in load_settings(MySettings, make_site(tmp_path), env={}).raw  # no setting, no section
+
+
 def test_a_missing_setting_stops_the_site_by_name(tmp_path):
     s = load_settings(MySettings, make_site(tmp_path), env={})
     assert require(s, "usage", ["daily_spend_cap_usd"])["daily_spend_cap_usd"] == 3.0
@@ -195,6 +206,53 @@ def test_a_sites_rows_are_imported_once_and_its_old_tables_left_alone(tmp_path):
     db = StateDB(path, imports=[bring, later], clock=clock)
     assert db.get("visitor_salt:x") is None  # not run a second time
     assert sqlite3.connect(path).execute("SELECT * FROM kv").fetchall() == before
+
+
+@pytest.mark.parametrize("has_kind", [True, False])
+def test_an_imports_statement_may_be_built_when_it_runs_from_what_the_old_table_has(tmp_path, has_kind):
+    """Where Landlords Stand's ``reports`` gained its ``kind`` column late: a backup from before has none, and one
+    fixed statement that names the column fails on it."""
+    from wts_core.state import columns
+
+    path = tmp_path / "state.db"
+    old = sqlite3.connect(path)
+    old.execute(f"CREATE TABLE reports (id INTEGER PRIMARY KEY, message TEXT{', kind TEXT' if has_kind else ''})")
+    old.execute("INSERT INTO reports (message) VALUES ('The grade is out of date.')")
+    if has_kind:
+        old.execute("UPDATE reports SET kind = 'wrong'")
+    old.commit()
+    old.close()
+    seen: list[set[str]] = []
+
+    def bring(con: sqlite3.Connection) -> list[str]:
+        have = columns(con, "reports")
+        seen.append(have)
+        kind = "kind" if "kind" in have else "NULL"
+        return [f"INSERT INTO wts_kv (key, value) SELECT 'report:' || id, coalesce({kind}, 'no kind') FROM reports"]
+
+    made = (Migration(10, "more", ("CREATE TABLE wts_more (x)",)),)
+    reports = Import("reports", ("INSERT INTO wts_more VALUES (1)", bring), needs=("reports",))
+    db = StateDB(path, migrations=made, imports=[reports])
+    assert db.get("report:1") == ("wrong" if has_kind else "no kind")
+    assert seen == [{"id", "message", "kind"} if has_kind else {"id", "message"}]
+    assert columns(sqlite3.connect(path), "no_such_table") == set()
+    StateDB(path, migrations=made, imports=[reports])  # run once: the function is not asked again
+    assert len(seen) == 1
+    with db.connect() as con:
+        assert con.execute("SELECT count(*) FROM wts_more").fetchone()[0] == 1
+
+
+def test_a_statement_built_at_run_time_that_fails_undoes_the_whole_import(tmp_path):
+    path = tmp_path / "state.db"
+    sqlite3.connect(path).executescript("CREATE TABLE reports (id INTEGER PRIMARY KEY);")
+
+    def broken(con: sqlite3.Connection) -> list[str]:
+        raise RuntimeError("the old table is not as expected")
+
+    half = Import("reports", ("INSERT INTO wts_kv (key, value) VALUES ('half', 'done')", broken), needs=("reports",))
+    with pytest.raises(RuntimeError, match="not as expected"):
+        StateDB(path, imports=[half])
+    assert StateDB(path).get("half") is None  # nothing of it was kept, and it will be tried again
 
 
 def test_a_copy_made_before_an_import_does_not_outlive_the_sites_backups(tmp_path):

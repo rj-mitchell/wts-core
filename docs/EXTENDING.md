@@ -3,13 +3,17 @@
 13 November 2026. This page lists every place where a site plugs its own parts into the package, with a real
 example of each. The design behind it is [ADR 0004](adr/0004-how-sites-plug-in.md).
 
-Every example is quoted from the example site, [`examples/minimal-site/`](../examples/minimal-site/), an invented
-site called Where Parks Stand. CI runs that site end to end, and a test
-(`tests/test_docs.py`) fails if a quotation here is no longer in the file it names. So an example on this page is
-code that runs.
+An example introduced by "From `examples/minimal-site/…`" is quoted from the example site,
+[`examples/minimal-site/`](../examples/minimal-site/), an invented site called Where Parks Stand. CI runs that
+site end to end, and a test (`tests/test_docs.py`) fails if such a quotation is no longer in the file it names.
+So those examples are code that runs.
 
-The rule from ADR 0004: an extension point that the example site does not use is not a supported one. One hook is
-the exception today, and it is marked: `Hooks.usages` (section 4.5).
+The rule from ADR 0004: an extension point that the example site does not use is not a supported one. The
+exceptions are marked where they are described, and each is there for an older site that the example is not
+like: `Hooks.usages` (section 4.5, Where MPs Stand), and four things Where Landlords Stand's adoption needed,
+whose examples are that site's code and are covered by the package's own tests, not by the example: an `Item`
+made by the route (section 5), an import's statement built when it runs (section 6), and `changed` and `groups`
+for the owner's commands (section 10).
 
 ## The hooks at a glance
 
@@ -186,11 +190,15 @@ From `examples/minimal-site/src/parks/site.py`:
 
 ### 2.3 Words for the owner
 
-Three more objects hold words only the owner sees. Each site supplies all their fields.
+Three more objects hold words only the owner sees. The package has none of its own to put in their place.
 
-- `ops.AlertWording`: what the backup check says when backups or off-site copies have stopped.
+- `ops.AlertWording`: what the backup check says when backups or off-site copies have stopped. Every field is
+  needed.
 - `cli.OpsWording` (with `BackupWords`, `RestoreWords`, `BackupCheckWords`): every line the backup commands print.
-- `cli.RepliesWording`: every line the report and statement commands print.
+  `restore` and `backup_check` are `None` on a site with no such command.
+- `cli.RepliesWording`: every line the report and statement commands print. A site gives the lines its own
+  commands print. A line for a command it left out (`None` in `RepliesCommands`) need not be given, and a line
+  missing for a command it has stops the commands being built, naming the line.
 
 The example's are in `parks/site.py` (`BACKUP_ALERTS`) and `parks/cli.py` (`OPS_WORDING`, `REPLIES_WORDING`).
 Section 10 shows how they are passed.
@@ -543,6 +551,22 @@ class ParksItems:
 An `Item` may also carry `about` (the member, country, council or landlord it concerns) and `part` (a part of the
 page, as on Where Landlords Stand).
 
+**A form with more than one field.** `resolve` takes one string: what someone pasted. A site whose form sends the
+place in two fields (Where Landlords Stand's sends the page's address and, separately, which part of the page)
+does not fold them into one address for `resolve` to take apart again. `Replies.submit(item=…)` takes an `Item`
+the site has already made, and the site's route makes it:
+
+```python
+    beside = items.resolve(body.page)                      # the page, checked as ever
+    if body.part in PARTS and beside.address.startswith("landlords/"):
+        beside = dataclasses.replace(beside, part=body.part)   # the form's own field, not a #fragment
+    replies.submit(item=beside, name=body.name, role=body.role, text=body.text, link=body.link,
+                   email=body.email, visitor=None, trap=body.website)
+```
+
+`submit` still asks the site whether the item is shown (`Items.shown`) and refuses a hidden one. So does
+`publish`, when the owner decides weeks later: a statement is not published beside an item that has gone.
+
 **`ReplyRules`** holds the limits where the sites differ. Only `max_words` (150) and `email_kept_months` (3) have
 defaults, because they are the policy's.
 
@@ -630,6 +654,20 @@ def open_state(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> StateDB:
 ```
 
 `site=` marks the file as this site's (section 10 says what the mark is for).
+
+A statement of an import may be a function, given the connection when the import runs and returning the SQL to
+run. That is for an old table that is not the same in every copy of the database: Where Landlords Stand's
+`reports` gained its `kind` column late, and a backup from before it has none.
+
+```python
+def bring_reports(con: sqlite3.Connection) -> list[str]:
+    kind = "kind" if "kind" in columns(con, "reports") else "NULL"   # wts_core.state.columns
+    return [f"INSERT INTO wts_reports (id, at, kind, page, message, contact) "
+            f"SELECT id, at, {kind}, page, message, contact FROM reports"]
+
+
+IMPORTS = (Import(name="landlords-reports", statements=(bring_reports,), needs=("reports",)),)
+```
 
 An import must give every `NOT NULL` column a value. The copy made before an import holds everything the site
 deletes on a schedule, as it was that day, so it must not outlive the site's backups. The package's `tidy`
@@ -865,6 +903,46 @@ app.add_typer(replies_commands(_replies, REPLIES_COMMANDS, REPLIES_WORDING))  # 
 | `stats_commands` | `stats`, `weekly-report`, `tidy` | its `[alerts]` thresholds, its reports folder, its embedder and the similarity for themes |
 | `eval_commands` | `eval run`, `eval compare`, `eval replay` | its `EvalSite`, configuration, prices, thresholds and the most a run may spend |
 
+**Telling the site that a page may have changed.** `replies_commands(..., changed=…)` is called after each
+change a page may show: to a statement (with the statement as it now is), after a report is closed (with the
+report), and after an item is hidden or shown again (with its `item`). A site whose pages are built ahead of time
+writes them again there, as Where Landlords Stand does. What the function returns is added to the fields its line
+is filled with (`"published #{id}: {pages_changed} pages written again"`).
+
+**Keeping an older shape of command.** The commands are subcommands (`statements publish 3`). A site that had
+one command with an option for each action (`statements --publish 3`: Where Landlords Stand) and must keep that
+working for a while keeps it itself, as the callback of a group of its own, and gives the group to
+`replies_commands`. The package's commands join that group, under the site's word, in one call. From Where
+Landlords Stand's `cli.py`, as it can be written on 0.2.0:
+
+```python
+reports_app = typer.Typer(help="Readers' reports of mistakes. With no command, those still open.")
+statements_app = typer.Typer(help="Statements from landlords in their own words. With no command, those waiting.")
+
+
+@statements_app.callback(invoke_without_command=True)
+def statements(ctx: typer.Context, publish: int = typer.Option(None), checked: str = typer.Option("")) -> None:
+    if ctx.invoked_subcommand is not None:
+        return                      # one of the package's commands was asked for: nothing to do here
+    ...                             # the old shape: `landlords statements --publish 3 --checked "..."`
+
+
+app.add_typer(replies_commands(
+    _replies,
+    # this site hides nothing yet, and its own `nightly` does the housekeeping: four commands left out,
+    # and so four lines its RepliesWording need not have
+    RepliesCommands(listed=("pending",), about_option="--landlord", hide=None, unhide=None, hidden=None, tidy=None),
+    REPLIES_WORDING, about=_landlord, changed=_written_again,
+    groups={"reports": reports_app, "statements": statements_app}))
+```
+
+A group named in `groups` that no command is in is refused when the commands are built.
+
+**The clock.** `ops_commands`, `stats_commands` and `eval_commands` each take a clock, or a function that gives
+one when a command runs. A site builds its commands once, when its command line is imported, so a test that wants
+a backup named by a time of its choosing gives the function (`clock=lambda: CLOCK`) and stands its own clock in
+afterwards.
+
 A **`BackupSpec`** says what the site's backups are called and what a restored database must hold.
 
 From `examples/minimal-site/src/parks/site.py`:
@@ -947,6 +1025,23 @@ From `examples/minimal-site/src/parks/app.py`:
 
 The site's ask route must also treat a question that carries the check token as the nightly check's: no cache key,
 and `kind="check"`. The example does this in `is_the_nightly_check` in `parks/app.py`.
+
+**With no token set, the address must look as if it were never there.** `check_route` then answers 404 with the
+body a web framework gives a missing address (`{"detail": "Not Found"}`), which is right for a site whose missing
+addresses answer that way, as the example's do. A site that answers a missing address with a page of its own (a
+static site's `404.html`, as on Where Landlords Stand) would give the route away by answering this one address
+differently. Such a site adds the route only when a token is set, so that with none the address falls through to
+its own "not found" like any other:
+
+```python
+    if SITE.env("CHECK_TOKEN"):
+        check = check_route(SITE, token=SITE.env("CHECK_TOKEN"), replies=replies, clock=clock)
+
+        @app.get("/api/check")
+        def api_check(authorization: str | None = Header(None)) -> JSONResponse:
+            status_code, body = check(authorization)
+            return JSONResponse(body, status_code=status_code)
+```
 
 ## 11. The two checks every site's tests must call
 

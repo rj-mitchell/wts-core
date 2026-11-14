@@ -45,11 +45,14 @@ _VISITOR_KEPT_IN: Mapping[str, tuple[str, ...]] = {
 }
 
 
-def assert_no_reader_data(state: StateDB, log_lines: Iterable[str], *, question: str, address: str,
+def assert_no_reader_data(state: StateDB, log_lines: Iterable[str], *, address: str, question: str | None = None,
                           visitor: str | None = None) -> None:
     """Fail if anything about the reader who asked ``question`` from ``address`` is kept where it should not be.
 
-    Call it after the question has been asked through the site's pipeline, with the lines its logging wrote.
+    Call it after the question has been asked through the site's pipeline, with the lines its logging wrote. A
+    site with no questions (Where Landlords Stand, where readers search and no briefing is written) leaves
+    ``question`` out and calls it after a reader's request of whatever kind: the address and the visitor's code
+    are checked just the same.
 
     * ``address`` (the reader's network address, as the request carried it) must be in no ``wts_`` table and no
       log line.
@@ -61,8 +64,8 @@ def assert_no_reader_data(state: StateDB, log_lines: Iterable[str], *, question:
       (the record of each briefing) and ``wts_failures.question`` (the note of a briefing that failed).
 
     Give a question and an address that could be nothing else: a search for "a" proves nothing."""
-    wanted = {"question": (question, _QUESTION_KEPT_IN), "address": (address, {}),
-              **({"visitor": (visitor, _VISITOR_KEPT_IN)} if visitor else {})}
+    wanted = {**({"question": (question, _QUESTION_KEPT_IN)} if question is not None else {}),
+              "address": (address, {}), **({"visitor": (visitor, _VISITOR_KEPT_IN)} if visitor else {})}
     for what, (needle, _) in wanted.items():
         if len((needle or "").strip()) < 6:
             raise ValueError(f"the {what} to look for is too short to prove anything: {needle!r}")

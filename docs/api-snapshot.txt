@@ -318,7 +318,7 @@ def check_route(site: 'Site', *, token: 'str | None', replies: 'Replies | Callab
 def last_day_figures(log: 'BriefingLog', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
 
 ## wts_core.cli.eval
-def eval_commands(site: 'Callable[[], EvalSite]', *, config: 'Callable[[], Mapping[str, Any]]', config_id: 'Callable[[Mapping[str, Any]], str]', pricing: 'Callable[[], Pricing]', thresholds: 'Callable[[], Mapping[str, float]]', runs: 'Callable[[], Path]', max_cost_usd: 'float | Callable[[], float | None] | None', verifier: 'Callable[[], Verifier] | None' = None, loaded_words: 'Callable[[], LoadedWords] | None' = None, curled: 'bool' = False, group: 'str | None' = 'eval', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+def eval_commands(site: 'Callable[[], EvalSite]', *, config: 'Callable[[], Mapping[str, Any]]', config_id: 'Callable[[Mapping[str, Any]], str]', pricing: 'Callable[[], Pricing]', thresholds: 'Callable[[], Mapping[str, float]]', runs: 'Callable[[], Path]', max_cost_usd: 'float | Callable[[], float | None] | None', verifier: 'Callable[[], Verifier] | None' = None, loaded_words: 'Callable[[], LoadedWords] | None' = None, curled: 'bool' = False, group: 'str | None' = 'eval', clock: 'Clock | Callable[[], Clock]' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
 
 ## wts_core.cli.ops
 class BackupCheckWords
@@ -361,7 +361,7 @@ class RestoreWords
     help: str | None = ...
     archive_help: str | None = ...
     yes_help: str | None = ...
-def ops_commands(site: 'Site', settings: 'Callable[[], Settings]', spec: 'BackupSpec', wording: 'OpsWording', *, store: 'Callable[[], OffsiteStore | None] | None' = None, how_to_set_up: 'str | None' = None, env: 'Mapping[str, str] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, before: 'Callable[[], None] | None' = None) -> 'typer.Typer'
+def ops_commands(site: 'Site', settings: 'Callable[[], Settings]', spec: 'BackupSpec', wording: 'OpsWording', *, store: 'Callable[[], OffsiteStore | None] | None' = None, how_to_set_up: 'str | None' = None, env: 'Mapping[str, str] | None' = None, clock: 'Clock | Callable[[], Clock]' = <wts_core.ports.SystemClock object>, before: 'Callable[[], None] | None' = None) -> 'typer.Typer'
 
 ## wts_core.cli.replies
 class RepliesCommands
@@ -389,24 +389,24 @@ class RepliesCommands
     outcome: str | None = ...
     help: Mapping[str, str] = ...
 class RepliesWording
-    report: Lines
-    statement: Lines
-    log_entry: Lines
-    hidden_item: Lines
-    waiting: Line
-    published: Line
-    declined: Line
-    updated: Line
-    withdrawn: Line
-    removed: Line
-    closed: Line
-    hid: Line
-    unhid: Line
-    tidied: Line
     not_done: str
     refused: str
     errors_to_stderr: bool
-def replies_commands(replies: 'Callable[[], Replies]', commands: 'RepliesCommands', wording: 'RepliesWording', *, about: 'Callable[[str], str] | None' = None, changed: 'Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None' = None) -> 'typer.Typer'
+    report: Lines | None = ...
+    statement: Lines | None = ...
+    log_entry: Lines | None = ...
+    hidden_item: Lines | None = ...
+    waiting: Line | None = ...
+    published: Line | None = ...
+    declined: Line | None = ...
+    updated: Line | None = ...
+    withdrawn: Line | None = ...
+    removed: Line | None = ...
+    closed: Line | None = ...
+    hid: Line | None = ...
+    unhid: Line | None = ...
+    tidied: Line | None = ...
+def replies_commands(replies: 'Callable[[], Replies]', commands: 'RepliesCommands', wording: 'RepliesWording', *, about: 'Callable[[str], str] | None' = None, changed: 'Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None' = None, groups: 'Mapping[str, typer.Typer] | None' = None) -> 'typer.Typer'
 def replies_tidy(replies: 'Callable[[], Replies]', wording: 'RepliesWording') -> 'Callable[[], list[str]]'
 
 ## wts_core.cli.stats
@@ -414,7 +414,7 @@ class StatsNames
     stats: str | None = ...
     weekly_report: str | None = ...
     tidy: str | None = ...
-def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | Callable[[], float] | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, also_tidy: 'Sequence[Callable[[], Iterable[str]]]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | Callable[[], float] | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, also_tidy: 'Sequence[Callable[[], Iterable[str]]]' = (), clock: 'Clock | Callable[[], Clock]' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
 
 ## wts_core.dates
 def long_date(iso: 'str | date | None') -> 'str'
@@ -1230,7 +1230,7 @@ def save_local_settings(data_dir: 'Path', updates: 'Mapping[str, Mapping[str, An
 ## wts_core.state
 class Import
     name: str
-    statements: tuple[str, ...]
+    statements: tuple[str | Callable[[sqlite3.Connection], Iterable[str]], ...]
     needs: tuple[str, ...] = ...
 class Migration
     number: int
@@ -1246,6 +1246,7 @@ class StateDB
     def set(self, key: 'str', value: 'str') -> 'None'
     def set_if_absent(self, key: 'str', value: 'str') -> 'None'
     def tables(self) -> 'set[str]'
+def columns(con: 'sqlite3.Connection', table: 'str') -> 'set[str]'
 def core_migrations() -> 'tuple[Migration, ...]'
 def iso(clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'str'
 def today(clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'str'
@@ -1352,7 +1353,7 @@ class MemoryOffsiteStore
     def put(self, path: 'Path') -> 'StoredFile'
 
 ## wts_core.testing.privacy
-def assert_no_reader_data(state: 'StateDB', log_lines: 'Iterable[str]', *, question: 'str', address: 'str', visitor: 'str | None' = None) -> 'None'
+def assert_no_reader_data(state: 'StateDB', log_lines: 'Iterable[str]', *, address: 'str', question: 'str | None' = None, visitor: 'str | None' = None) -> 'None'
 def assert_statements_stay_out(*, replies: 'Replies', ask: 'Callable[[str], Iterable[Any]]', model: 'ScriptedModel', embedder: 'RecordingEmbedder', index: 'MemoryIndex', state: 'StateDB', log_lines: 'Callable[[], Iterable[str]] | Iterable[str]', item: 'str', question: 'str', about: 'str | None' = None, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'None'
 
 ## wts_core.usage

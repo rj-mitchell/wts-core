@@ -37,6 +37,14 @@ place. In one list, what is different (`CHANGELOG.md` says what a site must do f
 - **Events are one plain type,** `events.Event`, wherever they are passed. `testing.FixedRandom` gives ids of
   the real length. `wts_core.dates.long_date` is the family's date format where a pipeline may import it.
 
+- **From the first adoption** (Where Landlords Stand, on 0.1.0): `Replies.publish` asks the site whether the item
+  is still shown, and refuses a hidden one; `replies_commands` tells the site (`changed`) after `hide`, `unhide`
+  and `reports close` as well, asks only for the wording its commands print, and takes a group of the site's own
+  (`groups`) so that an older shape of command can be kept with one call; the command groups take their clock
+  when a command runs; `load_settings` makes the section of every `EnvSetting`; an `Import`'s statement may be
+  built when it runs (`state.columns`); `assert_no_reader_data` needs no question; the shared `python.yml` turns
+  Typer's colour off.
+
 ### At adoption, because of 0.2.0
 
 - Each AI site's settings have every key `desk_parts` reads under the names it reads them by
@@ -538,13 +546,21 @@ checks section of `API-SKETCH.md` has since been rewritten as built.
 
 ### At adoption
 
-- **`required_tables` must name at least one table.** An empty tuple is accepted, and a restore would then take a
-  sound SQLite file of another kind, an empty one included. The tests use each site's old tables: Where MPs Stand
-  `manifest`, `usage`, `briefings`, `reports`; Where Countries Stand and Where Councils Stand `usage`,
-  `briefings`; Where Landlords Stand `reports`.
-- **Those names are right only while the old tables are kept.** A backup made before adoption has no `wts_` tables,
-  so a spec that names them refuses it. When a site drops its old tables, a release later, its spec must change in
-  the same release, or its restore refuses each backup made after that.
+- **`required_tables` must name at least one table** (an empty tuple is refused when the spec is made: with none
+  named, a restore would take any sound SQLite file, an empty one included).
+- **A site's spec should name tables that only that site has, and that stay when the old shared tables are
+  dropped.** Where Landlords Stand's adoption (the first) named `missed` and `approvals`: its own tables, in every
+  backup made before the package or after, and in no sister site's. This document first gave `reports` for it,
+  which was wrong on both counts: every site has a `reports` table until it drops it, and a spec that names a
+  table the package's import replaces refuses every backup made once that table is gone. The package's own tests
+  (`tests/test_ops_sites.py`) still build each site's backups from its old tables (Where MPs Stand `manifest`,
+  `usage`, `briefings`, `reports`; Where Countries Stand and Where Councils Stand `usage`, `briefings`; Where
+  Landlords Stand `reports`), because they compare with each site's own restore as it stands today: they are not
+  the specs to adopt.
+- **A site with no table of its own** names the package's (`wts_` tables) and passes `site=` to its `BackupSpec`
+  and its `StateDB`, so that the mark tells its backups from a sister site's (0.2.0). A backup made before
+  adoption has no `wts_` tables, so such a spec refuses it: keep one table of the site's own in the list for as
+  long as backups from before adoption must be restorable.
 - The rest of each spec, as in `tests/test_ops_sites.py`. Where MPs Stand: `where-they-stand-`, a tar holding
   `state.sqlite` and `settings.local.toml`, 14 kept, `wal=True`. Where Countries Stand: `wcs-state-`, 14. Where
   Councils Stand: `councils-state-`, 7. Where Landlords Stand: `landlords-state-` with the stamp `%Y%m%d-%H%M%S`,

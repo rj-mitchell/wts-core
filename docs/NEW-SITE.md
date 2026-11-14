@@ -245,7 +245,8 @@ The timers run the site's commands. With the example's names:
 | weekly | `rivers weekly-report` | saves the week's figures, and fails if a figure is over its threshold |
 | after each update | `rivers stats --check` | fails if a figure is over its threshold |
 
-The Docker build must reach `github.com` and GitHub's release-download host, to fetch the wheel. It needs no
+The Docker build must reach `github.com` and GitHub's release-download host, `objects.githubusercontent.com`, to
+fetch the wheel. It needs no
 `git` in the image and no token.
 
 ## 9. CI
@@ -312,6 +313,40 @@ jobs:
 
 The accessibility step needs the site's own `scripts/a11y.mjs`: copy a sibling site's and list this site's pages
 in it. The example has none.
+
+**A test that reads a command's `--help`.** On GitHub Actions, Typer draws help with colour codes, and the codes
+split an option's name in two, so such a test passes on a developer's machine and fails in CI. The shared
+`python.yml` sets `_TYPER_FORCE_DISABLE_TERMINAL=1` and `NO_COLOR=1` for the lint, type-check and test steps, so
+CI is covered. The site's own `tests/conftest.py` should set the same two, before Typer is first imported, so that
+the tests also pass for a developer who has `FORCE_COLOR` set. The example's does.
+
+From `examples/minimal-site/tests/conftest.py`:
+
+```python
+# Typer draws its help with colour codes when it thinks a terminal is watching, which it does on GitHub Actions;
+# the codes split an option's name in two. It reads these when first imported, so they are set before it is.
+os.environ["_TYPER_FORCE_DISABLE_TERMINAL"] = "1"
+os.environ["NO_COLOR"] = "1"
+```
+
+**Dependabot must leave the shared workflows alone.** They are called at the tag of the package the site pins,
+and the two are raised together, by hand, in one pull request ([`UPGRADING.md`](UPGRADING.md)). Dependabot does
+not raise a dependency written as a wheel's address, but it does raise an action's tag, so left to itself it
+would move the workflows ahead of the wheel. In the site's `.github/dependabot.yml`, under the `github-actions`
+updates:
+
+```yaml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # raised by hand with the wheel's version in pyproject.toml, in one change
+      - dependency-name: "rj-mitchell/wts-core*"
+```
+
+A test in the site that reads the tag from `ci.yml` and the version from `pyproject.toml`, and fails when they
+differ, keeps the two the same (Where Landlords Stand has one).
 
 The nightly family check stays in the charity's repository. It reads `family/projects.json`, so step 7 is what
 adds the site to it. It asks the site's `/api/health`, `/api/status`, `/api/check` and one real question.

@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from wts_core.checks import LoadedWords, Verifier
+from wts_core.cli._clock import _clock_of
 from wts_core.eval import (
     CaseResult,
     EvalSite,
@@ -58,7 +59,7 @@ def eval_commands(site: Callable[[], EvalSite], *, config: Callable[[], Mapping[
                   max_cost_usd: float | Callable[[], float | None] | None,
                   verifier: Callable[[], Verifier] | None = None,
                   loaded_words: Callable[[], LoadedWords] | None = None, curled: bool = False,
-                  group: str | None = "eval", clock: Clock = SYSTEM_CLOCK) -> typer.Typer:
+                  group: str | None = "eval", clock: Clock | Callable[[], Clock] = SYSTEM_CLOCK) -> typer.Typer:
     """The site's evaluation commands, to add to its own app with ``app.add_typer(...)``.
 
     Everything is asked for when a command runs, never when the commands are built. ``site`` is the site's
@@ -71,8 +72,11 @@ def eval_commands(site: Callable[[], EvalSite], *, config: Callable[[], Mapping[
 
     ``verifier`` and ``loaded_words`` are the site's own checks, for ``replay`` (and ``curled`` whether the site
     curls its quotation marks). ``group`` is the name the three commands sit under; None puts them straight into
-    the app returned, for a site that adds them to a group of its own."""
+    the app returned, for a site that adds them to a group of its own. ``clock`` is a clock, or a function that
+    gives one when a command runs."""
     import typer
+
+    clock = _clock_of(clock)
 
     app = typer.Typer(add_completion=False)
     commands = app

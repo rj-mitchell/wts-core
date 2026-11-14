@@ -9,6 +9,7 @@ site's to test.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -211,6 +212,76 @@ def test_no_statement_is_taken_beside_an_item_hidden_while_a_concern_is_decided(
     assert (hidden.why, str(hidden)) == ("item_not_shown", site.messages.item_not_shown)
     site.replies.unhide(site.case.address)
     assert site.send()
+
+
+# ---- the item is looked at again when a statement is published -------------------------------------------------------
+
+
+def _whom(site: Open) -> dict:
+    return {"about": "example-housing"} if site.key == "landlords" else {}
+
+
+def test_a_statement_is_not_published_beside_an_item_that_has_gone_since_it_was_sent(site):
+    """Weeks can pass between a statement arriving and the owner deciding. Where Landlords Stand's own command
+    refused a landlord whose page had gone ("no landlord's page … on the site"); every site now refuses."""
+    sid = site.send()
+    stored = site.replies.statement(sid)
+    asked: list[Item] = []
+
+    def gone(item: Item) -> bool:
+        asked.append(item)
+        return False
+
+    was, site.items.shown = site.items.shown, gone
+    with pytest.raises(NotDone) as refused:
+        site.show(sid, **_whom(site))
+    assert str(refused.value) == (f"statement {sid} is beside {stored['item']}, which is no longer shown on the "
+                                  "site: decline the statement, saying why, or put the item back first")
+    # the site was asked about the item as stored, with whom the statement would speak for
+    assert asked == [Item(address=stored["item"], about=_whom(site).get("about") or stored["about"],
+                          part=stored["part"] or "")]
+    # nothing was changed, and nothing is shown
+    assert site.replies.statement(sid) == stored and site.replies.published(everywhere=True) == []
+    assert [e["action"] for e in site.replies.log(sid)] == ["received"]
+    site.items.shown = was  # the item is back: now it is published
+    site.show(sid, **_whom(site))
+    assert site.replies.statement(sid)["status"] == "published"
+
+
+def test_the_sites_own_words_for_why_an_item_is_not_shown_reach_the_owner(site):
+    sid = site.send()
+
+    def withdrawn(item: Item) -> bool:
+        raise Refused("That briefing has been withdrawn, so a statement can't be shown beside it.", "item_not_shown")
+
+    site.items.shown = withdrawn
+    with pytest.raises(NotDone, match=r"which cannot be shown: That briefing has been withdrawn, so a statement "
+                                      r"can't be shown beside it\.$"):
+        site.show(sid, **_whom(site))
+    assert site.replies.statement(sid)["status"] == "pending"
+
+
+def test_a_statement_is_not_published_beside_an_item_hidden_while_a_concern_is_decided(site):
+    sid = site.send()
+    address = site.replies.statement(sid)["item"]
+    site.replies.hide(address, "Hidden while we look into a concern about it.")
+    with pytest.raises(NotDone, match=rf"statement {sid} is beside {re.escape(address)}, which is hidden while a "
+                                      "concern is decided: show the item again"):
+        site.show(sid, **_whom(site))
+    assert site.replies.statement(sid)["status"] == "pending"
+    site.replies.unhide(address)
+    site.show(sid, **_whom(site))
+    assert [s["id"] for s in site.replies.published(everywhere=True)] == [sid]
+
+
+def test_landlords_a_statement_is_not_published_once_its_landlords_page_has_gone(landlords):
+    sid = landlords.send()  # beside landlords/example-housing/, which says whom it speaks for
+    landlords.items.pages.discard("landlords/example-housing/")  # the landlord has left the register since
+    with pytest.raises(NotDone, match="is beside landlords/example-housing/, which is no longer shown on the site"):
+        landlords.show(sid)
+    landlords.items.pages.add("landlords/example-housing/")
+    landlords.show(sid)
+    assert landlords.replies.statement(sid)["about"] == "example-housing"
 
 
 # ---- the trap, and the daily limit --------------------------------------------------------------------------------

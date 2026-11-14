@@ -29,7 +29,8 @@ version number and the changelog whether it must change anything, and a fix reac
    ```
 
    The same for `kit.yml`, `docker.yml`, `web.yml` and the `setup` and `a11y` steps. A site has one number, and
-   it is the same in both files.
+   it is the same in both files. Dependabot is told to leave `rj-mitchell/wts-core*` alone, so that it cannot
+   raise the workflows' tag without the wheel ([`NEW-SITE.md`](NEW-SITE.md), step 9).
 5. **Make the changes the changelog asked for,** and run the site's own checks: `uv run ruff check .`,
    `uv run mypy`, `uv run pytest`, and the free replay of its recorded briefings (`<site> eval replay
    eval/fixtures`). If the version changed the checks on briefings or anything a briefing is written with, make

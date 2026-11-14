@@ -15,7 +15,7 @@ import os
 import shutil
 import sqlite3
 import threading
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from wts_core.ports import SYSTEM_CLOCK, Clock
 
-__all__ = ["Import", "Migration", "StateDB", "core_migrations", "iso", "today"]
+__all__ = ["Import", "Migration", "StateDB", "columns", "core_migrations", "iso", "today"]
 
 PREFIX = "wts_"
 SITE_KEY = "site"  # in ``wts_kv``: the package name of the site whose state database this is
@@ -56,11 +56,23 @@ class Migration:
 @dataclass(frozen=True)
 class Import:
     """A site's own one-off copy of rows from its old tables into the package's. Run once, in one transaction,
-    after the migrations; skipped (and tried again next start) while any table in ``needs`` is missing."""
+    after the migrations; skipped (and tried again next start) while any table in ``needs`` is missing.
+
+    A statement is SQL, or a function that is given the connection when the import runs and returns the SQL to
+    run then: for an old table whose shape is not the same in every copy of the database. Where Landlords Stand's
+    ``reports`` gained its ``kind`` column late, so a backup from before has none, and its import reads
+    ``columns(con, "reports")`` to choose what to select. The function runs inside the import's transaction and
+    should only read."""
 
     name: str
-    statements: tuple[str, ...]
+    statements: tuple[str | Callable[[sqlite3.Connection], Iterable[str]], ...]
     needs: tuple[str, ...] = ()
+
+
+def columns(con: sqlite3.Connection, table: str) -> set[str]:
+    """The names of a table's columns (none if there is no such table): for an ``Import`` whose statement depends
+    on what an old table has."""
+    return {row[0] for row in con.execute("SELECT name FROM pragma_table_info(?)", (table,))}
 
 
 def core_migrations() -> tuple[Migration, ...]:
@@ -180,7 +192,8 @@ class StateDB:
         with self._alone() as con:  # all of them, or none; and only once, however many processes start together
             for i in todo(con):
                 for statement in i.statements:
-                    con.execute(statement)
+                    for sql in ((statement,) if isinstance(statement, str) else tuple(statement(con))):
+                        con.execute(sql)
                 con.execute("INSERT INTO wts_schema (name, applied_at) VALUES (?, ?)",
                             (f"import:{i.name}", iso(self.clock)))
 

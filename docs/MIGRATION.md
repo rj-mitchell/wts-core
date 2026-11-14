@@ -19,10 +19,14 @@ Replaces each site's `config.py` loader. Each site keeps a `Settings` subclass h
 
 | | MPs | Countries | Councils | Landlords |
 |---|---|---|---|---|
-| Deleted | `load_settings`, `save_local_settings`, `get_settings`, `_resolve` | `load_settings`, `get_settings`, `_resolve` | the same | the same, and `load_toml` |
+| Deleted | `load_settings`, `save_local_settings`, `get_settings`, `_resolve` | `load_settings`, `get_settings`, `_resolve` | the same | the same. Its `load_toml` is **kept** (see below) |
 | Kept in the site | its accessors (`parlparse_dir`, `regions`, `record_dirs`…) | its accessors (`born_digital_from`…) | its accessors (`modgov`…) | `fetch`, `raw_dir`, `staging_dir`, and its two environment settings (`LANDLORDS_SITE_URL`, `LANDLORDS_LAUNCHED`) as a declared list |
 | Difference | None | None | None | None. The local layer and keyword overrides become available; nothing uses them |
 
+- **Where Landlords Stand keeps `load_toml`.** This table first listed it as deleted, but the package has nothing
+  in its place: it reads a second file under `config/` (`sources.toml`, `scoring.toml`, `wording.toml`), which is
+  the site's own business and no part of layered settings. The site kept the function when it adopted, and that
+  is right.
 - The loader is the same statements in the three AI sites today, so the package's is theirs: `settings.toml`, then
   `<data>/settings.local.toml` merged one level deep, then keyword overrides; `<PREFIX>_CONFIG` and
   `<PREFIX>_DATA_DIR`. The site passes its prefix and its repository root (the package can't find the root from

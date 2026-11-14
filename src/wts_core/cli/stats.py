@@ -34,6 +34,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from wts_core.cli._clock import _clock_of
 from wts_core.observe import (
     OWNER_ACCEPTED,
     Retention,
@@ -78,7 +79,7 @@ def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Call
                    decided_by: Callable[[], str | None] | None = None, compare_weeks: int = 4,
                    retention: Retention = OWNER_ACCEPTED, names: StatsNames | None = None,
                    backup_days: int | None = None, also_tidy: Sequence[Callable[[], Iterable[str]]] = (),
-                   clock: Clock = SYSTEM_CLOCK) -> typer.Typer:
+                   clock: Clock | Callable[[], Clock] = SYSTEM_CLOCK) -> typer.Typer:
     """The site's statistics commands, to add to its own app with ``app.add_typer(...)``.
 
     Everything the site knows is asked for when a command runs, never when the commands are built: ``state`` (its
@@ -94,8 +95,11 @@ def stats_commands(site: Site, state: Callable[[], StateDB], *, thresholds: Call
     ``backup_days`` is how long the site keeps a backup: ``tidy`` deletes the copies of the database made before
     an import once they are older. ``also_tidy`` is the rest of the site's nightly housekeeping, so that its
     timer runs one command: each is called by ``tidy`` after the package's own work and gives the lines to print
-    (``cli.replies_tidy`` is the right of reply's)."""
+    (``cli.replies_tidy`` is the right of reply's). ``clock`` is a clock, or a function that gives one when a
+    command runs."""
     import typer
+
+    clock = _clock_of(clock)
 
     if embedder is not None and similarity is None:
         raise ValueError("stats_commands: an embedder needs similarity too, the cosine similarity at which two "

@@ -144,10 +144,13 @@ def load_settings[S: Settings](cls: type[S], site: Site, config_path: str | Path
             for section, values in tomllib.load(fh).items():
                 raw.setdefault(section, {}).update(values)
     for setting in site.env_settings:
+        # the section is there whether or not the variable is set, as it was with each site's own loader: a
+        # site's accessor that reads ``raw["site"]`` finds a table, empty until something sets a key in it
+        section = raw.setdefault(setting.section, {})
         value = site.env(setting.suffix, env)
         if value is not None:
-            raw.setdefault(setting.section, {})[setting.key] = (
-                value.strip().lower() in ("1", "true", "yes") if setting.kind == "flag" else value.strip())
+            section[setting.key] = value.strip().lower() in ("1", "true", "yes") if setting.kind == "flag" \
+                else value.strip()
     for dotted, value in overrides.items():
         section, _, key = dotted.partition(".")
         raw.setdefault(section, {})[key] = value

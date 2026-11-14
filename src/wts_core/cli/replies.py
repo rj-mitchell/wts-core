@@ -21,7 +21,10 @@ done. The package has no line of its own but the reason something could not be d
 (``replies.Refused``) are printed as they are. Either ends the command with exit status 1.
 
 One shape is not offered: Where Landlords Stand's single ``statements`` command with an option for each action
-(``--publish 3``). Its actions become commands like the other sites'; what each prints is still its own.
+(``--publish 3``). Its actions become commands like the other sites'; what each prints is still its own. A site
+that must keep such a shape working for a while keeps it itself, as the callback of a group of its own, and gives
+that group to ``replies_commands`` (``groups={"statements": its_group}``): the package's commands then join it,
+in the one call.
 
 Typer is imported when the commands are built, so ``wts_core.cli`` can be imported without it.
 """
@@ -89,34 +92,46 @@ class RepliesCommands:
 
 @dataclass(frozen=True, kw_only=True)
 class RepliesWording:
-    """Every line the commands print. A site supplies all of them.
+    """Every line the commands print. A site supplies each line its commands need, and the package has none to
+    put in its place. A line for a command the site left out (``None`` in ``RepliesCommands``) need not be given;
+    one missing for a command the site has stops the commands being built, naming the line.
 
     The listing functions are given one row and return its lines. A statement's row is what ``Replies.statement``
     returns, with ``words`` (how many) and ``log`` (``Replies.log``: the note of how its sender was confirmed is
     there). The lines for what was done are templates filled with that same row as it now is (``"published
     #{id}"``), and with whatever the site's ``changed`` returned; or functions of it."""
 
-    report: Lines  # one report, as ``Replies.reports`` returns it
-    statement: Lines
-    log_entry: Lines  # one thing done to a statement: at, action, note, previous
-    hidden_item: Lines  # item, note, at
-    waiting: Line  # reports, statements, hidden, oldest_working_days
-    published: Line
-    declined: Line
-    updated: Line
-    withdrawn: Line
-    removed: Line
-    closed: Line  # the report's fields, as they now are
-    hid: Line  # item, note
-    unhid: Line  # item
-    # what the nightly housekeeping did, each a count: lapsed (statements nobody decided in three months, now
-    # declined), contacts (old open reports whose contact details were deleted), emails (confirming addresses
-    # deleted three months after their statements ended), counts (rows of earlier days' daily counts deleted)
-    tidied: Line
     not_done: str  # {message}: why the owner's request could not be done, in the package's words
     refused: str  # {message}: the site's own words for new wording that breaks a rule
     errors_to_stderr: bool  # where those two are said: standard error, or standard output
+    report: Lines | None = None  # one report, as ``Replies.reports`` returns it
+    statement: Lines | None = None
+    log_entry: Lines | None = None  # one thing done to a statement: at, action, note, previous
+    hidden_item: Lines | None = None  # item, note, at
+    waiting: Line | None = None  # reports, statements, hidden, oldest_working_days
+    published: Line | None = None
+    declined: Line | None = None
+    updated: Line | None = None
+    withdrawn: Line | None = None
+    removed: Line | None = None
+    closed: Line | None = None  # the report's fields, as they now are
+    hid: Line | None = None  # item, note
+    unhid: Line | None = None  # item
+    # what the nightly housekeeping did, each a count: lapsed (statements nobody decided in three months, now
+    # declined), contacts (old open reports whose contact details were deleted), emails (confirming addresses
+    # deleted three months after their statements ended), counts (rows of earlier days' daily counts deleted)
+    tidied: Line | None = None
 
+
+# the lines each command prints: a site that has the command gives them
+_LINES: dict[str, tuple[str, ...]] = {
+    "reports_list": ("report",), "reports_show": ("report",), "reports_close": ("closed",),
+    "statements_list": ("statement",), "statements_show": ("statement", "log_entry"),
+    "statements_publish": ("published",), "statements_decline": ("declined",), "statements_update": ("updated",),
+    "statements_withdraw": ("withdrawn",), "statements_remove": ("removed",), "statements_log": ("log_entry",),
+    "hide": ("hid",), "unhide": ("unhid",), "hidden": ("hidden_item",), "waiting": ("waiting",),
+    "tidy": ("tidied",),
+}
 
 # the package's own descriptions of each command and option, used where a site gives none
 _HELP: dict[str, str] = {
@@ -173,32 +188,48 @@ def replies_tidy(replies: Callable[[], Replies], wording: RepliesWording) -> Cal
     site's timer runs one command (``stats_commands(..., also_tidy=[replies_tidy(replies, wording)])``); or run
     the command ``replies_commands`` adds (``RepliesCommands.tidy``), which calls this."""
 
+    line = wording.tidied
+    if line is None:
+        raise ValueError("RepliesWording.tidied is not given: the nightly housekeeping says what it did in the "
+                         "site's own words")
+
     def tidy() -> list[str]:
         desk = replies()
         emails = desk.forget_old_emails()
         lapsed, contacts = desk.lapse_undecided()
         counts = desk.forget_old_counts()
         row = {"lapsed": lapsed, "contacts": contacts, "emails": emails, "counts": counts}
-        return [wording.tidied(row) if callable(wording.tidied) else wording.tidied.format(**row)]
+        return [line(row) if callable(line) else line.format(**row)]
 
     return tidy
 
 
 def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, wording: RepliesWording, *,
                      about: Callable[[str], str] | None = None,
-                     changed: Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None = None) -> typer.Typer:
+                     changed: Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None = None,
+                     groups: Mapping[str, typer.Typer] | None = None) -> typer.Typer:
     """The site's commands for reports, statements and hidden items, to add to its own app with
     ``app.add_typer(...)`` (no name: they join the site's other commands, under the names the site gave).
 
     ``replies`` is called when a command runs, never when the commands are built. ``about`` turns what the owner
     typed for whom a statement speaks for into what is stored (a country's code, a council's, a landlord's page),
-    or raises ``ValueError`` with the site's words. ``changed`` is called after each change to a statement, with
-    the statement as it now is (Where Landlords Stand writes its pages again there); what it returns is added to
-    the fields the line for what was done is filled with."""
+    or raises ``ValueError`` with the site's words.
+
+    ``changed`` is called after each change that a page may show, so that a site whose pages are built ahead of
+    time can write them again (Where Landlords Stand does): after a change to a statement, with the statement as
+    it now is; after a report is closed, with the report; after an item is hidden or shown again, with its
+    ``item`` (and its ``note``, when hidden). What it returns is added to the fields the line for what was done
+    is filled with. It is not called when nothing changed.
+
+    ``groups`` gives a group of the site's own for a group of these commands to join: ``{"statements":
+    its_group}`` puts ``statements publish`` and the rest into ``its_group``, which keeps its own description and
+    its own callback. That is how a site keeps an older shape of command working beside the new ones
+    (``statements --publish 3``, as the group's callback), with one call here."""
     import typer
 
     app = typer.Typer(add_completion=False)
-    groups: dict[str, typer.Typer] = {}
+    made: dict[str, typer.Typer] = {}
+    own = dict(groups or {})
     singles: set[str] = set()
 
     def described(key: str) -> str:
@@ -217,15 +248,19 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
                 if name is None:
                     continue
                 *group, last = name.split()
-                if len(group) > 1 or (not group and last in groups) or (group and group[0] in singles):
+                if len(group) > 1 or (not group and last in made) or (group and group[0] in singles):
                     raise ValueError(f"RepliesCommands.{key}: {name!r} can't be both a command and a group")
-                if group and group[0] not in groups:
-                    groups[group[0]] = typer.Typer(no_args_is_help=True)
-                    app.add_typer(groups[group[0]], name=group[0],
-                                  help=commands.help.get(group[0], _HELP.get(group[0])))
+                if group and group[0] not in made:
+                    if group[0] in own:  # the site's own group: its description and its callback stay its own
+                        made[group[0]] = own[group[0]]
+                        app.add_typer(made[group[0]], name=group[0])
+                    else:
+                        made[group[0]] = typer.Typer(no_args_is_help=True)
+                        app.add_typer(made[group[0]], name=group[0],
+                                      help=commands.help.get(group[0], _HELP.get(group[0])))
                 if not group:
                     singles.add(last)
-                (groups[group[0]] if group else app).command(last, help=described(key), hidden=out_of_help)(function)
+                (made[group[0]] if group else app).command(last, help=described(key), hidden=out_of_help)(function)
             return function
 
         return register
@@ -233,13 +268,31 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
     unknown = sorted(set(commands.also.values()) - {f.name for f in fields(commands)})
     if unknown:
         raise ValueError(f"RepliesCommands.also names no command of the package's: {', '.join(unknown)}")
+    has = {key for key in _LINES if getattr(commands, key) is not None or key in commands.also.values()}
+    missing = sorted({line for key in has for line in _LINES[key] if getattr(wording, line) is None})
+    if missing:
+        raise ValueError("RepliesWording needs " + ", ".join(missing) + ": the site has the commands that print "
+                         "them. Give the lines, or leave those commands out (None in RepliesCommands)")
+    in_use = {str(name).split()[0] for key in has for name in (getattr(commands, key), *(
+        n for n, of in commands.also.items() if of == key)) if name is not None and len(str(name).split()) == 2}
+    unused = sorted(set(own) - in_use)
+    if unused:
+        raise ValueError(f"groups names {', '.join(unused)}, and no command is in a group of that name: a command "
+                         "joins a group by a name of two words (\"statements publish\")")
 
-    def say(line: Line, row: Mapping[str, Any]) -> None:
-        typer.echo(line(row) if callable(line) else line.format(**row))
+    def line(name: str) -> Any:
+        return getattr(wording, name)  # there, or the commands would not have been built
+
+    def told(row: Mapping[str, Any]) -> dict[str, Any]:
+        """The row a line is filled with, once the site has been told of the change."""
+        return {**row, **((changed(row) or {}) if changed is not None else {})}
+
+    def say(said: Line, row: Mapping[str, Any]) -> None:
+        typer.echo(said(row) if callable(said) else said.format(**row))
 
     def show(lines: Sequence[str]) -> None:
-        for line in lines:
-            typer.echo(line)
+        for each in lines:
+            typer.echo(each)
 
     @contextmanager
     def answering() -> Iterator[None]:
@@ -270,11 +323,8 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
             raise NotDone(f"no statement {sid}")
         return whole(desk, row)
 
-    def done(line: Line, desk: Replies, sid: int) -> None:
-        row = found(desk, sid)
-        if changed is not None:
-            row.update(changed(row) or {})
-        say(line, row)
+    def done(said: Line, desk: Replies, sid: int) -> None:
+        say(said, told(found(desk, sid)))
 
     number = typer.Argument(..., help="its number, from the list")
     about_names = ("--about", *((commands.about_option,) if commands.about_option else ()))
@@ -286,12 +336,12 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
     @place("reports_list")
     def reports_list(everything: bool = every_report) -> None:
         for row in replies().reports(open_only=not everything):
-            show(wording.report(row))
+            show(line("report")(row))
 
     @place("reports_show")
     def reports_show(rid: int = number) -> None:
         with answering():
-            show(wording.report(_report(replies(), rid)))
+            show(line("report")(_report(replies(), rid)))
 
     outcome_option = option("reports_close.outcome", commands.outcome if commands.outcome is not None else ...,
                             "--outcome")
@@ -304,7 +354,7 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
         desk = replies()
         with answering():
             desk.close(rid, outcome=outcome, note=note, public_note=public_note)
-            say(wording.closed, _report(desk, rid))
+            say(line("closed"), told(_report(desk, rid)))
 
     # ---- statements ---------------------------------------------------------------------------------------------
 
@@ -322,16 +372,16 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
             else:
                 rows = [row for row in desk.statements() if row["status"] in commands.listed]
         for row in rows:
-            show(wording.statement(whole(desk, row)))
+            show(line("statement")(whole(desk, row)))
 
     @place("statements_show")
     def statements_show(sid: int = number) -> None:
         desk = replies()
         with answering():
             row = found(desk, sid)
-        show(wording.statement(row))
+        show(line("statement")(row))
         for entry in row["log"]:
-            show(wording.log_entry(entry))
+            show(line("log_entry")(entry))
 
     checked_option = option("statements_publish.checked", ..., "--checked")
     publish_about = option("statements_publish.about", None, *about_names)
@@ -342,7 +392,7 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
         desk = replies()
         with answering():
             desk.publish(sid, checked=checked, about=whom(speaks_for))
-            done(wording.published, desk, sid)
+            done(line("published"), desk, sid)
 
     decline_reason = option("statements_decline.reason", ..., "--reason")
 
@@ -351,7 +401,7 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
         desk = replies()
         with answering():
             desk.decline(sid, reason)
-            done(wording.declined, desk, sid)
+            done(line("declined"), desk, sid)
 
     text_option = option("statements_update.text", None, "--text")
     text_file_option = option("statements_update.text_file", None, "--text-file", exists=True, dir_okay=False)
@@ -370,7 +420,7 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
         words = text_file.read_text(encoding="utf-8") if text_file is not None else text
         with answering():
             desk.update(sid, text=words, name=name, role=role, link=link, about=whom(speaks_for), note=note)
-            done(wording.updated, desk, sid)
+            done(line("updated"), desk, sid)
 
     withdraw_note = option("statements_withdraw.note", commands.withdraw_note, "--note", "--reason")
 
@@ -381,7 +431,7 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
             if commands.withdraw_note_required and not (note or "").strip():
                 raise NotDone("say why it is withdrawn (--reason), for the log")
             desk.withdraw(sid, note)
-            done(wording.withdrawn, desk, sid)
+            done(line("withdrawn"), desk, sid)
 
     remove_reason = option("statements_remove.reason", ..., "--reason")
 
@@ -390,7 +440,7 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
         desk = replies()
         with answering():
             desk.remove(sid, reason)
-            done(wording.removed, desk, sid)
+            done(line("removed"), desk, sid)
 
     @place("statements_log")
     def statements_log(sid: int = number) -> None:
@@ -398,7 +448,7 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
         with answering():
             row = found(desk, sid)
         for entry in row["log"]:
-            show(wording.log_entry(entry))
+            show(line("log_entry")(entry))
 
     # ---- hiding an item, and what is waiting --------------------------------------------------------------------
 
@@ -410,28 +460,26 @@ def replies_commands(replies: Callable[[], Replies], commands: RepliesCommands, 
         desk = replies()
         with answering():
             desk.hide(item, note)
-            say(wording.hid, desk.hidden(item) or {"item": item, "note": note})
+            say(line("hid"), told(desk.hidden(item) or {"item": item, "note": note}))
 
     @place("unhide")
     def unhide(item: str = item_argument) -> None:
         with answering():
             replies().unhide(item)
-            say(wording.unhid, {"item": item.strip()})
+            say(line("unhid"), told({"item": item.strip()}))
 
     @place("hidden")
     def hidden() -> None:
         for row in replies().all_hidden():
-            show(wording.hidden_item(row))
+            show(line("hidden_item")(row))
 
     @place("waiting")
     def waiting() -> None:
-        say(wording.waiting, asdict(replies().waiting()))
-
-    housekeeping = replies_tidy(replies, wording)
+        say(line("waiting"), asdict(replies().waiting()))
 
     @place("tidy")
     def tidy() -> None:
-        show(housekeeping())
+        show(replies_tidy(replies, wording)())
 
     return app
 

@@ -41,7 +41,8 @@ Not PyPI, as the brief says: the name would need guarding, and nothing here need
 ## Consequences
 
 - No image changes. The server's Docker builds must reach GitHub's release-download host as well as `github.com`:
-  one line for OPERATIONS.md's "hosts the server must reach".
+  the wheel's address on `github.com` redirects to `objects.githubusercontent.com`, which serves the file. Both
+  hosts go in OPERATIONS.md's "hosts the server must reach".
 - A release needs one more moving part (the workflow). It is small, and the package's own CI exercises the same
   build on every pull request, so a broken build is caught before a tag.
 - Dependency-update tools don't raise direct-address dependencies by themselves. `docs/UPGRADING.md` gives the
@@ -52,3 +53,9 @@ Not PyPI, as the brief says: the name would need guarding, and nothing here need
 - **To verify in phase 3, before any site adopts:** a site's `uv lock` and `uv sync --frozen` with the wheel
   address, inside `python:3.12.15-slim` with no `git`, and in GitHub Actions. If it fails for a reason not seen
   here, fall back to A and add `git` to the three images, recorded in this ADR.
+- **Verified on 13 November 2026, by Where Landlords Stand's adoption on the release `v0.1.0`** (recorded here
+  from that adoption's report): `uv lock` and
+  `uv sync --frozen` against the wheel's address work; the hash the lock file records is the release's own
+  (sha256 `29d6f59d302a4c22864166e05efca9b4bea30f75d2e8e35daf8d2ce2bc982572`); and the Dockerfile's `uv sync`
+  steps ran with a `git` on the path that fails if it is called, so nothing in the install shells out to it. The
+  fallback to option A is not needed.
