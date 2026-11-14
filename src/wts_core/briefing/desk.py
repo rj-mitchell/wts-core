@@ -13,7 +13,8 @@ is today's, on every site:
 5. when the pipeline has finished, what is needed to play the briefing again goes into the answer cache;
 6. a cap, a limit or a full house stops the briefing, never the answer: the sources are sent anyway, with the
    site's note saying why, which costs nothing;
-7. whatever happens the place is released, and one record of how the briefing went is written (ADR 0012).
+7. whatever happens the place is released, and one record of how the briefing went is written (ADR 0012). The
+   record holds the question only where the site keeps it already: see ``_QUESTION_KEPT``.
 
 What differs between the sites is passed in: every word a reader sees (``Messages``), what is in the cache key,
 what a saved briefing holds, and the steps only one site has (``Hooks``). The desk has no branch for any site.
@@ -79,6 +80,14 @@ START = "start"  # where the reader left, if before the first stage
 _PAUSED: dict[str, Outcome] = {
     "visitor_limit": "paused_limit", "account_limit": "paused_limit", "daily_cap": "paused_cap",
     "monthly_cap": "paused_cap", "busy_visitor": "busy", "busy_site": "busy"}
+
+# The outcomes whose record keeps the question (ADR 0012, "Added while building"). The reason the record may hold a
+# question at all is that the site keeps it already: with the saved briefing, in the replay kept for the same
+# question asked again, or in the note of a briefing that failed. So it is kept where a briefing was written,
+# replayed from the cache, answered "no records", or could not be written (that last is removed after 90 days). A
+# request for the sources only, one a limit or a cap stopped, one that found the site full and one the reader left
+# are kept nowhere by the site, and their records hold an empty text.
+_QUESTION_KEPT: frozenset[Outcome] = frozenset({"completed", "cached", "no_records", "error"})
 
 
 class TooManyRequests(Exception):
@@ -193,6 +202,7 @@ class _Run:
         self.sources_seen = False
         self.warned = False
         self.recorded = False
+        self.no_briefing = False  # only the sources were asked for, or the briefing was refused: none was begun
 
     def left(self, *, writing: bool) -> None:
         """The reader went before the end. Only a briefing that was being written is recorded as one the reader
@@ -313,6 +323,7 @@ class BriefingDesk:
                 yield from self._passed(run, iter(self._hooks.on_cached(ask, hit)), replay=True)
             elif ask.only_sources:
                 run.outcome = "sources_only"
+                run.no_briefing = True
                 # the model may read the question only while the site's own spending allows it
                 free = self._caps.site_paused() is not None
                 yield from self._site(run, ask.sources_only(self._messages.sources_only, free))
@@ -351,6 +362,7 @@ class BriefingDesk:
 
     def _refused(self, ask: Ask, run: _Run, refusal: Refusal) -> Iterator[Event]:
         run.outcome = _PAUSED[refusal.kind]
+        run.no_briefing = True
         return self._site(run, ask.sources_only(self._messages.with_sources(refusal.message), True))
 
     def _site(self, run: _Run, events: Iterator[Event]) -> Iterator[Event]:
@@ -530,8 +542,12 @@ class BriefingDesk:
         answer = final.get("answer") or {}
         spent = run.usage + stages.spent_unseen
         counts = spent.as_stored()
+        outcome: Outcome = run.outcome or "error"
+        # A fault in the search of a sources-only or refused request is an error too, but no briefing failed: the
+        # site notes no failure for it, so its question is kept no more than if the search had worked.
+        kept = outcome in _QUESTION_KEPT and not (outcome == "error" and run.no_briefing)
         return BriefingRecord(
-            id=run.id, at=run.at, outcome=run.outcome or "error", kind=ask.kind, question=ask.question,
+            id=run.id, at=run.at, outcome=outcome, kind=ask.kind, question=ask.question if kept else "",
             follow_up=ask.follow_up, mode=ask.mode, filters_set=tuple(ask.filters_set),
             config_id=config.config_id, model=config.model, parse_model=config.parse_model,
             instructions=config.instructions, package_version=config.package_version,

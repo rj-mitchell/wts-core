@@ -30,7 +30,7 @@ whichever way it ends.
 | Group | Fields | Notes |
 |---|---|---|
 | Identity | `id` (random), `at` (to the second), `kind` (`reader`, `check` for the nightly question, `eval`) | no visitor code, no address, nothing from the request's headers |
-| What was asked | `question`, `follow_up` (yes or no), `mode` (summary or comprehensive), `filters_set` (which filters the reader set, not their values) | the question is already kept with the saved briefing; see retention below |
+| What was asked | `question`, `follow_up` (yes or no), `mode` (summary or comprehensive), `filters_set` (which filters the reader set, not their values) | the question is already kept with the saved briefing; see retention below, and "Added while building" for the outcomes whose question is not kept |
 | Configuration | `config_id`, `model`, `parse_model`, `instructions`, `package_version`, `site_version`, `experiment`, `arm` | `config_id` is the first 12 characters of a hash of the others plus the site's retrieval settings; the full settings behind each id are kept once in `wts_configs` |
 | What went in | `sources`, `spread` (sources per group, as JSON: party, region or body), `input_tokens`, `cache_read_tokens`, `cache_write_tokens` | the spread is what the impartiality policy's principle 3 asks the site to show |
 | What came out | `output_tokens`, `cost_usd`, `stop_reason` | |
@@ -49,6 +49,7 @@ The phase 1b count of how often "Why use this rather than a chatbot?" is opened 
 
 | What | Kept | Why |
 |---|---|---|
+| A row's `question` when `outcome` is `sources_only`, `paused_cap`, `paused_limit`, `busy` or `left` | never: the row is written with an empty text | the site keeps such a question nowhere, so the reason above does not cover it (version 0.2.1; see "Added while building") |
 | A row's `question` when `outcome` is `error` | 90 days, then blanked | Where Countries Stand's notice already promises this for failed briefings; the package applies the stricter promise on every site |
 | The whole row | 13 months, then deleted (confirmed by the owner, 13 November 2026) | long enough to compare a month with the same month a year before |
 | Weekly totals (`wts_weekly`: counts, rates, medians per week and configuration) | indefinitely | they hold no question text |
@@ -142,3 +143,31 @@ is kept, so the owner's reports are unchanged. This is stricter than the sites w
 structured log's `event` and `stage` are from fixed lists, and its id of one fixed shape, so an address or a code
 cannot be written there by mistake. See `docs/NOTES/independent-review-of-the-package.md`.
 
+### 14 November 2026 (version 0.2.1): a question is kept only where the site already kept it
+
+An independent review of the first adoptions found that the record held the question of every ask, for 13
+months, when this decision's own reason for keeping it ("the question is already kept with the saved briefing")
+covers only some of them. A request for the sources only, a question stopped by the daily limit or a spending
+cap, one that found the site full and one whose reader left before the briefing was written are kept nowhere by
+the sites: no briefing is saved, nothing goes into the answer cache and no failure is noted. Keeping them in the
+record was new data about readers, which the brief rules out.
+
+The rule since 0.2.1, applied by the desk when it writes the row:
+
+| `outcome` | `question` in the row | Where the site keeps that question already |
+|---|---|---|
+| `completed` | kept | with the saved briefing, and in the answer cache |
+| `cached` | kept | the saved briefing and the cached replay it was answered from |
+| `no_records` | kept | in the answer cache (the replay of "no records") |
+| `error` | kept, and blanked after 90 days as before | the note of a briefing that failed (90 days) |
+| `sources_only`, `paused_cap`, `paused_limit`, `busy`, `left` | empty | nowhere |
+
+One case is narrower than its outcome. A sources-only or refused request whose search itself fails is recorded
+as `error`, but no briefing failed and the site notes no failure for it, so its question is not kept either: an
+`error` row holds the question only when a briefing was asked for and not refused.
+
+The rest of such a row is unchanged (its time, outcome, counts and timings), so every figure in the statistics is
+what it was: questions are counted by rows, and the lists that quote a question (those that found no records, the
+themes) already passed over a row with none. The themes are now drawn from the questions that were answered,
+replayed or found no records, and no longer from those that were refused. Rows written by 0.2.0 before a site
+moves to 0.2.1 keep what they hold; no site was deployed on 0.2.0, so there are none on a server.

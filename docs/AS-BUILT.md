@@ -45,6 +45,16 @@ place. In one list, what is different (`CHANGELOG.md` says what a site must do f
   built when it runs (`state.columns`); `assert_no_reader_data` needs no question; the shared `python.yml` turns
   Typer's colour off.
 
+## What version 0.2.1 changed
+
+Fixes found by independent reviews of the first sites' adoptions, released before any adopted site was deployed.
+Each is corrected in place in the sections below as well; `CHANGELOG.md` says what a site must do.
+
+- **The record of each briefing keeps a question only where the site already kept it:** for a briefing written,
+  replayed from the cache, answered "no records", or failed. The row of a sources-only request, of one a limit
+  or a cap stopped, of one that found the site full and of one the reader left has an empty `question`
+  (ADR 0012, "Added while building"; `wts_core.observe` below).
+
 ### At adoption, because of 0.2.0
 
 - Each AI site's settings have every key `desk_parts` reads under the names it reads them by
@@ -267,6 +277,13 @@ case in ADR 0009, for each site.
   more than once or for several arms: read a near-miss with care.
 - A log line can hold only the named fields, each of the right shape, so a question passed to it by mistake is not
   written; a failed write prints nothing of the call.
+- **Which rows hold the question (0.2.1).** The desk writes `question` for the outcomes `completed`, `cached`,
+  `no_records` and `error` (a briefing that failed: blanked after 90 days), and an empty text for `sources_only`,
+  `paused_cap`, `paused_limit`, `busy` and `left`, and for a sources-only or refused request whose search failed.
+  The sites keep those questions nowhere, so the record must not: it held every question for 13 months in 0.1.0
+  and 0.2.0. Nothing else in the row changes, and no figure does. `testing.assert_no_reader_data` allows a
+  question in `wts_briefing_log.question` as before: it cannot know how a site's test question ended, so a site
+  that wants to prove the stricter rule asks for the sources only and looks for its question in every table.
 
 ### At adoption
 

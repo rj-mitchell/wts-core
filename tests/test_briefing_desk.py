@@ -813,3 +813,113 @@ def test_each_briefing_leaves_its_lines_in_the_structured_log_where_a_site_has_o
     ended = [line for line in lines if line["briefing"] == failed.id][-1]
     assert (ended["event"], ended["level"], ended["error_type"]) == ("briefing.error", "ERROR", "RuntimeError")
     assert Q not in text and VISITOR not in text and all(set(line) == set(observe.FIELDS) for line in lines)
+
+
+# ---- the question, kept in the record only where the site keeps it already (ADR 0012) --------------------------
+
+
+def _completed(told: Told) -> None:
+    told.run()
+
+
+def _cached(told: Told) -> None:
+    told.run()
+    told.run()
+
+
+def _no_records(told: Told) -> None:
+    told.run(write=told.written(final={"type": "final", "answer": dict(NO_RECORDS), "usage": None}))
+
+
+def _failed_while_writing(told: Told) -> None:
+    told.run(write=told.written(fail=RuntimeError("the stream broke")))
+
+
+def _declined(told: Told) -> None:
+    told.run(write=told.written(error={"type": "error", "message": told.messages.model_declined,
+                                       "usage": dict(WRITE), "model": told.model}))
+
+
+def _sources_only(told: Told) -> None:
+    told.run(only_sources=True)
+
+
+def _no_model(told: Told) -> None:
+    final = {"type": "final", "answer": None, "usage": None, "note": "Showing the evidence only."}
+    told.run(model_available=False, write=told.written(final=final, plan={"usage": None}))
+
+
+def _over_the_daily_limit(told: Told) -> None:
+    spend(told, visitor=VISITOR)
+    spend(told, visitor=VISITOR)
+    told.run()
+
+
+def _over_the_cap(told: Told) -> None:
+    spend(told, "topic", usd=10.0)
+    told.run()
+
+
+def _full_house(told: Told) -> None:
+    for n in range(8):
+        told.in_progress.start(f"another reader {n}")
+    told.run()
+
+
+def _left(told: Told) -> None:
+    stream = told.desk.handle(told.ask())
+    next(stream)
+    stream.close()
+
+
+def _left_before_the_first_event(told: Told) -> None:
+    told.desk.handle(told.ask()).close()
+
+
+def _broken_search(note: str, free: bool) -> Iterator[dict[str, Any]]:
+    yield {"type": "plan", "plan": {}, "usage": None}
+    raise LookupError("the index is missing")
+
+
+def _sources_only_search_failed(told: Told) -> None:
+    with pytest.raises(LookupError):
+        told.run(only_sources=True, sources_only=_broken_search)
+
+
+def _refused_then_the_search_failed(told: Told) -> None:
+    spend(told, visitor=VISITOR)
+    spend(told, visitor=VISITOR)
+    with pytest.raises(LookupError):
+        told.run(sources_only=_broken_search)
+
+
+@pytest.mark.parametrize(("ends", "outcome", "kept"), [
+    (_completed, "completed", True), (_cached, "cached", True), (_no_records, "no_records", True),
+    (_failed_while_writing, "error", True), (_declined, "error", True),
+    (_sources_only, "sources_only", False), (_no_model, "sources_only", False),
+    (_over_the_daily_limit, "paused_limit", False), (_over_the_cap, "paused_cap", False),
+    (_full_house, "busy", False), (_left, "left", False), (_left_before_the_first_event, "left", False),
+    (_sources_only_search_failed, "error", False), (_refused_then_the_search_failed, "error", False),
+], ids=lambda value: getattr(value, "__name__", None))
+def test_the_record_keeps_the_question_only_where_the_site_keeps_it_already(told, ends, outcome, kept):
+    """The record may hold a question because the site keeps it already: with the saved briefing, in the replay,
+    in the note of a briefing that failed (ADR 0012). A request for the sources only, a refused one and one the
+    reader left are kept nowhere by the site, so their records hold an empty text: before 0.2.1 the record held
+    the question of every ask, for 13 months."""
+    ends(told)
+    record = told.log.records[-1]
+    assert record.outcome == outcome
+    assert record.question == (Q if kept else "")
+    if not kept:  # and then the question is nowhere at all in what the package keeps
+        assert Q not in "".join(repr(told.rows(table)) for table in sorted(told.db.tables()))
+
+
+def test_a_fault_before_a_briefing_could_begin_keeps_its_question_as_a_failed_briefing_does(site, tmp_path):  # noqa: F811
+    class NoCache:
+        def get(self, key: str, max_hours: float) -> Any:
+            raise OSError("database is locked")
+
+    told = Told(site, tmp_path, cache=NoCache())
+    with pytest.raises(OSError, match="locked"):
+        told.desk.handle(told.ask())
+    assert (told.record.outcome, told.record.question) == ("error", Q)

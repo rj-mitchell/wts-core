@@ -404,14 +404,20 @@ type Outcome = Literal["completed", "cached", "no_records", "sources_only", "pau
 class BriefingRecord:
     """How one briefing went: written once, by the briefing desk, however it ended. Nothing in it identifies the
     reader: no visitor code, no address, nothing from the request's headers. Times are milliseconds from the
-    question's arrival; a stage that was not reached is None."""
+    question's arrival; a stage that was not reached is None.
+
+    ``question`` is kept only where the site keeps the question already (ADR 0012): for the outcomes
+    ``completed``, ``cached`` and ``no_records``, and for ``error`` when it was a briefing that failed (blanked
+    after 90 days). It is an empty text for ``sources_only``, ``paused_cap``, ``paused_limit``, ``busy`` and
+    ``left``, and for a sources-only or refused request whose search failed: the site keeps those questions
+    nowhere, so the record does not either. The desk applies this; anything else that writes a record must too."""
 
     id: str
     at: str  # ISO 8601, UTC, to the second
     outcome: Outcome
     kind: Literal["reader", "check", "eval"] = "reader"
     # what was asked
-    question: str = ""
+    question: str = ""  # empty unless the outcome is one whose question the site keeps already: see above
     follow_up: bool = False
     mode: str = "summary"
     filters_set: tuple[str, ...] = ()  # which filters the reader set, never their values
