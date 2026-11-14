@@ -8,7 +8,7 @@ reader beyond what the privacy notice says, and a right of reply for anyone name
 that keeps those promises, written once, so that a fix reaches every site and every site is held to the same
 checks. Each site keeps what is its own: its record, how it finds sources, its pages and every word a reader sees.
 
-Version 0.1.0, not yet released (13 November 2026). The four sites adopt it one at a time
+Version 0.2.0 (14 November 2026). The four sites adopt it one at a time
 ([`docs/MIGRATION.md`](docs/MIGRATION.md)).
 
 ## What is in it, and what installs what
@@ -48,11 +48,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from wts_core import Messages, usage
-from wts_core.briefing import Ask, BriefingDesk, TooManyRequests, sse
+from wts_core import Messages, Settings, Site, usage
+from wts_core.briefing import Ask, TooManyRequests, desk_parts, sse
 from wts_core.checks import COMMON_LOADED_WORDS, EVIDENCE_NOTES_STRICT, LoadedWords, Verifier, check_briefing
 from wts_core.events import Completed, blocks_as_today, to_reader
-from wts_core.ports import ModelRequest, Price
+from wts_core.observe import briefing_config
+from wts_core.ports import ModelRequest
 from wts_core.state import StateDB
 from wts_core.testing.models import ScriptedModel, load_documents, recorded
 
@@ -96,7 +97,7 @@ def write(question):  # the site's pipeline: sources first, then the model's wor
                            documents=DOCUMENTS)
     for event in MODEL.stream(request):
         if not isinstance(event, Completed):
-            yield dict(to_reader(event))
+            yield to_reader(event)
             continue
         sources = [Source(d.number, d.title, d.passages) for d in DOCUMENTS]
         report = check_briefing(blocks_as_today(event), sources, VERIFIER, LOADED_WORDS)
@@ -109,15 +110,21 @@ def sources_only(question, note):  # what a reader gets when a limit stops the b
     yield {"type": "final", "answer": None, "usage": None, "note": note}
 
 
-db = StateDB(Path("data/state.db"), migrations=usage.migrations())
-spending = usage.Spending(db, usage.PriceTable(base=Price(input=3.0, output=15.0, cache_read=0.3)))
-limits = usage.Limits(per_visitor_daily=30, per_account_daily=None, daily_cap_usd=3.0, monthly_cap_usd=50.0)
-desk = BriefingDesk(
-    messages=MESSAGES, limiter=usage.RateLimiter(20, forget_over=50_000),
-    caps=usage.Caps(spending, limits, MESSAGES), in_progress=usage.BriefingsInProgress(2, 8, 0.10),
-    spending=spending, cache=usage.SqliteAnswerCache(db), cache_hours=168,
-    archive=usage.BriefingArchive(db, new_id=lambda: usage.token_id(8)), failures=usage.Failures(db),
-    log=None, parse_model=None, config={})
+# The package has no limit or price of its own. A real site keeps these in config/settings.toml.
+SETTINGS = Settings(
+    site=Site(name="Quick start", package="quickstart", env_prefix="QUICKSTART", root=Path(".")),
+    data_dir=Path("data"), config_path=Path("quickstart.py"), raw={"usage": {
+        "per_visitor_daily_questions": 30, "daily_spend_cap_usd": 3.0, "monthly_spend_cap_usd": 50.0,
+        "requests_per_minute": 20, "answer_cache_hours": 168, "briefing_estimate_usd": 0.10, "briefings_at_once": 8,
+        "price_input_per_mtok": 3.0, "price_output_per_mtok": 15.0, "price_cache_read_per_mtok": 0.3,
+        "cache_write_multiplier": 1.25}})
+
+db = StateDB(SETTINGS.state_db, migrations=usage.migrations())
+# One call checks the settings and makes the spending record, caps, limiter, answer cache and saved briefings.
+parts = desk_parts(SETTINGS, db, MESSAGES, new_id=lambda chance: usage.token_id(8, random=chance),
+                   at_once_per_visitor=2, forget_over=50_000, keep_failures=True)
+desk = parts.desk(briefing_config(log=None, model="synthetic-model", parse_model=None, instructions="1",
+                                  site_version="1"), log=None)  # log=None: no record of each briefing is kept
 
 app = FastAPI()
 
@@ -140,11 +147,12 @@ def ask(body: Question, request: Request):
     return StreamingResponse(sse(events), media_type="text/event-stream")
 ```
 
-What the package did there: counted the request against the per-minute limit; looked in the answer cache; checked
-the visitor's daily limit and the spending caps; ran the pipeline and passed its events on as server-sent events;
-checked every citation against its source; recorded the cost; saved the briefing at its own address; and put it
-in the cache, so the same question again costs nothing. A test (`tests/test_readme.py`) runs this code on every
-change.
+What the package did there: checked, as the file was loaded, that every limit, price and message a briefing
+needs was given (one missing would have stopped it, by name); counted the request against the per-minute limit;
+looked in the answer cache; checked the visitor's daily limit and the spending caps; ran the pipeline and passed
+its events on as server-sent events; checked every citation against its source; recorded the cost; saved the
+briefing at its own address; and put it in the cache, so the same question again costs nothing. A test
+(`tests/test_readme.py`) runs this code on every change.
 
 A real site is the same shape with its own parts in place of the stand-ins. The example site,
 [`examples/minimal-site/`](examples/minimal-site/), is that site in full: settings from a file, a pipeline over a
@@ -182,7 +190,7 @@ records the file's hash ([ADR 0006](docs/adr/0006-distribution.md)). In the site
 
 ```toml
 dependencies = [
-    "wts-core[cli,offsite,duckdb,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.1.0/wts_core-0.1.0-py3-none-any.whl",
+    "wts-core[cli,offsite,duckdb,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.2.0/wts_core-0.2.0-py3-none-any.whl",
 ]
 
 [tool.hatch.metadata]
@@ -191,8 +199,8 @@ allow-direct-references = true
 
 The second table is needed with the build backend the sites use, which otherwise refuses a dependency written as
 an address. A site calls the shared CI workflows in this repository at the same tag
-(`rj-mitchell/wts-core/.github/workflows/python.yml@v0.1.0`), so it has one number to raise. An upgrade is a pull
-request in the site that raises it.
+(`rj-mitchell/wts-core/.github/workflows/python.yml@v0.2.0`), so it has one number to raise. An upgrade is a pull
+request in the site that raises it: [`docs/UPGRADING.md`](docs/UPGRADING.md) has the steps.
 
 The repository is public. Nothing here needs a token to fetch: not the wheel, not the workflows. The sites'
 Docker images need no `git`.
@@ -209,6 +217,7 @@ Docker images need no `git`.
 | [`docs/MIGRATION.md`](docs/MIGRATION.md) | for each existing site: what replaces what, and how sameness is proved |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | how code in this package is written |
 | [`CHANGELOG.md`](CHANGELOG.md) | what changed in each version, and what a site must do |
+| [`docs/UPGRADING.md`](docs/UPGRADING.md) | how a site moves to a new version, how a fix reaches the sites, how a release is made |
 
 The brief this answers is `plans/family/wts-core-brief.md` in the charity's repository.
 

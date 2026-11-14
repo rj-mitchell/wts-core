@@ -64,6 +64,11 @@ def check_route(site: Site, *, token: str | None, replies: Replies | Callable[[]
     off-site copy (``backup_ages``); ``figures`` the briefing record's latest figures (``last_day_figures``). Only
     the numbers in what those two return are passed on.
 
+    With no token set the answer is 404 with the body a web framework gives a missing address. A site whose
+    missing addresses answer differently (a static site with a ``404.html`` of its own) should add its route only
+    when a token is set, so that this address is answered like any other that is not there (docs/EXTENDING.md,
+    section 10).
+
     The answer, when the token is right::
 
         {"site": "councils", "at": "2026-11-13T02:10:00+00:00",

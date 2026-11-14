@@ -26,6 +26,9 @@ def test_the_structured_log_holds_stages_and_times_and_never_the_question(client
                                                  "written", "checked", None]
     assert [line["event"] for line in lines] == ["briefing.stage"] * 7 + ["briefing.completed"]
     assert all(set(line) == set(FIELDS) and line["site"] == "parks" for line in lines)
+    # every line names its briefing by the id of the briefing's record, and by nothing else
+    (record,) = parks.log.since("2026-11-13T00:00:00+00:00")
+    assert {line["briefing"] for line in lines} == {record.id} and len(record.id) == 11
     assert "xylophonecanary" not in "\n".join(log_lines())
 
 

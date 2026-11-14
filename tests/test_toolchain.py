@@ -45,3 +45,14 @@ def test_actions_are_at_the_toolchains_versions():
                 assert version == TOOLS["actions"][action], f"{path.relative_to(ROOT)}: {action}@{version}"
             else:
                 raise AssertionError(f"{path.relative_to(ROOT)} uses {action}, which toolchain.toml does not list")
+
+
+def test_the_shared_python_checks_turn_typers_colour_off():
+    """On GitHub Actions Typer draws ``--help`` with colour codes, which split an option's name: a site's test
+    that reads a command's help passed on a developer's machine and failed in CI (the package's own first run did,
+    and so did the first site's). The shared workflow turns it off once, for every site."""
+    text = (ROOT / ".github" / "workflows" / "python.yml").read_text()
+    for step in ("Lint", "Type check", "Tests"):
+        block = text.split(f"      - name: {step}\n", 1)[1].split("      - name:", 1)[0]
+        assert '_TYPER_FORCE_DISABLE_TERMINAL: "1"' in block and 'NO_COLOR: "1"' in block, step
+    assert text.count('UV_NO_SYNC: "1"') == 2  # where it was: the type check and the tests

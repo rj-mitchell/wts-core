@@ -29,7 +29,7 @@ class Desk:
     """A site's evaluation as its command line has it: its questions and pipeline (scripted), its configuration,
     prices and thresholds, its folder of runs, and the most it lets a run spend."""
 
-    def __init__(self, tmp_path: Path, site: type[Plain] = Full, *, max_cost_usd: float | None = 2.0,
+    def __init__(self, tmp_path: Path, site: type[Plain] = Full, *, max_cost_usd: Any = 2.0,
                  **more: Any) -> None:
         self.root = tmp_path
         self.clock = FixedClock("2026-11-13T12:00:00+00:00")
@@ -115,6 +115,27 @@ def test_no_run_starts_without_a_limit_on_what_it_may_spend(tmp_path):
     import inspect
 
     assert inspect.signature(eval_commands).parameters["max_cost_usd"].default is inspect.Parameter.empty
+
+
+def test_the_limit_may_be_read_when_the_command_runs_so_it_can_come_from_settings(tmp_path):
+    read: list[str] = []
+    figure: list[float | None] = [0.03]
+
+    def from_settings() -> float | None:
+        read.append("read")
+        return figure[0]
+
+    desk = Desk(tmp_path, max_cost_usd=from_settings)
+    assert read == [] and desk("eval", "run", "--help").exit_code == 0 and read == []  # not when it is built
+    stopped = desk("eval", "run")
+    assert read == ["read"] and stopped.exit_code == 1
+    assert "- The run stopped at its limit of $0.03: 5 questions not asked." in stopped.stdout
+    assert desk("eval", "run", "--max-cost", "1.50").exit_code == 0 and read == ["read"]  # the owner's word wins
+    figure[0] = 1.5  # the setting changed: the next run reads it afresh
+    assert desk("eval", "run").exit_code == 0 and read == ["read", "read"]
+    figure[0] = None  # a site whose settings give no figure: the owner must say each time
+    refused = desk("eval", "run")
+    assert refused.exit_code == 2 and "--max-cost" in refused.stderr
 
 
 def test_part_of_the_set_can_be_asked_but_is_never_a_pass(desk):

@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from wts_core.cli._clock import _clock_of
 from wts_core.ops import (
     AlertWording,
     BackupSpec,
@@ -112,7 +113,7 @@ class OpsWording:
 
 def ops_commands(site: Site, settings: Callable[[], Settings], spec: BackupSpec, wording: OpsWording, *,
                  store: Callable[[], OffsiteStore | None] | None = None, how_to_set_up: str | None = None,
-                 env: Mapping[str, str] | None = None, clock: Clock = SYSTEM_CLOCK,
+                 env: Mapping[str, str] | None = None, clock: Clock | Callable[[], Clock] = SYSTEM_CLOCK,
                  before: Callable[[], None] | None = None) -> typer.Typer:
     """The site's backup commands, to add to its own app with ``app.add_typer(...)`` (no name: they join the
     site's other commands).
@@ -120,9 +121,13 @@ def ops_commands(site: Site, settings: Callable[[], Settings], spec: BackupSpec,
     ``settings`` is called when a command runs, never when the commands are built; the state database is its
     ``state_db``. ``store`` gives the off-site store, or None when none is set up: left out, it is the site's
     Backblaze B2 bucket (``adapters.b2.configured(site, env)``), and ``how_to_set_up`` is then that adapter's own
-    sentence; a site with another store gives both. ``before`` is called first in every command (Where MPs Stand
-    sets up its logging there)."""
+    sentence; a site with another store gives both. How many copies stay off site is the spec's ``keep_offsite``.
+    ``before`` is called first in every command (Where MPs Stand sets up its logging there). ``clock`` is a
+    clock, or a function that gives one when a command runs, so that a site's test can stand another clock in
+    after the commands are built (a backup is named by the time)."""
     import typer
+
+    clock = _clock_of(clock)
 
     app = typer.Typer(add_completion=False)
     words = wording.backup

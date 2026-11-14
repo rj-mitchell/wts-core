@@ -6,13 +6,14 @@ __version__ = <the version>
 load_settings: from wts_core.settings
 
 ## wts_core.adapters
+def has_model(settings: 'Settings', site: 'Site', env: 'Mapping[str, str] | None' = None) -> 'bool'
 def model_client(settings: 'Settings', site: 'Site', env: 'Mapping[str, str] | None' = None) -> 'ModelClient'
 
 ## wts_core.adapters.anthropic
 class AnthropicClient
     def __init__(self, api_key: 'str | None', *, base_url: 'str', timeout: 'float' = 300.0, connect: 'float' = 10.0, max_retries: 'int' = 2, client: 'Any' = None) -> 'None'
     property client
-    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def stream(self, request: 'ModelRequest') -> 'Generator[ModelEvent, None, None]'
     def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
 BASE_URL = 'https://api.anthropic.com'
 FALLBACK_BETA = 'server-side-fallback-2026-07-01'
@@ -110,14 +111,46 @@ def vector_index_due(vectors: 'int', trained_on: 'int | None', has_index: 'bool'
 ## wts_core.briefing
 Ask: from wts_core.briefing.desk
 BriefingDesk: from wts_core.briefing.desk
-Event: from wts_core.briefing.desk
+DeskParts: from wts_core.briefing.build
+DeskSettings: from wts_core.briefing.build
+Event: from wts_core.events
 Hooks: from wts_core.briefing.desk
 KEEP_ALIVE_SECONDS = 15
 Stage: from wts_core.briefing.stages
 Stages: from wts_core.briefing.stages
 TooManyRequests: from wts_core.briefing.desk
 current_stages: from wts_core.briefing.stages
+desk_parts: from wts_core.briefing.build
+desk_settings: from wts_core.briefing.build
 sse: from wts_core.briefing.stream
+
+## wts_core.briefing.build
+class DeskParts
+    messages: Messages
+    prices: PriceTable
+    limits: Limits
+    spending: Spending
+    caps: Caps
+    limiter: RateLimiter
+    in_progress: BriefingsInProgress
+    cache: SqliteAnswerCache
+    cache_hours: float
+    archive: BriefingArchive
+    failures: Failures | None
+    clock: Clock
+    random: Random
+    def desk(self, config: 'BriefingConfig', *, log: 'BriefingLog | None', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, strict: 'bool' = False) -> 'BriefingDesk'
+class DeskSettings
+    prices: PriceTable
+    limits: Limits
+    requests_per_minute: int
+    forget_over: int
+    at_once_per_visitor: int
+    at_once: int
+    estimate_usd: float
+    cache_hours: float
+def desk_parts(settings: 'Settings', db: 'StateDB', messages: 'Messages', *, new_id: 'Callable[[Random], str]', at_once_per_visitor: 'int | str', forget_over: 'int | str', keep_failures: 'bool', require_prices_for: 'Iterable[str | None]' = (), section: 'str' = 'usage', clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'DeskParts'
+def desk_settings(settings: 'Settings', messages: 'Messages', *, at_once_per_visitor: 'int | str', forget_over: 'int | str', require_prices_for: 'Iterable[str | None]' = (), section: 'str' = 'usage') -> 'DeskSettings'
 
 ## wts_core.briefing.desk
 class Ask
@@ -137,10 +170,10 @@ class Ask
     options: Mapping[str, Any] = ...
     save: Callable[[Event, list[Event], str], Mapping[str, Any]] | None = ...
 class BriefingDesk
-    def __init__(self, *, messages: 'Messages', limiter: 'Limiter', caps: 'Caps', in_progress: 'InProgress', spending: 'SpendingRecord', cache: 'AnswerCache', cache_hours: 'float', archive: 'SavedBriefings | None', failures: 'FailureLog | None', log: 'BriefingLog | None', parse_model: 'str | None', config: 'Mapping[str, Any]', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>, strict: 'bool' = False) -> 'None'
+    def __init__(self, *, messages: 'Messages', limiter: 'Limiter', caps: 'Caps', in_progress: 'InProgress', spending: 'SpendingRecord', cache: 'AnswerCache', cache_hours: 'float', archive: 'SavedBriefings | None', failures: 'FailureLog | None', log: 'BriefingLog | None', config: 'BriefingConfig', hooks: 'Hooks | None' = None, group_of: 'Callable[[Mapping[str, Any]], str | None] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>, strict: 'bool' = False) -> 'None'
     def allow(self, key: 'str') -> 'None'
     def handle(self, ask: 'Ask') -> 'Iterator[Event]'
-type Event = dict[str, typing.Any]
+Event: from wts_core.events
 class Hooks
     def finish(self, ask: 'Ask', final: 'Event', kept: 'list[Event]') -> 'Event'
     def for_this_reader(self, ask: 'Ask', final: 'Event') -> 'Event'
@@ -214,8 +247,8 @@ def check_briefing(blocks: 'Sequence[Mapping[str, Any]]', sources: 'Sequence[Tit
 
 ## wts_core.checks.typography
 def curl_answer(answer: 'Answer | None') -> 'Answer | None'
-def curl_event(event: 'ReaderEvent') -> 'ReaderEvent'
-def curl_events(events: 'list[ReaderEvent]') -> 'list[ReaderEvent]'
+def curl_event(event: 'Event') -> 'Event'
+def curl_events(events: 'list[Event]') -> 'list[Event]'
 def curl_quotes(text: 'str') -> 'str'
 
 ## wts_core.checks.verify
@@ -276,6 +309,7 @@ eval_commands: from wts_core.cli.eval
 last_day_figures: from wts_core.cli.check
 ops_commands: from wts_core.cli.ops
 replies_commands: from wts_core.cli.replies
+replies_tidy: from wts_core.cli.replies
 stats_commands: from wts_core.cli.stats
 
 ## wts_core.cli.check
@@ -284,7 +318,7 @@ def check_route(site: 'Site', *, token: 'str | None', replies: 'Replies | Callab
 def last_day_figures(log: 'BriefingLog', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
 
 ## wts_core.cli.eval
-def eval_commands(site: 'Callable[[], EvalSite]', *, config: 'Callable[[], Mapping[str, Any]]', config_id: 'Callable[[Mapping[str, Any]], str]', pricing: 'Callable[[], Pricing]', thresholds: 'Callable[[], Mapping[str, float]]', runs: 'Callable[[], Path]', max_cost_usd: 'float | None', verifier: 'Callable[[], Verifier] | None' = None, loaded_words: 'Callable[[], LoadedWords] | None' = None, curled: 'bool' = False, group: 'str | None' = 'eval', clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+def eval_commands(site: 'Callable[[], EvalSite]', *, config: 'Callable[[], Mapping[str, Any]]', config_id: 'Callable[[Mapping[str, Any]], str]', pricing: 'Callable[[], Pricing]', thresholds: 'Callable[[], Mapping[str, float]]', runs: 'Callable[[], Path]', max_cost_usd: 'float | Callable[[], float | None] | None', verifier: 'Callable[[], Verifier] | None' = None, loaded_words: 'Callable[[], LoadedWords] | None' = None, curled: 'bool' = False, group: 'str | None' = 'eval', clock: 'Clock | Callable[[], Clock]' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
 
 ## wts_core.cli.ops
 class BackupCheckWords
@@ -327,7 +361,7 @@ class RestoreWords
     help: str | None = ...
     archive_help: str | None = ...
     yes_help: str | None = ...
-def ops_commands(site: 'Site', settings: 'Callable[[], Settings]', spec: 'BackupSpec', wording: 'OpsWording', *, store: 'Callable[[], OffsiteStore | None] | None' = None, how_to_set_up: 'str | None' = None, env: 'Mapping[str, str] | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>, before: 'Callable[[], None] | None' = None) -> 'typer.Typer'
+def ops_commands(site: 'Site', settings: 'Callable[[], Settings]', spec: 'BackupSpec', wording: 'OpsWording', *, store: 'Callable[[], OffsiteStore | None] | None' = None, how_to_set_up: 'str | None' = None, env: 'Mapping[str, str] | None' = None, clock: 'Clock | Callable[[], Clock]' = <wts_core.ports.SystemClock object>, before: 'Callable[[], None] | None' = None) -> 'typer.Typer'
 
 ## wts_core.cli.replies
 class RepliesCommands
@@ -347,6 +381,7 @@ class RepliesCommands
     unhide: str | None = ...
     hidden: str | None = ...
     waiting: str | None = ...
+    tidy: str | None = ...
     also: Mapping[str, str] = ...
     about_option: str | None = ...
     withdraw_note: str | None = ...
@@ -354,30 +389,35 @@ class RepliesCommands
     outcome: str | None = ...
     help: Mapping[str, str] = ...
 class RepliesWording
-    report: Lines
-    statement: Lines
-    log_entry: Lines
-    hidden_item: Lines
-    waiting: Line
-    published: Line
-    declined: Line
-    updated: Line
-    withdrawn: Line
-    removed: Line
-    closed: Line
-    hid: Line
-    unhid: Line
     not_done: str
     refused: str
     errors_to_stderr: bool
-def replies_commands(replies: 'Callable[[], Replies]', commands: 'RepliesCommands', wording: 'RepliesWording', *, about: 'Callable[[str], str] | None' = None, changed: 'Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None' = None) -> 'typer.Typer'
+    report: Lines | None = ...
+    statement: Lines | None = ...
+    log_entry: Lines | None = ...
+    hidden_item: Lines | None = ...
+    waiting: Line | None = ...
+    published: Line | None = ...
+    declined: Line | None = ...
+    updated: Line | None = ...
+    withdrawn: Line | None = ...
+    removed: Line | None = ...
+    closed: Line | None = ...
+    hid: Line | None = ...
+    unhid: Line | None = ...
+    tidied: Line | None = ...
+def replies_commands(replies: 'Callable[[], Replies]', commands: 'RepliesCommands', wording: 'RepliesWording', *, about: 'Callable[[str], str] | None' = None, changed: 'Callable[[Mapping[str, Any]], Mapping[str, Any] | None] | None' = None, groups: 'Mapping[str, typer.Typer] | None' = None) -> 'typer.Typer'
+def replies_tidy(replies: 'Callable[[], Replies]', wording: 'RepliesWording') -> 'Callable[[], list[str]]'
 
 ## wts_core.cli.stats
 class StatsNames
     stats: str | None = ...
     weekly_report: str | None = ...
     tidy: str | None = ...
-def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+def stats_commands(site: 'Site', state: 'Callable[[], StateDB]', *, thresholds: 'Callable[[], Mapping[str, Any]]', folder: 'Callable[[], Path]', embedder: 'Callable[[], Embedder] | None' = None, similarity: 'float | Callable[[], float] | None' = None, pricing: 'Callable[[], Pricing] | None' = None, decided_by: 'Callable[[], str | None] | None' = None, compare_weeks: 'int' = 4, retention: 'Retention' = Retention(months=13, failed_question_days=90), names: 'StatsNames | None' = None, backup_days: 'int | None' = None, also_tidy: 'Sequence[Callable[[], Iterable[str]]]' = (), clock: 'Clock | Callable[[], Clock]' = <wts_core.ports.SystemClock object>) -> 'typer.Typer'
+
+## wts_core.dates
+def long_date(iso: 'str | date | None') -> 'str'
 
 ## wts_core.eval
 Case: from wts_core.eval.cases
@@ -513,7 +553,7 @@ class CaseResult
     fixture: str | None = ...
 class EvalSite(Protocol)
     def __init__(self, *args, **kwargs)
-    def ask(self, case: 'Case', config: 'Mapping[str, Any]') -> 'Iterator[ReaderEvent]'
+    def ask(self, case: 'Case', config: 'Mapping[str, Any]') -> 'Iterator[Event]'
     def cases(self) -> 'Sequence[Case]'
     def group_of(self, source: 'Mapping[str, Any]') -> 'str'
 FIGURES = dict of 35
@@ -559,6 +599,7 @@ class Completed
     usage: Usage
 EVENTS_VERSION = 1
 class ErrorEvent(dict)
+type Event = dict[str, typing.Any]
 class FinalEvent(dict)
 type ModelEvent = wts_core.events.TextDelta | wts_core.events.CitationDelta | wts_core.events.Completed
 class PlanEvent(dict)
@@ -568,7 +609,7 @@ class TextDelta
     text: str
 class TextEvent(dict)
 def blocks_as_today(done: 'Completed') -> 'list[dict[str, Any]]'
-def to_reader(event: 'TextDelta | CitationDelta') -> 'TextEvent | CitationEvent'
+def to_reader(event: 'TextDelta | CitationDelta') -> 'Event'
 
 ## wts_core.observe
 ALERTS = tuple of 5
@@ -586,6 +627,7 @@ STAGE_NAMES = tuple of 8
 SqliteBriefingLog: from wts_core.observe.log
 Stats: from wts_core.observe.figures
 Tidied: from wts_core.observe.log
+briefing_config: from wts_core.observe.log
 config_id: from wts_core.observe.config
 count: from wts_core.observe.log
 counts: from wts_core.observe.log
@@ -746,6 +788,7 @@ class SqliteBriefingLog
 class Tidied
     deleted: int
     blanked: int
+def briefing_config(*, log: 'SqliteBriefingLog | None', model: 'str', parse_model: 'str | None', instructions: 'str', site_version: 'str', experiment: 'str | None' = None, arm: 'str | None' = None, also: 'Mapping[str, Any] | None' = None) -> 'BriefingConfig'
 def count(db: 'StateDB', name: 'str', clock: 'Clock' = <wts_core.ports.SystemClock object>, *, n: 'int' = 1) -> 'None'
 def counts(db: 'StateDB', since: 'date | str') -> 'dict[str, dict[str, int]]'
 def migrations() -> 'tuple[Migration, ...]'
@@ -792,8 +835,10 @@ class BackupSpec
     member: str = ...
     extra_files: tuple[str, ...] = ...
     keep: int
+    keep_offsite: int = ...
     required_tables: tuple[str, ...]
     wal: bool = ...
+    site: str | None = ...
     def archives(self, folder: 'Path') -> 'list[Path]'
     property suffix
 class RestoreRefused(RuntimeError)
@@ -816,13 +861,23 @@ OffsiteError: from wts_core.ports
 OffsiteUnavailable: from wts_core.ports
 def backup_alerts(folder: 'Path', spec: 'BackupSpec', *, offsite_set_up: 'bool', wording: 'AlertWording', stale_hours: 'int' = 50, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'list[Alert]'
 def check_offsite(store: 'OffsiteStore | None', spec: 'BackupSpec', *, how_to_set_up: 'str | None' = None) -> 'dict[str, Any]'
-def send_offsite(archive: 'Path', store: 'OffsiteStore | None', spec: 'BackupSpec', *, keep: 'int' = 60, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
+def send_offsite(archive: 'Path', store: 'OffsiteStore | None', spec: 'BackupSpec', *, keep: 'int | None' = None, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'dict[str, Any]'
 
 ## wts_core.ports
 class AnswerCache(Protocol)
     def __init__(self, *args, **kwargs)
     def get(self, key: 'str', max_hours: 'float') -> 'list[dict[str, Any]] | None'
     def put(self, key: 'str', events: 'list[dict[str, Any]]', max_hours: 'float') -> 'None'
+class BriefingConfig
+    config_id: str
+    model: str
+    parse_model: str | None
+    instructions: str
+    package_version: str
+    site_version: str
+    experiment: str | None = ...
+    arm: str | None = ...
+    settings: Mapping[str, Any] = ...
 class BriefingLog(Protocol)
     def __init__(self, *args, **kwargs)
     def mark(self, briefing_id: 'str', *, useful: 'bool | None' = None, reported: 'bool' = False, corrected: 'bool' = False, followed_up: 'bool' = False) -> 'None'
@@ -914,7 +969,7 @@ class Limiter(Protocol)
     def allow(self, key: 'str') -> 'bool'
 class ModelClient(Protocol)
     def __init__(self, *args, **kwargs)
-    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def stream(self, request: 'ModelRequest') -> 'ModelStream'
     def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
 class ModelRequest
     model: str
@@ -925,6 +980,9 @@ class ModelRequest
     effort: str | None = ...
     cache_instructions: Literal['off', 'short', 'long'] = ...
     fallbacks: bool = ...
+class ModelStream(Protocol)
+    def __init__(self, *args, **kwargs)
+    def close(self) -> 'None'
 class OffsiteError(RuntimeError)
 class OffsiteStore(Protocol)
     def __init__(self, *args, **kwargs)
@@ -1006,7 +1064,7 @@ STATUSES = tuple of 5
 StatementStatus: from wts_core.replies.rules
 TAKEDOWN = 'takedown'
 Waiting: from wts_core.replies.desk
-long_date: from wts_core.replies.markup
+long_date: from wts_core.dates
 migrations: from wts_core.replies.tables
 months_before: from wts_core.replies.days
 safe_link: from wts_core.replies.rules
@@ -1050,7 +1108,7 @@ class Waiting
     hidden: int = ...
 
 ## wts_core.replies.markup
-def long_date(iso: 'str | date | None') -> 'str'
+long_date: from wts_core.dates
 def statement_html(statement: 'Mapping[str, Any]', messages: 'ReplyMessages', *, level: 'int' = 2) -> 'str'
 
 ## wts_core.replies.rules
@@ -1152,6 +1210,7 @@ class Settings
     property state_db
     property usage
 class SettingsError(RuntimeError)
+    def __init__(self, message: 'str', *, problems: 'Sequence[str]' = ()) -> 'None'
 class Site
     name: str
     package: str
@@ -1171,14 +1230,14 @@ def save_local_settings(data_dir: 'Path', updates: 'Mapping[str, Mapping[str, An
 ## wts_core.state
 class Import
     name: str
-    statements: tuple[str, ...]
+    statements: tuple[str | Callable[[sqlite3.Connection], Iterable[str]], ...]
     needs: tuple[str, ...] = ...
 class Migration
     number: int
     name: str
     statements: tuple[str, ...]
 class StateDB
-    def __init__(self, path: 'Path', *, migrations: 'Sequence[Migration]' = (), imports: 'Sequence[Import]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
+    def __init__(self, path: 'Path', *, migrations: 'Sequence[Migration]' = (), imports: 'Sequence[Import]' = (), clock: 'Clock' = <wts_core.ports.SystemClock object>, site: 'str | None' = None) -> 'None'
     def connect(self) -> 'Iterator[sqlite3.Connection]'
     def delete(self, key: 'str') -> 'None'
     def delete_like(self, pattern: 'str', *, keep: 'str | None' = None) -> 'None'
@@ -1187,6 +1246,7 @@ class StateDB
     def set(self, key: 'str', value: 'str') -> 'None'
     def set_if_absent(self, key: 'str', value: 'str') -> 'None'
     def tables(self) -> 'set[str]'
+def columns(con: 'sqlite3.Connection', table: 'str') -> 'set[str]'
 def core_migrations() -> 'tuple[Migration, ...]'
 def iso(clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'str'
 def today(clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'str'
@@ -1218,6 +1278,7 @@ class EmbedderContract
 class ModelClientContract
     def test_a_question_is_read_into_the_schema_it_is_given(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_a_stream_is_text_and_citations_then_exactly_one_completed(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
+    def test_a_stream_may_be_closed_when_it_has_ended_or_never_began_or_twice(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_closing_the_iterator_stops_the_stream(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_every_citation_names_a_document_in_the_request(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
     def test_it_says_who_it_is_and_what_it_can_do(self, model: 'ModelFactory', recording: 'tuple[ModelRequest, list[ModelEvent]]') -> 'None'
@@ -1275,7 +1336,7 @@ class RecordingEmbedder
 RECORDING_VERSION = 1
 class ScriptedModel
     def __init__(self, script: 'Sequence[ModelEvent] | Path', *, structured: 'Any' = None, structured_usage: 'Usage | None' = None, error: 'Exception | None' = None) -> 'None'
-    def stream(self, request: 'ModelRequest') -> 'Iterator[ModelEvent]'
+    def stream(self, request: 'ModelRequest') -> 'Generator[ModelEvent, None, None]'
     def structured(self, request: 'ModelRequest', schema: 'type[T]') -> 'tuple[T, Usage]'
 def load_documents(path: 'Path') -> 'tuple[Document, ...]'
 def load_header(path: 'Path') -> 'dict[str, Any]'
@@ -1292,7 +1353,7 @@ class MemoryOffsiteStore
     def put(self, path: 'Path') -> 'StoredFile'
 
 ## wts_core.testing.privacy
-def assert_no_reader_data(state: 'StateDB', log_lines: 'Iterable[str]', *, question: 'str', address: 'str', visitor: 'str | None' = None) -> 'None'
+def assert_no_reader_data(state: 'StateDB', log_lines: 'Iterable[str]', *, address: 'str', question: 'str | None' = None, visitor: 'str | None' = None) -> 'None'
 def assert_statements_stay_out(*, replies: 'Replies', ask: 'Callable[[str], Iterable[Any]]', model: 'ScriptedModel', embedder: 'RecordingEmbedder', index: 'MemoryIndex', state: 'StateDB', log_lines: 'Callable[[], Iterable[str]] | Iterable[str]', item: 'str', question: 'str', about: 'str | None' = None, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'None'
 
 ## wts_core.usage
@@ -1353,7 +1414,7 @@ class Limits
     per_account_daily: int | None
     daily_cap_usd: float
     monthly_cap_usd: float
-    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage') -> 'Limits'
+    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage', file: 'Path | str | None' = None) -> 'Limits'
 class Refusal
     kind: Literal['visitor_limit', 'account_limit', 'daily_cap', 'monthly_cap', 'busy_visitor', 'busy_site']
     message: str
@@ -1433,7 +1494,7 @@ class PriceTable
     base: Price
     models: tuple[tuple[str, Price], ...] = ...
     def cost(self, usage: 'Usage | None', model: 'str | None') -> 'float'
-    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage') -> 'PriceTable'
+    classmethod from_settings(cls, usage: 'Mapping[str, Any]', *, section: 'str' = 'usage', file: 'Path | str | None' = None) -> 'PriceTable'
     def price_for(self, model: 'str | None') -> 'Price'
     def require(self, models: 'Iterable[str | None]', *, base_counts: 'bool') -> 'None'
 

@@ -4,6 +4,7 @@ own, with each site's messages and limits in turn (the fixture ``site``)."""
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -15,7 +16,7 @@ import pytest
 from test_usage_sites import COUNCILS, MPS, SiteFacts, site  # noqa: F401
 from wts_core import usage as core_usage
 from wts_core.briefing import Ask, BriefingDesk, Hooks, TooManyRequests, current_stages, sse
-from wts_core.ports import BriefingRecord
+from wts_core.ports import BriefingConfig, BriefingRecord
 from wts_core.state import StateDB
 from wts_core.testing import FixedClock, FixedRandom
 from wts_core.usage import (
@@ -78,9 +79,9 @@ class Told:
         args: dict[str, Any] = dict(
             messages=facts.messages, limiter=RateLimiter(2, forget_over=100, clock=self.clock), caps=self.caps,
             in_progress=self.in_progress, spending=self.spending, cache=self.cache, cache_hours=168.0,
-            archive=self.archive, failures=self.failures, log=self.log, parse_model=facts.models[-1],
-            config={"config_id": "abc123def456", "model": self.model, "instructions": "v7",
-                    "package_version": "0.1.0", "site_version": "2026.11"},
+            archive=self.archive, failures=self.failures, log=self.log,
+            config=BriefingConfig(config_id="abc123def456", model=self.model, parse_model=facts.models[-1],
+                                  instructions="v7", package_version="0.1.0", site_version="2026.11"),
             group_of=lambda card: card.get("party"), clock=self.clock, random=FixedRandom(), strict=True)
         args.update(more)
         self.desk = BriefingDesk(**args)
@@ -232,7 +233,7 @@ def test_the_order_is_cache_caps_place_caps_again_then_the_pipeline(told):
         messages=told.messages, limiter=RateLimiter(9, forget_over=9), caps=Watched("caps", told.caps),
         in_progress=Watched("in_progress", told.in_progress), spending=told.spending,
         cache=Watched("cache", told.cache), cache_hours=168.0, archive=told.archive, failures=told.failures,
-        log=told.log, parse_model=None, config={}, clock=told.clock)
+        log=told.log, config=told.desk._config, clock=told.clock)
     stream = desk.handle(told.ask(write=write))
     assert calls == ["cache.get", "caps.refusal"]  # before anything is sent: a fault here is the route's to answer
     list(stream)
@@ -724,12 +725,13 @@ def test_in_an_experiment_each_version_has_its_own_cached_answers(site, tmp_path
             seen.append(ask.cache_key)
             return final
 
-    config = {"config_id": "c1", "experiment": "shorter-instructions"}
-    a = Told(site, tmp_path, config={**config, "arm": "a"}, hooks=Keys())
+    config = BriefingConfig(config_id="c1", model="m", parse_model=None, instructions="v7", package_version="0.2.0",
+                            site_version="1", experiment="shorter-instructions", arm="a")
+    a = Told(site, tmp_path, config=config, hooks=Keys())
     a.run()
-    a.desk._config["arm"] = "b"  # the other version, over the same cache
+    a.desk._config = dataclasses.replace(config, arm="b")  # the other version, over the same cache
     assert "cached" not in a.run()[-1]
-    a.desk._config["arm"] = "a"
+    a.desk._config = config
     assert a.run()[-1]["cached"] is True
     assert seen == [cache_key({"key": "k" * 64, "experiment": "shorter-instructions", "arm": arm}, length=64)
                     for arm in "ab"]

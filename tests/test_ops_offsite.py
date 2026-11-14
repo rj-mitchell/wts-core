@@ -85,6 +85,22 @@ def test_sixty_are_kept_unless_another_number_is_given(site, tmp_path):
 
 
 @each_site
+def test_how_many_are_kept_off_site_is_the_specs_to_say(site, tmp_path):
+    import dataclasses
+
+    assert site.spec.keep_offsite == 60  # every site's figure today, so no site's spec says it
+    fewer = dataclasses.replace(site.spec, keep_offsite=3)
+    store = MemoryStore()
+    for n in range(10):
+        store.files[site.archive_name(datetime(2026, 1, 1, tzinfo=UTC) + timedelta(days=n))] = b"x"
+    out = send_offsite(archive(tmp_path, site, "2026-10-12"), store, fewer, clock=FixedClock(NOW))
+    assert (out["stored"], out["deleted"]) == (3, 8)
+    # a number given for one call still wins over the spec's
+    out = send_offsite(archive(tmp_path, site, "2026-10-12"), store, fewer, keep=1, clock=FixedClock(NOW))
+    assert (out["stored"], out["deleted"]) == (1, 2)
+
+
+@each_site
 @pytest.mark.parametrize("keep", [0, -1])
 def test_keeping_none_or_fewer_deletes_nothing_off_site(site, tmp_path, keep):
     store = MemoryStore()

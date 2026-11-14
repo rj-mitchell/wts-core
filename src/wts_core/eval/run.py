@@ -37,11 +37,11 @@ from collections import Counter
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol, cast, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from wts_core.eval.cases import Case
 from wts_core.eval.replay import Fixture, save_fixture
-from wts_core.events import Answer, Block, ReaderEvent
+from wts_core.events import Answer, Block, Event
 from wts_core.ports import SYSTEM_CLOCK, Clock, Document, Pricing, Usage
 
 __all__ = ["FIGURES", "CaseOutcome", "CaseResult", "EvalSite", "Judges", "Recording", "Records", "Run", "Scores",
@@ -57,7 +57,7 @@ class EvalSite(Protocol):
         """Its test questions (``load_cases`` on its ``eval/questions.toml``)."""
         ...
 
-    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[ReaderEvent]:
+    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[Event]:
         """Ask one question of the site's pipeline, set up as ``config`` says, and send what a reader would be
         sent. Never through the answer cache, and never in an experiment."""
         ...
@@ -243,8 +243,7 @@ def _ask(site: EvalSite, case: Case, config: Mapping[str, Any], clock: Clock,
         return round((clock.monotonic() - started) * 1000)
 
     try:
-        for sent in site.ask(case, config):
-            event = cast(Mapping[str, Any], sent)  # the site's own events and keys pass through too
+        for event in site.ask(case, config):  # the site's own events and keys pass through too
             kind = event.get("type")
             if kind == "text":
                 if result.ms_to_first_word is None:

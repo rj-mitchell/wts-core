@@ -16,11 +16,12 @@ from wts_core.ops import (
     restore_backup,
     send_offsite,
 )
+from wts_core.state import StateDB
 from wts_core.testing import FixedClock, MemoryOffsiteStore
 
 from conftest import DOGS, HOURS, ask, final_of, rows
 from parks.app import Parks
-from parks.site import BACKUP_ALERTS, BACKUPS
+from parks.site import BACKUP_ALERTS, BACKUPS, migrations
 
 
 def test_a_backup_is_made_under_the_sites_own_name_and_put_back(client: TestClient, parks: Parks,
@@ -37,11 +38,11 @@ def test_a_backup_is_made_under_the_sites_own_name_and_put_back(client: TestClie
     # the site goes on, and then the database is lost
     later = final_of(ask(client, HOURS, sources_only=True))
     assert later["answer"] is None
-    parks.archive.withdraw(first, "Withdrawn after the backup was made.")
+    parks.parts.archive.withdraw(first, "Withdrawn after the backup was made.")
     kept = restore_backup(archive, settings.state_db, BACKUPS)
 
     # everything is as it was when the backup was made
-    saved = parks.archive.get(first)
+    saved = parks.parts.archive.get(first)
     assert saved is not None and saved.withdrawn_at is None
     assert len(rows(parks, "SELECT 1 FROM wts_spending")) == 2 and len(rows(parks, "SELECT 1 FROM wts_briefing_log")) == 1
     assert client.get(f"/b/{first}").status_code == 200
@@ -70,6 +71,23 @@ def test_a_file_that_is_not_this_sites_backup_is_refused(client: TestClient, par
         restore_backup(stranger, parks.settings.state_db, BACKUPS)
     assert refused.value.why == "not-a-database"
     assert len(rows(parks, "SELECT 1 FROM wts_briefing_log")) == 1  # nothing was touched
+
+
+def test_a_sister_sites_backup_is_refused_though_it_has_every_table_this_site_has(
+        client: TestClient, parks: Parks, clock: FixedClock, tmp_path_factory: pytest.TempPathFactory) -> None:
+    ask(client, DOGS, sources_only=True)
+    # a sister site built on the package: the same tables, made the same way, and its own mark
+    sister = StateDB(tmp_path_factory.mktemp("lakes") / "state.db", migrations=migrations(), clock=clock,
+                     site="lakes")
+    theirs = make_backup(sister.path, sister.path.parent / "backups", BACKUPS, clock=clock)
+    assert theirs is not None and BACKUPS.site == "parks" and parks.db.get("site") == "parks"
+    with pytest.raises(RestoreRefused, match="marked 'lakes', and this site is 'parks'") as refused:
+        restore_backup(theirs, parks.settings.state_db, BACKUPS)
+    assert refused.value.why == "other-site"
+    assert len(rows(parks, "SELECT 1 FROM wts_briefing_log")) == 1  # nothing was touched
+    # and this site will not open the sister's data folder by mistake
+    with pytest.raises(RuntimeError, match="is the state database of another site"):
+        StateDB(sister.path, migrations=migrations(), site="parks")
 
 
 def test_a_copy_goes_off_site_and_the_owner_is_told_when_backups_stop(parks: Parks, client: TestClient,

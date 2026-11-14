@@ -1,7 +1,7 @@
 """The web app: this site's routes, written around the package's parts.
 
-``build`` makes the site's working parts once (the state database, spending and caps, the briefing desk, reports
-and statements, the pipeline) and ``create_app`` hangs the routes on them. The routes, the request bodies and the
+``build`` makes the site's working parts once (the state database, the parts of the briefing desk and the desk,
+reports and statements, the pipeline) and ``create_app`` hangs the routes on them. The routes, the request bodies and the
 pages are the site's own; the flow of a briefing is the package's (``BriefingDesk``), and so are the rules of the
 right of reply (``Replies``).
 
@@ -22,26 +22,22 @@ from typing import Any, Literal
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
-from wts_core.briefing import Ask, BriefingDesk, Event, Hooks, TooManyRequests, sse
+from wts_core.briefing import Ask, BriefingDesk, DeskParts, Event, Hooks, TooManyRequests, desk_parts, sse
 from wts_core.cli import backup_ages, check_route, last_day_figures
 from wts_core.observe import LOGGER, SqliteBriefingLog, json_logging
-from wts_core.ports import SYSTEM_CLOCK, SYSTEM_RANDOM, Clock, Embedder, ModelClient, Random, VectorIndex
+from wts_core.ports import (
+    SYSTEM_CLOCK,
+    SYSTEM_RANDOM,
+    BriefingConfig,
+    Clock,
+    Embedder,
+    ModelClient,
+    Random,
+    VectorIndex,
+)
 from wts_core.replies import Refused, Replies, statement_html
 from wts_core.state import StateDB
-from wts_core.usage import (
-    BriefingArchive,
-    BriefingsInProgress,
-    Caps,
-    Failures,
-    Limits,
-    PriceTable,
-    RateLimiter,
-    Spending,
-    SqliteAnswerCache,
-    cache_key,
-    client_address,
-    visitor_code,
-)
+from wts_core.usage import Limits, Spending, cache_key, client_address, visitor_code
 
 from parks.pipeline import (
     Pipeline,
@@ -60,7 +56,7 @@ from parks.site import (
     VERIFIER,
     ParksSettings,
     load,
-    open_archive,
+    new_briefing_id,
     open_replies,
     open_state,
 )
@@ -118,14 +114,12 @@ class Parks:
 
     settings: ParksSettings
     db: StateDB
-    spending: Spending
-    caps: Caps
-    archive: BriefingArchive
+    parts: DeskParts  # the spending record, the caps, the answer cache, saved briefings: what the desk is made of
     log: SqliteBriefingLog
     replies: Replies
     pipeline: Pipeline
     desk: BriefingDesk
-    config: Mapping[str, Any]
+    config: BriefingConfig
     clock: Clock
     random: Random
     check_token: str | None
@@ -137,43 +131,35 @@ def build(settings: ParksSettings | None = None, *, model: ModelClient | None | 
     """The site, from its settings. A test passes its own model, embedder, index, clock and chance; left alone,
     each comes from the settings and the system. Nothing is global: two sites can be built in one process."""
     settings = settings or load(env=env)
-    cfg = settings.usage
     db = open_state(settings, clock)
-    limits = Limits.from_settings(cfg)
-    spending = Spending(db, PriceTable.from_settings(cfg), clock=clock)
-    caps = Caps(spending, limits, MESSAGES, clock)
-    archive = open_archive(db, clock, random)
+    # Everything the flow of a briefing is made of, from [usage]: prices, limits, the spending record, the caps,
+    # the per-minute limiter, the answer cache, saved briefings and the notes of failures, on the one clock. This
+    # is also the start-up check: every limit, price and message the flow needs, with whatever is missing named
+    # together in one error.
+    parts = desk_parts(
+        settings, db, MESSAGES,
+        new_id=new_briefing_id,
+        # this site's names for the two settings the family's sites name differently
+        at_once_per_visitor="briefings_at_once_per_visitor", forget_over="forget_idle_visitors_over",
+        keep_failures=True,  # a failed briefing is noted for the owner (the privacy notice says for how long)
+        # both models must have prices of their own, so a new model is never costed at another's
+        require_prices_for=(settings.answer["model"], settings.answer["query_parse_model"]),
+        clock=clock, random=random)
     log = SqliteBriefingLog(db, clock=clock)
 
     embedder = embedder or embedder_from_settings(settings)
     pipeline = Pipeline(settings, model=model_from_settings(settings, env) if model is ... else model,
-                        embedder=embedder, index=index or new_index(embedder), spending=spending)
-    config = configuration(settings, embedder)
-    log.remember_config(config["config_id"], config)  # the settings behind the id, kept once
+                        embedder=embedder, index=index or new_index(embedder), spending=parts.spending)
+    config = configuration(settings, embedder, log)  # its id worked out and the settings behind it kept, at once
 
-    desk = BriefingDesk(
-        messages=MESSAGES,
-        limiter=RateLimiter(int(cfg["requests_per_minute"]), forget_over=int(cfg["forget_idle_visitors_over"]),
-                            clock=clock),
-        caps=caps,
-        in_progress=BriefingsInProgress(int(cfg["briefings_at_once_per_visitor"]), int(cfg["briefings_at_once"]),
-                                        float(cfg["briefing_estimate_usd"])),
-        spending=spending,
-        cache=SqliteAnswerCache(db, clock=clock),
-        cache_hours=float(cfg["answer_cache_hours"]),
-        archive=archive,
-        failures=Failures(db, clock=clock),
+    desk = parts.desk(
+        config,
         log=log,  # the record of each briefing, turned on (docs/adr/0012)
-        parse_model=settings.answer["query_parse_model"],
-        config=config,
-        hooks=ParksHooks(spending, limits, pipeline.records_up_to),
+        hooks=ParksHooks(parts.spending, parts.limits, pipeline.records_up_to),
         group_of=lambda card: card.get("park"),  # the record counts each briefing's sources by park
-        clock=clock,
-        random=random,
     )
-    return Parks(settings=settings, db=db, spending=spending, caps=caps, archive=archive, log=log,
-                 replies=open_replies(db, clock), pipeline=pipeline, desk=desk, config=config, clock=clock,
-                 random=random, check_token=SITE.env("CHECK_TOKEN", env))
+    return Parks(settings=settings, db=db, parts=parts, log=log, replies=open_replies(db, clock), pipeline=pipeline,
+                 desk=desk, config=config, clock=clock, random=random, check_token=SITE.env("CHECK_TOKEN", env))
 
 
 def start_logging(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> logging.Handler:
@@ -264,7 +250,7 @@ def create_app(parks: Parks | None = None) -> FastAPI:
 
     @app.get("/api/status")
     def status() -> dict[str, Any]:
-        paused = parks.caps.site_paused()
+        paused = parks.parts.caps.site_paused()
         return {"briefings": "paused" if paused else "available", "note": paused.message if paused else None,
                 "model": pipeline.has_model, "records_up_to": pipeline.records_up_to}
 
@@ -303,7 +289,7 @@ def create_app(parks: Parks | None = None) -> FastAPI:
 
     @app.get("/b/{briefing_id}", response_class=HTMLResponse)
     def briefing(briefing_id: str) -> HTMLResponse:
-        saved = parks.archive.get(briefing_id)
+        saved = parks.parts.archive.get(briefing_id)
         if saved is None:
             raise HTTPException(404, "There is no briefing at this address.")
         address = f"/b/{saved.id}"

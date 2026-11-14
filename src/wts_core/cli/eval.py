@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from wts_core.checks import LoadedWords, Verifier
+from wts_core.cli._clock import _clock_of
 from wts_core.eval import (
     CaseResult,
     EvalSite,
@@ -55,9 +56,10 @@ __all__ = ["eval_commands"]
 def eval_commands(site: Callable[[], EvalSite], *, config: Callable[[], Mapping[str, Any]],
                   config_id: Callable[[Mapping[str, Any]], str], pricing: Callable[[], Pricing],
                   thresholds: Callable[[], Mapping[str, float]], runs: Callable[[], Path],
-                  max_cost_usd: float | None, verifier: Callable[[], Verifier] | None = None,
+                  max_cost_usd: float | Callable[[], float | None] | None,
+                  verifier: Callable[[], Verifier] | None = None,
                   loaded_words: Callable[[], LoadedWords] | None = None, curled: bool = False,
-                  group: str | None = "eval", clock: Clock = SYSTEM_CLOCK) -> typer.Typer:
+                  group: str | None = "eval", clock: Clock | Callable[[], Clock] = SYSTEM_CLOCK) -> typer.Typer:
     """The site's evaluation commands, to add to its own app with ``app.add_typer(...)``.
 
     Everything is asked for when a command runs, never when the commands are built. ``site`` is the site's
@@ -65,12 +67,16 @@ def eval_commands(site: Callable[[], EvalSite], *, config: Callable[[], Mapping[
     trying them) and ``config_id`` the id the site's record of briefings gives it (``observe.config_id`` of the
     parts the site chooses); ``pricing`` the site's prices; ``thresholds`` its evaluation thresholds
     (``min_grounded_ratio`` and the like); ``runs`` the folder runs are kept in. ``max_cost_usd`` is what a run
-    may spend when ``--max-cost`` is not given: the site's own figure, or None to make the owner say each time.
+    may spend when ``--max-cost`` is not given: the site's own figure, or a function that gives it when the
+    command runs (for a site that keeps it in its settings), or None to make the owner say each time.
 
     ``verifier`` and ``loaded_words`` are the site's own checks, for ``replay`` (and ``curled`` whether the site
     curls its quotation marks). ``group`` is the name the three commands sit under; None puts them straight into
-    the app returned, for a site that adds them to a group of its own."""
+    the app returned, for a site that adds them to a group of its own. ``clock`` is a clock, or a function that
+    gives one when a command runs."""
     import typer
+
+    clock = _clock_of(clock)
 
     app = typer.Typer(add_completion=False)
     commands = app
@@ -91,7 +97,10 @@ def eval_commands(site: Callable[[], EvalSite], *, config: Callable[[], Mapping[
     only_option = typer.Option(None, "--only", help="ask only the question with this id (may be given more than "
                                                     "once)")
     limit_option = typer.Option(None, "--limit", help="ask no more than this many, from the start of the set")
-    cost_option = typer.Option(max_cost_usd, "--max-cost", help="stop once this many US dollars are spent")
+    # a figure given outright is the option's default, shown in its help; one read from settings is asked for
+    # only when the command runs
+    cost_option = typer.Option(None if callable(max_cost_usd) else max_cost_usd, "--max-cost",
+                               help="stop once this many US dollars are spent")
     fixtures_option = typer.Option(None, "--record-fixtures", help="save each briefing written in this folder, "
                                                                     "as a fixture for replay")
     out_option = typer.Option(None, "--out", help="where to save the run; the site's own folder of runs if not "
@@ -101,6 +110,8 @@ def eval_commands(site: Callable[[], EvalSite], *, config: Callable[[], Mapping[
     def run_(only: list[str] | None = only_option, limit: int | None = limit_option,
              max_cost: float | None = cost_option, record_fixtures: Path | None = fixtures_option,
              out: Path | None = out_option) -> None:
+        if max_cost is None and callable(max_cost_usd):
+            max_cost = max_cost_usd()
         if max_cost is None:
             raise typer.BadParameter("say how much this run may spend, in US dollars: the site sets no figure of "
                                      "its own, and no run starts without a limit", param_hint="--max-cost")

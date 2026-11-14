@@ -7,6 +7,6 @@ that import an outside library, each behind an interface in ``wts_core.ports``.
 
 from wts_core.settings import Messages, Settings, Site, load_settings
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = ["Messages", "Settings", "Site", "__version__", "load_settings"]

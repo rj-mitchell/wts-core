@@ -35,6 +35,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from wts_core.dates import long_date
 from wts_core.observe.figures import MARKS, Figures, Headline, Listed, Rate, Spread, Stats
 from wts_core.observe.log import Retention, months_before, save_week
 from wts_core.ports import SYSTEM_CLOCK, Clock
@@ -53,8 +54,7 @@ _NO_THRESHOLDS = "No alert thresholds are set yet: these are proposed from this 
 
 
 def _day(when: str | datetime) -> str:
-    moment = datetime.fromisoformat(when) if isinstance(when, str) else when
-    return f"{moment.day} {moment:%B %Y}"
+    return long_date(when)  # the family's own format, whatever the server's language settings
 
 
 def _seconds(ms: float | None) -> str:
@@ -82,6 +82,12 @@ def _usd(usd: float | None, places: int | None = None) -> str:
 
 def _number(n: float) -> str:
     return f"{n:.1f}".removesuffix(".0")
+
+
+def _days(n: float) -> str:
+    """A length of time in days, as it is said: "1 day", "7 days", "0.5 days"."""
+    said = _number(n)
+    return f"{said} day" if said == "1" else f"{said} days"
 
 
 _SPECIAL = re.compile(r"([\\`*_{}\[\]()#+!|~-])")
@@ -267,7 +273,7 @@ def markdown(stats: Stats, site: Site, *, thresholds: Mapping[str, Any] | None =
         f"# {site.name}: how the briefings went, {_day(now.start)} to {_day(now.end)}", "",
         f"Each figure is given beside the same figure for {before} ({_day(was.start)} to {_day(was.end)}). "
         "Counts and costs for those weeks are also given at their rate for a period of this length "
-        f"({_number(now.days)} days). The figures are for readers' questions: the nightly check's questions and "
+        f"({_days(now.days)}). The figures are for readers' questions: the nightly check's questions and "
         "test runs are counted under \"Questions by kind\" and nowhere else. \"95 in 100 within\" is the time "
         "within which 95 in every 100 were done (the 95th percentile, by nearest rank).", "",
         *_alerts_section(stats, thresholds, margin),

@@ -119,9 +119,20 @@ class ModelClientContract:
         client, was_closed = model(recording[1], None)
         events = client.stream(recording[0])
         next(events)
-        events.close()  # type: ignore[attr-defined]  # every adapter's stream is a generator
+        events.close()  # in the interface's type: a pipeline needs no getattr to stop the model
         assert was_closed()
         assert next(events, None) is None
+
+    def test_a_stream_may_be_closed_when_it_has_ended_or_never_began_or_twice(
+            self, model: ModelFactory, recording: tuple[ModelRequest, list[ModelEvent]]) -> None:
+        client, _ = model(recording[1], None)
+        ended = client.stream(recording[0])
+        assert isinstance(list(ended)[-1], Completed)
+        ended.close()
+        ended.close()
+        never_begun = client.stream(recording[0])
+        never_begun.close()
+        assert next(never_begun, None) is None
 
     def test_token_counts_are_never_negative(
             self, model: ModelFactory, recording: tuple[ModelRequest, list[ModelEvent]]) -> None:

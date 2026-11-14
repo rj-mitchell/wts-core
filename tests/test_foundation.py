@@ -69,6 +69,17 @@ def test_the_environment_names_the_config_file_the_data_folder_and_a_sites_own_s
     assert s.start_year == 2018 and s.section("site") == {"launched": False}
 
 
+def test_a_section_an_environment_setting_may_fill_is_there_even_when_nothing_fills_it(tmp_path):
+    """Each site's own loader always made the section (Where Landlords Stand's ``[site]``), so an accessor that
+    reads ``raw["site"]`` found a table. The settings file here has no ``[site]`` at all."""
+    site = make_site(tmp_path, env_settings=(EnvSetting("SITE_URL", "site", "url"),
+                                             EnvSetting("LAUNCHED", "site", "launched", "flag")))
+    s = load_settings(MySettings, site, env={})
+    assert s.raw["site"] == {} and s.section("site") == {} and "site" in s.raw
+    assert s.raw["usage"] == load_settings(MySettings, make_site(tmp_path), env={}).raw["usage"]  # nothing else moved
+    assert "site" not in load_settings(MySettings, make_site(tmp_path), env={}).raw  # no setting, no section
+
+
 def test_a_missing_setting_stops_the_site_by_name(tmp_path):
     s = load_settings(MySettings, make_site(tmp_path), env={})
     assert require(s, "usage", ["daily_spend_cap_usd"])["daily_spend_cap_usd"] == 3.0
@@ -105,6 +116,70 @@ def test_the_state_database_keeps_keys_and_runs_each_migration_once(tmp_path):
         StateDB(db.path, migrations=[extra, Migration(10, "clash", ())])
 
 
+def test_a_state_database_is_marked_as_its_sites_and_another_sites_is_refused_untouched(tmp_path):
+    path = tmp_path / "state.db"
+    db = StateDB(path, site="councils")
+    assert db.get("site") == "councils"
+    assert StateDB(path, site="councils").get("site") == "councils"  # opened again by the same site: as it was
+    before = path.read_bytes()
+    more = (Migration(10, "more", ("CREATE TABLE wts_more (x)",)),)
+    with pytest.raises(RuntimeError) as refused:
+        StateDB(path, migrations=more, site="wcs")
+    said = str(refused.value)
+    assert said.startswith(f"{path} is the state database of another site: it is marked 'councils', and this site "
+                           "is 'wcs'.")
+    assert path.read_bytes() == before and "wts_more" not in db.tables()  # nothing in it was made or changed
+    assert db.get("site") == "councils"  # and the mark is never written over
+
+
+def test_a_database_from_before_the_mark_is_marked_the_first_time_its_site_opens_it(tmp_path):
+    path = tmp_path / "state.db"
+    unmarked = StateDB(path)  # as every state database was before, and as one is with no site given
+    unmarked.set("visitor_salt:2026-11-13", "5a" * 16)
+    assert unmarked.get("site") is None
+    assert StateDB(path).get("site") is None  # no site given: none written
+    assert StateDB(path, site="hansard").get("site") == "hansard"
+    assert StateDB(path).get("visitor_salt:2026-11-13") == "5a" * 16
+    with pytest.raises(RuntimeError, match="marked 'hansard', and this site is 'councils'"):
+        StateDB(path, site="councils")
+
+
+def test_fixed_chance_gives_ids_of_the_real_shape_in_a_fixed_order():
+    import re
+    import secrets
+
+    from wts_core.testing import FixedRandom
+
+    chance = FixedRandom()
+    assert [chance.token(8), chance.token(8), chance.token(8)] == ["token000001", "token000002", "token000003"]
+    for nbytes in (1, 2, 3, 4, 6, 8, 9, 16, 32):  # as long as a real one for the bytes asked, and URL-safe
+        made = FixedRandom().token(nbytes)
+        assert len(made) == len(secrets.token_urlsafe(nbytes)), nbytes
+        assert re.fullmatch(r"[A-Za-z0-9_-]+", made) and made.endswith("1")
+    mixed = FixedRandom()  # one sequence, whatever is asked for in between
+    assert [mixed.token(8), mixed.token(16), mixed.token(3), mixed.token_hex(4)] == [
+        "token000001", "token00000000000000002", "0003", "00000004"]
+    given = FixedRandom(tokens=["first"])  # tokens a test gives are handed out first, exactly as given
+    assert [given.token(8), given.token(8)] == ["first", "token000001"]
+
+
+def test_events_are_one_plain_type_wherever_they_are_passed():
+    """A site's pipeline makes them, the desk passes them on, the harness reads them: with one type for all of
+    it, a site needs no cast (its own mypy run is the proof: the example site's has none)."""
+    from collections.abc import Iterator
+    from typing import Any, get_type_hints
+
+    from wts_core import briefing, events
+    from wts_core.checks import curl_event
+    from wts_core.eval import EvalSite
+
+    assert briefing.Event is events.Event and events.Event.__value__ == dict[str, Any]
+    assert get_type_hints(events.to_reader)["return"] is events.Event
+    assert get_type_hints(EvalSite.ask)["return"] == Iterator[events.Event]
+    assert get_type_hints(curl_event)["return"] is events.Event
+    assert events.to_reader(events.TextDelta("word")) == {"type": "text", "text": "word"}
+
+
 def test_a_failed_operation_changes_nothing(tmp_path):
     db = StateDB(tmp_path / "state.db")
     with pytest.raises(sqlite3.OperationalError), db.connect() as con:
@@ -131,6 +206,53 @@ def test_a_sites_rows_are_imported_once_and_its_old_tables_left_alone(tmp_path):
     db = StateDB(path, imports=[bring, later], clock=clock)
     assert db.get("visitor_salt:x") is None  # not run a second time
     assert sqlite3.connect(path).execute("SELECT * FROM kv").fetchall() == before
+
+
+@pytest.mark.parametrize("has_kind", [True, False])
+def test_an_imports_statement_may_be_built_when_it_runs_from_what_the_old_table_has(tmp_path, has_kind):
+    """Where Landlords Stand's ``reports`` gained its ``kind`` column late: a backup from before has none, and one
+    fixed statement that names the column fails on it."""
+    from wts_core.state import columns
+
+    path = tmp_path / "state.db"
+    old = sqlite3.connect(path)
+    old.execute(f"CREATE TABLE reports (id INTEGER PRIMARY KEY, message TEXT{', kind TEXT' if has_kind else ''})")
+    old.execute("INSERT INTO reports (message) VALUES ('The grade is out of date.')")
+    if has_kind:
+        old.execute("UPDATE reports SET kind = 'wrong'")
+    old.commit()
+    old.close()
+    seen: list[set[str]] = []
+
+    def bring(con: sqlite3.Connection) -> list[str]:
+        have = columns(con, "reports")
+        seen.append(have)
+        kind = "kind" if "kind" in have else "NULL"
+        return [f"INSERT INTO wts_kv (key, value) SELECT 'report:' || id, coalesce({kind}, 'no kind') FROM reports"]
+
+    made = (Migration(10, "more", ("CREATE TABLE wts_more (x)",)),)
+    reports = Import("reports", ("INSERT INTO wts_more VALUES (1)", bring), needs=("reports",))
+    db = StateDB(path, migrations=made, imports=[reports])
+    assert db.get("report:1") == ("wrong" if has_kind else "no kind")
+    assert seen == [{"id", "message", "kind"} if has_kind else {"id", "message"}]
+    assert columns(sqlite3.connect(path), "no_such_table") == set()
+    StateDB(path, migrations=made, imports=[reports])  # run once: the function is not asked again
+    assert len(seen) == 1
+    with db.connect() as con:
+        assert con.execute("SELECT count(*) FROM wts_more").fetchone()[0] == 1
+
+
+def test_a_statement_built_at_run_time_that_fails_undoes_the_whole_import(tmp_path):
+    path = tmp_path / "state.db"
+    sqlite3.connect(path).executescript("CREATE TABLE reports (id INTEGER PRIMARY KEY);")
+
+    def broken(con: sqlite3.Connection) -> list[str]:
+        raise RuntimeError("the old table is not as expected")
+
+    half = Import("reports", ("INSERT INTO wts_kv (key, value) VALUES ('half', 'done')", broken), needs=("reports",))
+    with pytest.raises(RuntimeError, match="not as expected"):
+        StateDB(path, imports=[half])
+    assert StateDB(path).get("half") is None  # nothing of it was kept, and it will be tried again
 
 
 def test_a_copy_made_before_an_import_does_not_outlive_the_sites_backups(tmp_path):

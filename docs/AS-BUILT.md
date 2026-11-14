@@ -5,6 +5,67 @@
 the built package departs from the sketch and why, and what each site's adoption (phase 4) has to handle. Each
 entry comes from the hand-back of the worker that built the module, checked against the code.
 
+## What version 0.2.0 changed
+
+Version 0.2.0 removed the rough edges the example site found, before any AI site adopted the briefing desk. The
+sections below are kept as they were written for 0.1.0, with the lines that 0.2.0 made untrue corrected in
+place. In one list, what is different (`CHANGELOG.md` says what a site must do for each):
+
+- **The desk's configuration is typed.** `BriefingDesk` takes `config: ports.BriefingConfig` and no
+  `parse_model`. `observe.briefing_config(log=…, model=…, parse_model=…, instructions=…, site_version=…,
+  also=…)` makes it, works out its id and keeps the parts in `wts_configs` in one call; `log=None` is said out
+  loud by a site that has not turned the record on.
+- **The desk's parts are built in one call:** `briefing.desk_parts(settings, db, messages, new_id=…,
+  at_once_per_visitor=…, forget_over=…, keep_failures=…)`, then `DeskParts.desk(config, log=…, hooks=…,
+  group_of=…)`. It is two steps because a site's pipeline and hooks are made from the parts (the spending record,
+  the limits, the cache, the saved briefings) before the desk is. The clock and the source of chance are given
+  once.
+- **The start-up check** is `briefing.desk_settings`, run first by `desk_parts`: every limit, price, figure and
+  message the flow needs, with all that is missing or wrong in one `SettingsError` that names the settings file
+  and each key. `Limits.from_settings` and `PriceTable.from_settings` say everything wrong at once and take
+  `file=`.
+- **A model's stream has `close()` in its type** (`ports.ModelStream`), and `adapters.has_model(settings, site,
+  env)` says whether there is a model to ask without a site naming the provider.
+- **One nightly command.** The statistics group's `tidy` takes `also_tidy`, and `cli.replies_tidy` is the right
+  of reply's housekeeping as a step for it; `replies_commands` adds the same as `tidy-replies`.
+  `RepliesWording` has a line for it, `tidied`. `eval_commands`' `max_cost_usd` and `stats_commands`'
+  `similarity` may be functions, read when the command runs. How many copies stay off site is
+  `BackupSpec.keep_offsite`.
+- **A state database is marked as its site's** (`StateDB(..., site=…)`: `wts_kv`, key `site`), and with
+  `BackupSpec(site=…)` a restore refuses a backup marked as another site's (`why="other-site"`). A backup with
+  no mark is accepted as before.
+- **Events are one plain type,** `events.Event`, wherever they are passed. `testing.FixedRandom` gives ids of
+  the real length. `wts_core.dates.long_date` is the family's date format where a pipeline may import it.
+
+- **From the first adoption** (Where Landlords Stand, on 0.1.0): `Replies.publish` asks the site whether the item
+  is still shown, and refuses a hidden one; `replies_commands` tells the site (`changed`) after `hide`, `unhide`
+  and `reports close` as well, asks only for the wording its commands print, and takes a group of the site's own
+  (`groups`) so that an older shape of command can be kept with one call; the command groups take their clock
+  when a command runs; `load_settings` makes the section of every `EnvSetting`; an `Import`'s statement may be
+  built when it runs (`state.columns`); `assert_no_reader_data` needs no question; the shared `python.yml` turns
+  Typer's colour off.
+
+### At adoption, because of 0.2.0
+
+- Each AI site's settings have every key `desk_parts` reads under the names it reads them by
+  (`requests_per_minute`, `answer_cache_hours`, `briefing_estimate_usd`, `briefings_at_once`), and each passes
+  the start-up check today: `tests/test_briefing_build.py` reads each site's own `config/settings.toml`. A site
+  says the name of its "at once, for one visitor" setting (`briefings_at_once_per_reader` on Where MPs Stand,
+  `briefings_at_once_per_visitor` on the other two) and the number its limiter forgets at (50,000, and 10,000 on
+  Where Councils Stand), which is in its code today.
+- The fallbacks each site's code has for those figures (`.get("requests_per_minute", 20)` and the like) go: a
+  missing one now stops the site when it starts, by name.
+- **The mark is written the first time a site opens its state database with `site=`.** Backups made before that
+  have none and stay restorable. Once a site passes `site=` to its `BackupSpec`, a backup made by a sister site
+  after *its* adoption is refused. A site must give the same package name to both (`Site.package`).
+- **A state database restored from a sister site's unmarked backup would be marked as this site's** on the next
+  start: the mark closes the gap only for backups made after both sites have adopted it. `required_tables`
+  should still name a table of the site's own while it has one.
+- The owner supplies each site's `tidied` line with the other words of the reports and statements commands. The
+  stand-in is in `tests/cli_sites.py`, marked as such.
+- Each site's nightly timer runs one command, `tidy`, once the site gives it `also_tidy`. Where Landlords Stand
+  has no record of briefings and runs `tidy-replies`.
+
 ## `wts_core.replies` (reports and statements)
 
 ### Differs from the sketch
@@ -128,13 +189,15 @@ case in ADR 0009, for each site.
 
 - `sse(events, keep_alive=15)`: all three sites use 15 seconds; the sketch's 10 would have added lines to what a
   reader receives.
-- Events are plain dictionaries (`briefing.Event`), because Where MPs Stand's `progress` and `interests` events
-  are not in `events.ReaderEvent`.
+- Events are plain dictionaries (`events.Event`, which `briefing.Event` is), because Where MPs Stand's
+  `progress` and `interests` events are not in `events.ReaderEvent`. Since 0.2.0 `events.to_reader` and
+  `EvalSite.ask` give the same type, so a site needs no cast.
 - `Ask` gains `filters_set`, `options` and `save(final, kept, text)`; the route calls `desk.allow(key)` itself.
 - `Hooks.send` is gone: what Where Councils Stand strips must be stripped before the briefing is kept, so it is
   `on_event`. `Hooks.usages` names any further model calls an event reports.
-- `BriefingDesk` takes no `site` and no `experiment`; it gains `parse_model`, `config`, `group_of`, `strict`. With
-  an arm in `config`, the experiment and arm are part of the cache key.
+- `BriefingDesk` takes no `site` and no `experiment`; it gains `config`, `group_of`, `strict`. `config` is a
+  `ports.BriefingConfig` since 0.2.0 (it was a mapping, and `parse_model` a separate argument). With an arm in
+  it, the experiment and arm are part of the cache key.
 - `handle()` looks in the cache and makes the first check of the caps before it returns, as the sites do before
   the response starts, so a storage fault is still an HTTP error.
 - `Stages.spent(usage, cost)` is new: a site's sources-only function tells the briefing's record what its reading
@@ -179,7 +242,8 @@ case in ADR 0009, for each site.
 
 - The modules are `observe.log`, `observe.config`, `observe.logs` (the JSON log lines), `observe.figures` (the
   statistics; `observe.stats` is the function) and `observe.report`.
-- `config_id(parts)` takes a mapping the site builds, not the site and its settings.
+- `config_id(parts)` takes a mapping the site builds, not the site and its settings. Since 0.2.0 a site calls
+  `briefing_config`, which calls it and keeps the parts.
 - `tidy(retention) -> Tidied(deleted, blanked)`: the retention is a required argument (`OWNER_ACCEPTED` is the
   13 months and 90 days the owner accepted on 13 November 2026).
 - `json_logging(path, *, site, max_bytes, keep, days)` has no defaults: ADR 0012's "14 days or 50 MB, whichever is
@@ -418,10 +482,12 @@ checks section of `API-SKETCH.md` has since been rewritten as built.
   and Where Councils Stand have none for `claude-sonnet-5-5`: those models take the base prices. An empty entry is
   enough.
 - `Limits.from_settings` requires `per_visitor_daily_questions`, `daily_spend_cap_usd` and
-  `monthly_spend_cap_usd`; `per_user_daily_questions` is read where present (Where MPs Stand). The site reads its
-  other figures itself and passes them as numbers: requests a minute, the cache's hours, the estimate, and the two
-  "at once" figures (`briefings_at_once_per_reader` on Where MPs Stand, `briefings_at_once_per_visitor` on the
-  other two). The package has no fallback for these either.
+  `monthly_spend_cap_usd`; `per_user_daily_questions` is read where present (Where MPs Stand). The other figures
+  (requests a minute, the cache's hours, the estimate, and the two "at once" figures) are read by
+  `briefing.desk_parts` since 0.2.0, under the names all three sites use; the one they name differently
+  (`briefings_at_once_per_reader` on Where MPs Stand, `briefings_at_once_per_visitor` on the other two) the site
+  names. A site that builds the pieces by hand still reads them itself and passes numbers. The package has no
+  fallback for these either.
 - **Where Councils Stand gains a table of failures.** Today it only logs a failed briefing. With `Failures` it
   keeps up to 500 characters of the question for 90 days. Its privacy notice should be checked before that is
   turned on. Where MPs Stand gains the 90 days.
@@ -445,8 +511,9 @@ checks section of `API-SKETCH.md` has since been rewritten as built.
   `Site`: the site builds one and passes it to each function. New: `wal` (whether the database keeps a write-ahead
   log), `suffix` and `archives(folder)`.
 - `RestoreRefused(message, *, why)`. `why` is one of "kept-copy", "unreadable", "foreign", "not-a-database",
-  "damaged" and "swap-failed", for a command that words the refusal itself.
-- `send_offsite(archive, store, spec, *, keep=60, clock)` and `check_offsite(store, spec, *, how_to_set_up=None)`.
+  "damaged" and "swap-failed", for a command that words the refusal itself; and, since 0.2.0, "other-site".
+- `send_offsite(archive, store, spec, *, keep=None, clock)` (the spec's `keep_offsite`, 60, unless `keep` is
+  given) and `check_offsite(store, spec, *, how_to_set_up=None)`.
 - `Alert(level, text)` and `AlertWording` are exported. `AlertWording` has six fields, all required: the package
   has no alert wording.
 - `ports.OffsiteStore` has `name` and `close()` as well as `put`, `list` and `delete`. It raises
@@ -479,13 +546,21 @@ checks section of `API-SKETCH.md` has since been rewritten as built.
 
 ### At adoption
 
-- **`required_tables` must name at least one table.** An empty tuple is accepted, and a restore would then take a
-  sound SQLite file of another kind, an empty one included. The tests use each site's old tables: Where MPs Stand
-  `manifest`, `usage`, `briefings`, `reports`; Where Countries Stand and Where Councils Stand `usage`,
-  `briefings`; Where Landlords Stand `reports`.
-- **Those names are right only while the old tables are kept.** A backup made before adoption has no `wts_` tables,
-  so a spec that names them refuses it. When a site drops its old tables, a release later, its spec must change in
-  the same release, or its restore refuses each backup made after that.
+- **`required_tables` must name at least one table** (an empty tuple is refused when the spec is made: with none
+  named, a restore would take any sound SQLite file, an empty one included).
+- **A site's spec should name tables that only that site has, and that stay when the old shared tables are
+  dropped.** Where Landlords Stand's adoption (the first) named `missed` and `approvals`: its own tables, in every
+  backup made before the package or after, and in no sister site's. This document first gave `reports` for it,
+  which was wrong on both counts: every site has a `reports` table until it drops it, and a spec that names a
+  table the package's import replaces refuses every backup made once that table is gone. The package's own tests
+  (`tests/test_ops_sites.py`) still build each site's backups from its old tables (Where MPs Stand `manifest`,
+  `usage`, `briefings`, `reports`; Where Countries Stand and Where Councils Stand `usage`, `briefings`; Where
+  Landlords Stand `reports`), because they compare with each site's own restore as it stands today: they are not
+  the specs to adopt.
+- **A site with no table of its own** names the package's (`wts_` tables) and passes `site=` to its `BackupSpec`
+  and its `StateDB`, so that the mark tells its backups from a sister site's (0.2.0). A backup made before
+  adoption has no `wts_` tables, so such a spec refuses it: keep one table of the site's own in the list for as
+  long as backups from before adoption must be restorable.
 - The rest of each spec, as in `tests/test_ops_sites.py`. Where MPs Stand: `where-they-stand-`, a tar holding
   `state.sqlite` and `settings.local.toml`, 14 kept, `wal=True`. Where Countries Stand: `wcs-state-`, 14. Where
   Councils Stand: `councils-state-`, 7. Where Landlords Stand: `landlords-state-` with the stamp `%Y%m%d-%H%M%S`,
@@ -527,7 +602,8 @@ on the same rows: what is printed, where, and the exit code.
   empty values, under plain lower-case names, so nothing a reader wrote can leave by it. `last_day_figures(log)`
   and `backup_ages(...)` fill it.
 - `stats_commands` adds `stats` (with `--check`), `weekly-report` and `tidy`; `eval_commands` adds `eval run`,
-  `compare` and `replay`. `eval run` has no spending limit of its own: the site passes one, or it refuses to run.
+  `compare` and `replay`. `eval run` has no spending limit of its own: the site passes one (a number, or since
+  0.2.0 a function read when the command runs), or it refuses to run.
 - Typer is imported only when a command group is built, so `import wts_core.cli` and the check route need
   nothing outside the standard library. The `cli` extra asks for Typer 0.15 or later (earlier versions cannot
   merge a group's commands into the site's own).

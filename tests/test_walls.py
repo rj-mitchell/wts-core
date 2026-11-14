@@ -70,6 +70,12 @@ def test_ports_and_events_import_nothing_else_from_the_package():
     assert {n for n in imports(SRC / "events.py") if n.startswith("wts_core")} <= {"wts_core.ports"}
 
 
+def test_the_date_format_imports_nothing_from_the_package():
+    """``wts_core.dates`` is the one module both sides of the wall below may import (a pipeline, and the right of
+    reply): it stays a leaf, so nothing can pass through it."""
+    assert not {n for n in imports(SRC / "dates.py") if n.startswith("wts_core")}
+
+
 def test_replies_shares_no_import_with_anything_that_touches_the_model_the_index_or_the_record():
     """Half of how statements under the right of reply never reach the model, the search index or the record
     (the other half is ``testing.assert_statements_stay_out``, run by each site against its own pipeline)."""
@@ -78,7 +84,8 @@ def test_replies_shares_no_import_with_anything_that_touches_the_model_the_index
         names = imports(path)
         if area(path) == "replies":
             assert {n for n in names if n.startswith("wts_core")} <= {
-                "wts_core.ports", "wts_core.state", *(n for n in names if n.startswith("wts_core.replies"))
+                "wts_core.ports", "wts_core.state", "wts_core.dates",  # dates: a leaf, checked above
+                *(n for n in names if n.startswith("wts_core.replies"))
             }, f"{where(path)} imports {sorted(names)}"
             assert not [n for n in names if n.startswith(near)]
         elif [n for n in names if n.startswith("wts_core.replies")]:
@@ -95,7 +102,7 @@ def test_loading_what_is_near_the_model_never_loads_the_right_of_reply():
     """What the source says, checked against what Python does: with each of these loaded in a fresh interpreter,
     ``wts_core.replies`` is not among the modules loaded (a lazy or indirect import would show here)."""
     for module in ("wts_core.checks", "wts_core.briefing", "wts_core.observe", "wts_core.eval", "wts_core.usage",
-                   "wts_core.testing", "wts_core.testing.models", "wts_core.testing.index"):
+                   "wts_core.testing", "wts_core.testing.models", "wts_core.testing.index", "wts_core.dates"):
         code = (f"import sys, {module}\n"
                 "loaded = sorted(m for m in sys.modules if m.startswith('wts_core.replies'))\n"
                 "sys.exit(', '.join(loaded) or 0)")

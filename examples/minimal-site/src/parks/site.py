@@ -20,7 +20,7 @@ from wts_core.ports import SYSTEM_CLOCK, SYSTEM_RANDOM, Clock, Random
 from wts_core.replies import Item, Refused, Replies, ReplyMessages, ReplyRules
 from wts_core.settings import EnvSetting, require
 from wts_core.state import Import, Migration, StateDB
-from wts_core.usage import BriefingArchive, Limits, PriceTable, SavedBriefings, token_id
+from wts_core.usage import BriefingArchive, PriceTable, SavedBriefings, token_id
 
 from parks import __version__
 
@@ -78,40 +78,34 @@ class ParksSettings(Settings):
         return self.data_dir / "reports"
 
 
-# Every key the site reads. The package checks the limits and prices it reads itself; these are the site's to check.
+# Every key the site reads itself. The limits, prices and figures of the briefing flow under [usage] are read by the
+# package, which checks them when the site's desk is built (wts_core.briefing.desk_parts): these are the site's.
 REQUIRED: Mapping[str, tuple[str, ...]] = {
     "record": ("minutes",),
     "ranking": ("word_weight", "meaning_floor", "meaning_ceiling", "max_per_park"),
-    "embedding": ("backend", "dim"),
+    "embedding": ("backend", "dim", "theme_similarity"),
     "answer": ("provider", "recording", "model", "query_parse_model", "summary_sources", "comprehensive_sources",
                "summary_effort", "comprehensive_effort", "query_parse_effort", "max_tokens", "use_fallbacks"),
-    "usage": ("requests_per_minute", "forget_idle_visitors_over", "answer_cache_hours", "briefing_estimate_usd",
-              "briefings_at_once_per_visitor", "briefings_at_once"),
     "server": ("behind_proxy", "trust_forwarded_first"),
     "logs": ("max_bytes", "keep", "days"),
-    "eval": ("thresholds",),
+    "eval": ("max_cost_usd", "thresholds"),
 }
 
 
 def load(config_path: str | Path | None = None, env: Mapping[str, str] | None = None,
          **overrides: Any) -> ParksSettings:
-    """The site's settings, checked: a missing key, limit or price stops the site here, naming it, and so does a
-    model with no price of its own."""
+    """The site's settings, with the keys the site reads itself checked: a missing one stops the site here, naming
+    it and the file."""
     settings = load_settings(ParksSettings, SITE, config_path, env, **overrides)
     for section, keys in REQUIRED.items():
         require(settings, section, keys)
-    Limits.from_settings(settings.usage)
-    prices = PriceTable.from_settings(settings.usage)
-    prices.require([settings.answer["model"], settings.answer["query_parse_model"]], base_counts=False)
     return settings
 
 
-# Two figures the package's commands take when they are built, before any settings are read, so they are fixed here
-# and not in settings.toml. What one evaluation run may spend, in US dollars, unless --max-cost says otherwise:
-EVAL_MAX_COST_USD = 1.0
-# How alike two questions must be to count as one theme in the statistics (cosine similarity). It belongs to the
-# embedding model, so it changes when [embedding] does.
-THEME_SIMILARITY = 0.5
+def prices(settings: ParksSettings) -> PriceTable:
+    """The site's prices, for the owner's commands that work out a cost."""
+    return PriceTable.from_settings(settings.usage, file=settings.config_path)
+
 
 # ---- every word of the briefing flow that a reader can be shown --------------------------------------------------
 
@@ -224,12 +218,14 @@ class ParksItems:
 BACKUPS = BackupSpec(
     prefix="parks-state-",  # parks-state-2026-11-13.sqlite.gz: what marks a backup, here and off site, as this site's
     keep=14,  # how many stay on the server; `parks backup --keep` says otherwise for one run
+    # How many nightly copies stay off site, and so about how many days a deleted address can remain in a backup.
+    # Nothing else that holds old data may be kept longer (`parks tidy` is told this figure too).
+    keep_offsite=60,
     required_tables=("wts_schema", "wts_spending", "wts_briefings", "wts_reports", "wts_statements"),
+    # This site has no table of its own, so a sister site's backup has all the tables above. Its state database is
+    # marked as this site's when it is opened (open_state below), and a restore refuses one marked as another's.
+    site=SITE.package,
 )
-
-# How many nightly copies are kept off site (the package's figure: wts_core.ops.send_offsite), and so about how
-# many days a deleted address can remain in a backup. Nothing else that holds old data may be kept longer.
-BACKUPS_KEPT_DAYS = 60
 
 BACKUP_ALERTS = AlertWording(
     no_backups="No backups have been made yet.",
@@ -265,13 +261,19 @@ IMPORTS = (
 
 
 def open_state(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> StateDB:
-    """The site's state database, with the package's tables made (and any import run) on the way in."""
-    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock)
+    """The site's state database, with the package's tables made (and any import run) on the way in. It is marked
+    as this site's the first time it is opened, and a file marked as another site's is refused."""
+    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock, site=SITE.package)
+
+
+def new_briefing_id(chance: Random) -> str:
+    """A saved briefing's id, which is its address: /b/ and eleven characters nobody could guess."""
+    return token_id(8, random=chance)
 
 
 def open_archive(db: StateDB, clock: Clock = SYSTEM_CLOCK, random: Random = SYSTEM_RANDOM) -> BriefingArchive:
-    """Saved briefings, each at an address nobody could guess: /b/ and eleven characters."""
-    return BriefingArchive(db, new_id=lambda: token_id(8, random=random), clock=clock)
+    """Saved briefings, for the parts of the site that only read them (the web app's own come with its desk)."""
+    return BriefingArchive(db, new_id=lambda: new_briefing_id(random), clock=clock)
 
 
 def open_replies(db: StateDB, clock: Clock = SYSTEM_CLOCK) -> Replies:

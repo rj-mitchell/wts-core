@@ -46,10 +46,16 @@ class BackupSpec:
     member: str = "state.db"  # Where MPs Stand: "state.sqlite"
     extra_files: tuple[str, ...] = ()  # Where MPs Stand: ("settings.local.toml",)
     keep: int  # how many archives stay in the backups folder
+    keep_offsite: int = 60  # how many of the site's copies stay in the off-site store: 60 on all four sites today
     required_tables: tuple[str, ...]  # a file without these is not a backup of this site's state database
     # whether the database keeps its newest writes in a write-ahead log (Where MPs Stand's does): the copy a restore
     # keeps of the database it replaces then carries the log, without which those writes would be lost
     wal: bool = False
+    # The site's package name (``Site.package``), where the site's state database is marked with it
+    # (``StateDB(..., site=...)``): a restore then refuses a backup marked as another site's. Two sites built on
+    # the package can have exactly the same tables, so ``required_tables`` alone cannot tell them apart. None, or
+    # a backup with no mark (every backup made before the mark existed), is judged by its tables only, as before.
+    site: str | None = None
 
     def __post_init__(self) -> None:
         if not [t for t in self.required_tables if t.strip()]:
@@ -68,7 +74,8 @@ class BackupSpec:
 class RestoreRefused(RuntimeError):
     """Why a backup was not put back, in words for the owner. ``why`` is the same in one word, for a command that
     says it in its own: "kept-copy" (an earlier restore's kept copy is in the way), "unreadable", "foreign" (not this
-    site's backup), "not-a-database", "damaged" (it failed SQLite's check), or "swap-failed". Nothing has been
+    site's backup: it lacks the site's tables), "other-site" (it is marked as a sister site's), "not-a-database",
+    "damaged" (it failed SQLite's check), or "swap-failed". Nothing has been
     changed, except after "swap-failed": the database's journal files are removed just before the swap, and the
     message says which files to move back."""
 
@@ -123,6 +130,9 @@ def restore_backup(archive: Path, state_db: Path, spec: BackupSpec) -> Path | No
     beside the database and checked before anything is replaced; the database it replaces is kept beside it as
     ``<name>.before-restore``, which is returned (None when there was none). A kept copy from an earlier restore is
     never written over: the restore is refused until it has been moved or deleted.
+
+    Where the spec names the ``site``, a backup marked as another site's is refused; one with no mark at all (made
+    before the mark existed, or by a site that does not mark its database) is taken as before, on its tables.
 
     ``archive`` is one of the site's own, or an uncompressed database file (a kept copy can itself be put back: a
     gzip site takes any file not named ``.gz`` as one, a tar site any file that begins as SQLite's do; where the
@@ -222,6 +232,8 @@ def _check(db: Path, name: str, spec: BackupSpec) -> None:
     try:
         ok = con.execute("PRAGMA integrity_check").fetchone()[0]
         tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        marked = (con.execute("SELECT value FROM wts_kv WHERE key = 'site'").fetchone()
+                  if spec.site is not None and "wts_kv" in tables else None)
         # a log unpacked beside an uncompressed database is folded in here, so that the file alone is complete (it
         # does nothing to a database without one)
         folded = con.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
@@ -233,5 +245,9 @@ def _check(db: Path, name: str, spec: BackupSpec) -> None:
         raise RestoreRefused(f"the backup's database failed its integrity check: {ok}", why="damaged")
     if set(spec.required_tables) - tables:
         raise RestoreRefused(f"{name} is not a backup of this site's state database", why="foreign")
+    if marked is not None and marked[0] != spec.site:
+        # a sister site's backup has the same package tables; only the mark tells the two apart
+        raise RestoreRefused(f"{name} is a backup of another site's state database: it is marked {marked[0]!r}, "
+                             f"and this site is {spec.site!r}", why="other-site")
     if not folded:
         raise RestoreRefused(f"{name}'s write-ahead log could not be read in full", why="unreadable")

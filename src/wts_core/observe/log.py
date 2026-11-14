@@ -24,8 +24,8 @@ from dataclasses import dataclass, fields
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, get_args
 
-from wts_core.observe.config import canonical_json
-from wts_core.ports import SYSTEM_CLOCK, BriefingLog, BriefingRecord, Clock, Outcome
+from wts_core.observe.config import canonical_json, config_id
+from wts_core.ports import SYSTEM_CLOCK, BriefingConfig, BriefingLog, BriefingRecord, Clock, Outcome
 from wts_core.state import Migration, StateDB, iso, today
 
 __all__ = [
@@ -35,6 +35,7 @@ __all__ = [
     "Retention",
     "SqliteBriefingLog",
     "Tidied",
+    "briefing_config",
     "count",
     "counts",
     "migrations",
@@ -237,6 +238,47 @@ if TYPE_CHECKING:  # checked by mypy: the class is what its interface asks for
 
     def _as_briefing_log(x: SqliteBriefingLog) -> BriefingLog:
         return x
+
+
+# ---- the configuration a site's briefings run with ---------------------------------------------------------------
+
+_NAMED = ("model", "parse_model", "instructions", "package_version", "site_version", "experiment", "arm")
+
+
+def briefing_config(*, log: SqliteBriefingLog | None, model: str, parse_model: str | None, instructions: str,
+                    site_version: str, experiment: str | None = None, arm: str | None = None,
+                    also: Mapping[str, Any] | None = None) -> BriefingConfig:
+    """The configuration a site's briefings run with (``ports.BriefingConfig``), made once when the site starts
+    and given to the briefing desk: its id worked out, and the parts behind the id kept in ``wts_configs`` by the
+    same call, so that a site cannot do one and forget the other.
+
+    ``log`` is the site's record of briefings, or None, said out loud, on a site that has not turned the record
+    on: the configuration is then made and nothing is kept. ``model`` writes the briefing and ``parse_model`` reads
+    the question (None where the site's own rules read every one); ``instructions`` is the version of the site's
+    instructions to the model; ``also`` is everything else that could change a briefing (the provider, the
+    embedder, the retrieval settings). The package's own version is added here. An experiment and its arm are part
+    of the id only while there is one.
+
+    The id is ``config_id`` of all of that. Never pass a key, a password or anything about a reader: the parts are
+    stored as they are."""
+    from wts_core import __version__  # here, not at the top: this module is read while the package is
+
+    more = dict(also or {})
+    clash = sorted(set(more) & {"config_id", *_NAMED})
+    if clash:
+        raise ValueError("briefing_config: " + ", ".join(clash) + " is given by name, so it cannot be in `also` "
+                         "as well")
+    parts: dict[str, Any] = {"model": model, "parse_model": parse_model, "instructions": instructions,
+                             "package_version": __version__, "site_version": site_version}
+    if experiment is not None or arm is not None:
+        parts.update(experiment=experiment, arm=arm)
+    parts.update(more)
+    made = config_id(parts)
+    if log is not None:
+        log.remember_config(made, parts)
+    return BriefingConfig(config_id=made, model=model, parse_model=parse_model, instructions=instructions,
+                          package_version=__version__, site_version=site_version, experiment=experiment, arm=arm,
+                          settings=parts)
 
 
 # ---- daily totals -----------------------------------------------------------------------------------------------

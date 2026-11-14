@@ -227,6 +227,14 @@ def test_the_page_gives_each_figure_beside_the_weeks_before(week):
     assert "By experiment arm" not in page
 
 
+def test_the_page_says_one_day_and_several_days(log, week, clock):
+    assert "for a period of this length (7 days)." in week.to_markdown(SITE)
+    one = stats(log, since=timedelta(days=1), clock=clock).to_markdown(SITE)
+    assert "for a period of this length (1 day)." in one and "1 days" not in one
+    half = stats(log, since=timedelta(hours=12), clock=clock).to_markdown(SITE)
+    assert "for a period of this length (0.5 days)." in half
+
+
 def test_the_page_never_quotes_a_failed_a_withdrawn_or_an_unsaved_briefings_question(week):
     page = week.to_markdown(SITE)
     assert FAILED not in page and WITHDRAWN not in page and NOT_SAVED not in page

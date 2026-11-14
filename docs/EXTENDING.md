@@ -1,15 +1,19 @@
 # Extending wts-core: every hook a site has
 
-13 November 2026. This page lists every place where a site plugs its own parts into the package, with a real
+14 November 2026 (version 0.2.0). This page lists every place where a site plugs its own parts into the package, with a real
 example of each. The design behind it is [ADR 0004](adr/0004-how-sites-plug-in.md).
 
-Every example is quoted from the example site, [`examples/minimal-site/`](../examples/minimal-site/), an invented
-site called Where Parks Stand. CI runs that site end to end, and a test
-(`tests/test_docs.py`) fails if a quotation here is no longer in the file it names. So an example on this page is
-code that runs.
+An example introduced by "From `examples/minimal-site/…`" is quoted from the example site,
+[`examples/minimal-site/`](../examples/minimal-site/), an invented site called Where Parks Stand. CI runs that
+site end to end, and a test (`tests/test_docs.py`) fails if such a quotation is no longer in the file it names.
+So those examples are code that runs.
 
-The rule from ADR 0004: an extension point that the example site does not use is not a supported one. One hook is
-the exception today, and it is marked: `Hooks.usages` (section 4.5).
+The rule from ADR 0004: an extension point that the example site does not use is not a supported one. The
+exceptions are marked where they are described, and each is there for an older site that the example is not
+like: `Hooks.usages` (section 4.5, Where MPs Stand), and four things Where Landlords Stand's adoption needed,
+whose examples are that site's code and are covered by the package's own tests, not by the example: an `Item`
+made by the route (section 5), an import's statement built when it runs (section 6), and `changed` and `groups`
+for the owner's commands (section 10).
 
 ## The hooks at a glance
 
@@ -102,35 +106,35 @@ tests change one setting).
 ### 1.3 What must be in `settings.toml`
 
 The package has no limit, price or model of its own. The package checks the keys it reads itself; a site checks
-the rest, so that a missing key stops the site at start-up and names the key.
+the rest, so that a missing key stops the site at start-up and names the file and the key.
 
 From `examples/minimal-site/src/parks/site.py`:
 
 ```python
 def load(config_path: str | Path | None = None, env: Mapping[str, str] | None = None,
          **overrides: Any) -> ParksSettings:
-    """The site's settings, checked: a missing key, limit or price stops the site here, naming it, and so does a
-    model with no price of its own."""
+    """The site's settings, with the keys the site reads itself checked: a missing one stops the site here, naming
+    it and the file."""
     settings = load_settings(ParksSettings, SITE, config_path, env, **overrides)
     for section, keys in REQUIRED.items():
         require(settings, section, keys)
-    Limits.from_settings(settings.usage)
-    prices = PriceTable.from_settings(settings.usage)
-    prices.require([settings.answer["model"], settings.answer["query_parse_model"]], base_counts=False)
     return settings
 ```
 
-The keys the package reads itself:
+The keys the package reads itself. Those of the briefing flow are checked together when the site builds its desk
+(section 4.1): everything missing or wrong is named in one error, with the settings file.
 
 | Key | Read by | Needed |
 |---|---|---|
 | `[paths] data_dir` | `load_settings` | no: `data` if absent |
-| `[answer] provider` | `adapters.model_client` | no: `anthropic` if absent |
+| `[answer] provider` | `adapters.model_client`, `adapters.has_model` | no: `anthropic` if absent |
 | `[usage] per_visitor_daily_questions`, `daily_spend_cap_usd`, `monthly_spend_cap_usd` | `Limits.from_settings` | yes |
 | `[usage] per_user_daily_questions` | `Limits.from_settings` | only on a site with signed-in accounts |
 | `[usage] price_input_per_mtok`, `price_output_per_mtok`, `price_cache_read_per_mtok`, `cache_write_multiplier` | `PriceTable.from_settings` | yes |
 | `[usage.models."<name>"]` | `PriceTable.from_settings` | no: a model with no table takes the base prices |
 | `[usage] cache_write_long_multiplier` | `PriceTable.from_settings` | no |
+| `[usage] requests_per_minute`, `answer_cache_hours`, `briefing_estimate_usd`, `briefings_at_once` | `briefing.desk_parts` | yes, on a site that builds its desk with it |
+| two more, under the site's own names: how many briefings one visitor may have in progress, and how many idle visitors the per-minute limiter holds | `briefing.desk_parts`, told the names | yes, unless the site gives the numbers |
 
 Every other key is read by the site and handed to the package as an argument. The example's
 [`config/settings.toml`](../examples/minimal-site/config/settings.toml) is the full list for a site with
@@ -186,11 +190,15 @@ From `examples/minimal-site/src/parks/site.py`:
 
 ### 2.3 Words for the owner
 
-Three more objects hold words only the owner sees. Each site supplies all their fields.
+Three more objects hold words only the owner sees. The package has none of its own to put in their place.
 
-- `ops.AlertWording`: what the backup check says when backups or off-site copies have stopped.
+- `ops.AlertWording`: what the backup check says when backups or off-site copies have stopped. Every field is
+  needed.
 - `cli.OpsWording` (with `BackupWords`, `RestoreWords`, `BackupCheckWords`): every line the backup commands print.
-- `cli.RepliesWording`: every line the report and statement commands print.
+  `restore` and `backup_check` are `None` on a site with no such command.
+- `cli.RepliesWording`: every line the report and statement commands print. A site gives the lines its own
+  commands print. A line for a command it left out (`None` in `RepliesCommands`) need not be given, and a line
+  missing for a command it has stops the commands being built, naming the line.
 
 The example's are in `parks/site.py` (`BACKUP_ALERTS`) and `parks/cli.py` (`OPS_WORDING`, `REPLIES_WORDING`).
 Section 10 shows how they are passed.
@@ -255,51 +263,81 @@ route, the request body, the pipeline and the pages stay the site's.
 
 ### 4.1 Building the desk
 
-A site builds one desk when it starts, from the shared parts. Every part takes the clock, so a test can fix the
-time.
+A site builds one desk when it starts, in two steps. `briefing.desk_parts` makes everything the desk is made of
+from the site's settings: the prices, the limits, the spending record, the caps, the per-minute limiter, the
+count of briefings in progress, the answer cache, the saved briefings and the notes of failures. The clock and
+the source of chance are given once, there, and every part uses them, so a test can fix both. `DeskParts.desk`
+then makes the desk.
 
 From `examples/minimal-site/src/parks/app.py`:
 
 ```python
-    desk = BriefingDesk(
-        messages=MESSAGES,
-        limiter=RateLimiter(int(cfg["requests_per_minute"]), forget_over=int(cfg["forget_idle_visitors_over"]),
-                            clock=clock),
-        caps=caps,
-        in_progress=BriefingsInProgress(int(cfg["briefings_at_once_per_visitor"]), int(cfg["briefings_at_once"]),
-                                        float(cfg["briefing_estimate_usd"])),
-        spending=spending,
-        cache=SqliteAnswerCache(db, clock=clock),
-        cache_hours=float(cfg["answer_cache_hours"]),
-        archive=archive,
-        failures=Failures(db, clock=clock),
+    parts = desk_parts(
+        settings, db, MESSAGES,
+        new_id=new_briefing_id,
+        # this site's names for the two settings the family's sites name differently
+        at_once_per_visitor="briefings_at_once_per_visitor", forget_over="forget_idle_visitors_over",
+        keep_failures=True,  # a failed briefing is noted for the owner (the privacy notice says for how long)
+        # both models must have prices of their own, so a new model is never costed at another's
+        require_prices_for=(settings.answer["model"], settings.answer["query_parse_model"]),
+        clock=clock, random=random)
+```
+
+It is two steps because what a site makes in between needs the parts. The example's pipeline takes the spending
+record, and its hooks take the spending record and the limits.
+
+From `examples/minimal-site/src/parks/app.py`:
+
+```python
+    desk = parts.desk(
+        config,
         log=log,  # the record of each briefing, turned on (docs/adr/0012)
-        parse_model=settings.answer["query_parse_model"],
-        config=config,
-        hooks=ParksHooks(spending, limits, pipeline.records_up_to),
+        hooks=ParksHooks(parts.spending, parts.limits, pipeline.records_up_to),
         group_of=lambda card: card.get("park"),  # the record counts each briefing's sources by park
-        clock=clock,
-        random=random,
     )
 ```
 
-- `failures=None` keeps no notes of failed briefings (Where Councils Stand today).
-- `log=None` writes no record of each briefing: a site that has not turned the record on.
-- `archive` saves each briefing at its own address. Its `new_id` is the site's: `usage.token_id(8)` gives eleven
-  characters; `usage.alphabet_id(alphabet, length)` is Where MPs Stand's form.
-- `strict=True` is for tests: text sent before the sources raises an error there, where a live site only logs it.
+- `new_id` makes a saved briefing's id from the source of chance it is given. `usage.token_id(8, random=chance)`
+  gives eleven characters; `usage.alphabet_id(alphabet, length, random=chance)` is Where MPs Stand's form.
+- `at_once_per_visitor` and `forget_over` are each a number, or the name of the setting in `[usage]` that holds
+  it. The family's sites name the first differently (`briefings_at_once_per_reader` on Where MPs Stand) and keep
+  the second in their code, so the package reads neither under a name of its own.
+- `keep_failures=False` keeps no notes of failed briefings (Where Councils Stand today).
+- `log=None` writes no record of each briefing: a site that has not turned the record on. It has no default, so
+  a site says which.
+- `strict=True` (to `desk`) is for tests: text sent before the sources raises an error there, where a live site
+  only logs it.
+- The parts are the site's to use: `parts.spending` for a model call the desk cannot see (section 4.6),
+  `parts.caps.site_paused()` for a status page, `parts.archive` for the pages of saved briefings, `parts.limits`,
+  `parts.cache` and `parts.cache_hours`.
+
+**The start-up check.** `desk_parts` first reads every limit, price and figure the flow needs, and looks at the
+site's messages. Whatever is missing or wrong is said together, in one `SettingsError` that names the settings
+file and each key:
+
+```text
+config/settings.toml: the briefing desk cannot be built: 2 things missing or wrong.
+  - [usage] needs monthly_spend_cap_usd: the package has no limits of its own
+  - [usage] needs requests_per_minute
+```
+
+`briefing.desk_settings` is the check on its own, for a site that wants to run it without a database (in a test
+of its settings file, say). It returns what it read.
+
+The pieces stay public: `BriefingDesk` and everything in `wts_core.usage` can still be built by hand, part by
+part. `desk_parts` is the short way, not the only one.
 
 ### 4.2 Spending caps and prices
 
-Both come from the site's `[usage]` settings. `Limits.from_settings` and `PriceTable.from_settings` stop the site,
-naming the key, when one is missing.
+Both come from the site's `[usage]` settings, and `desk_parts` reads them. An owner's command that needs the
+prices without the desk reads them on its own, naming the file for the error.
 
-From `examples/minimal-site/src/parks/app.py`:
+From `examples/minimal-site/src/parks/site.py`:
 
 ```python
-    limits = Limits.from_settings(cfg)
-    spending = Spending(db, PriceTable.from_settings(cfg), clock=clock)
-    caps = Caps(spending, limits, MESSAGES, clock)
+def prices(settings: ParksSettings) -> PriceTable:
+    """The site's prices, for the owner's commands that work out a cost."""
+    return PriceTable.from_settings(settings.usage, file=settings.config_path)
 ```
 
 From `examples/minimal-site/config/settings.toml`:
@@ -313,9 +351,9 @@ price_output_per_mtok = 15.0
 price_cache_read_per_mtok = 0.3
 ```
 
-`PriceTable.require(models, base_counts=False)` is the strict start-up check: every model named must have a table
-of its own. With `base_counts=True` a model with no table takes the base prices, which is today's rule on the
-three older sites.
+`require_prices_for` is the strict start-up check: every model named must have a table of its own
+(`PriceTable.require(models, base_counts=False)` is the same check on its own). Left out, a model with no table
+takes the base prices, which is today's rule on the three older sites.
 
 ### 4.3 `Ask`: one question, as the route describes it
 
@@ -380,10 +418,10 @@ and a site that passed the wrong length would miss every answer it had cached. A
 park. The record of each briefing then holds how many sources came from each group, which is the spread the
 impartiality policy asks a site to be able to show.
 
-**The configuration** (`config`) is what the site says of the settings a briefing ran with. It goes into each
-briefing's record as it is. The desk reads these keys: `config_id`, `model`, `parse_model`, `instructions`,
-`package_version`, `site_version` and, in an experiment, `experiment` and `arm`. Section 9 shows how the example
-builds it.
+**The configuration** (`config`) is what the site says of the settings a briefing ran with: a
+`ports.BriefingConfig`, whose fields go into each briefing's record as they are. Its `parse_model` is the model
+the reading of a question is priced as, and in an experiment its `arm` is part of the answer cache's key. A site
+does not build one by hand: section 9 shows how the example makes it.
 
 ### 4.5 `Hooks`: the steps only some sites have
 
@@ -513,6 +551,22 @@ class ParksItems:
 An `Item` may also carry `about` (the member, country, council or landlord it concerns) and `part` (a part of the
 page, as on Where Landlords Stand).
 
+**A form with more than one field.** `resolve` takes one string: what someone pasted. A site whose form sends the
+place in two fields (Where Landlords Stand's sends the page's address and, separately, which part of the page)
+does not fold them into one address for `resolve` to take apart again. `Replies.submit(item=…)` takes an `Item`
+the site has already made, and the site's route makes it:
+
+```python
+    beside = items.resolve(body.page)                      # the page, checked as ever
+    if body.part in PARTS and beside.address.startswith("landlords/"):
+        beside = dataclasses.replace(beside, part=body.part)   # the form's own field, not a #fragment
+    replies.submit(item=beside, name=body.name, role=body.role, text=body.text, link=body.link,
+                   email=body.email, visitor=None, trap=body.website)
+```
+
+`submit` still asks the site whether the item is shown (`Items.shown`) and refuses a hidden one. So does
+`publish`, when the owner decides weeks later: a statement is not published beside an item that has gone.
+
 **`ReplyRules`** holds the limits where the sites differ. Only `max_words` (150) and `email_kept_months` (3) have
 defaults, because they are the policy's.
 
@@ -594,8 +648,25 @@ IMPORTS = (
 
 
 def open_state(settings: ParksSettings, clock: Clock = SYSTEM_CLOCK) -> StateDB:
-    """The site's state database, with the package's tables made (and any import run) on the way in."""
-    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock)
+    """The site's state database, with the package's tables made (and any import run) on the way in. It is marked
+    as this site's the first time it is opened, and a file marked as another site's is refused."""
+    return StateDB(settings.state_db, migrations=migrations(), imports=IMPORTS, clock=clock, site=SITE.package)
+```
+
+`site=` marks the file as this site's (section 10 says what the mark is for).
+
+A statement of an import may be a function, given the connection when the import runs and returning the SQL to
+run. That is for an old table that is not the same in every copy of the database: Where Landlords Stand's
+`reports` gained its `kind` column late, and a backup from before it has none.
+
+```python
+def bring_reports(con: sqlite3.Connection) -> list[str]:
+    kind = "kind" if "kind" in columns(con, "reports") else "NULL"   # wts_core.state.columns
+    return [f"INSERT INTO wts_reports (id, at, kind, page, message, contact) "
+            f"SELECT id, at, {kind}, page, message, contact FROM reports"]
+
+
+IMPORTS = (Import(name="landlords-reports", statements=(bring_reports,), needs=("reports",)),)
 ```
 
 An import must give every `NOT NULL` column a value. The copy made before an import holds everything the site
@@ -659,9 +730,23 @@ def model_from_settings(settings: ParksSettings, env: Mapping[str, str] | None =
     provider = str(settings.answer["provider"]).strip().lower()
     if provider == "scripted":
         return scripted_model(settings.recordings_dir / f"{settings.answer['recording']}.jsonl")
-    if provider == "anthropic" and not anthropic.has_credentials(SITE, settings, env):
-        return None  # no key: the site shows the minutes only
+    if not has_model(settings, SITE, env):
+        return None  # nothing to call the provider with (no key): the site shows the minutes only
     return model_client(settings, SITE, env)
+```
+
+`adapters.has_model` asks whether the provider named in the settings has what it is called with. A site asks
+there, beside `adapters.model_client`, and imports no provider's module, so a change of provider stays a change
+to its settings.
+
+A pipeline closes the model's stream when it has finished with it, however it finished. `close()` is in the
+interface's type (`ports.ModelStream`), and it stops the model if the reader has gone.
+
+From `examples/minimal-site/src/parks/pipeline.py`:
+
+```python
+        finally:
+            stream.close()  # if the reader has gone, this stops the model: nothing more is written or paid for
 ```
 
 Three rules for a site:
@@ -681,7 +766,7 @@ checks found, the spread of sources, the time and the cost. The site gives it th
 From `examples/minimal-site/src/parks/evaluation.py`:
 
 ```python
-    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[ReaderEvent]:
+    def ask(self, case: Case, config: Mapping[str, Any]) -> Iterator[Event]:
         """Ask one question of the pipeline itself: never through the briefing desk, so never from the answer
         cache. ``config`` is the configuration this site was built from (``parks.pipeline.configuration``)."""
         pipeline = Pipeline(self.settings, model=self._model_for(case), embedder=self.embedder,
@@ -691,7 +776,7 @@ From `examples/minimal-site/src/parks/evaluation.py`:
         def keep(documents: Any, blocks: Any) -> None:
             self._kept[case.id] = Recording(documents, blocks)
 
-        return cast(Iterator[ReaderEvent], pipeline.write(case.question, keep=keep))
+        return pipeline.write(case.question, keep=keep)
 
     def group_of(self, source: Mapping[str, Any]) -> str:
         """The group a source belongs to on this site: its park."""
@@ -733,22 +818,24 @@ With `log=SqliteBriefingLog(db)` the desk writes one record for every question
 ([ADR 0012](adr/0012-briefing-record-and-statistics.md)). The site supplies two things.
 
 **The configuration.** Everything that could change a briefing, and the short id of it all.
+`observe.briefing_config` makes it: it works the id out, adds the package's own version, and keeps the settings
+behind the id in `wts_configs`, in one call. Every field is named, so a misspelt one stops the site when it starts.
+`also` holds whatever else could change a briefing on this site.
 
 From `examples/minimal-site/src/parks/pipeline.py`:
 
 ```python
     answer = settings.answer
-    parts: dict[str, Any] = {
-        "model": answer["model"], "parse_model": answer["query_parse_model"],
-        "instructions": SITE.instructions_version, "package_version": wts_core.__version__,
-        "site_version": SITE.version, "provider": answer["provider"], "embedder": embedder.id,
-        "ranking": dict(settings.ranking),
-        "sources": {"summary": answer["summary_sources"], "comprehensive": answer["comprehensive_sources"]},
-    }
-    return {**parts, "config_id": config_id(parts)}
+    return briefing_config(
+        log=log, model=answer["model"], parse_model=answer["query_parse_model"],
+        instructions=SITE.instructions_version, site_version=SITE.version,
+        also={"provider": answer["provider"], "embedder": embedder.id, "ranking": dict(settings.ranking),
+              "sources": {"summary": answer["summary_sources"], "comprehensive": answer["comprehensive_sources"]}})
 ```
 
-Never put a key, a password or anything about a reader in it. The settings behind each id are stored as they are.
+`log` is the site's `SqliteBriefingLog`. A site that has not turned the record on says `log=None`: the
+configuration is made and nothing is kept. Never put a key, a password or anything about a reader in it. The
+settings behind each id are stored as they are.
 
 **What happened next.** The routes that already receive these signals mark the briefing's record:
 `log.mark(briefing_id, reported=True)`, `useful=True` or `False`, `corrected=True`, `followed_up=True`.
@@ -812,9 +899,49 @@ app.add_typer(replies_commands(_replies, REPLIES_COMMANDS, REPLIES_WORDING))  # 
 | Group | Commands | What a site passes |
 |---|---|---|
 | `ops_commands` | `backup`, `restore`, `offsite`, `backup-check` | its `BackupSpec` and `OpsWording`; another off-site store if it has one |
-| `replies_commands` | `reports list/show/close`, `statements list/show/publish/decline/update/withdraw/remove/log`, `hide`, `unhide`, `hidden`, `waiting` | `RepliesCommands` (what each command is called) and `RepliesWording` |
+| `replies_commands` | `reports list/show/close`, `statements list/show/publish/decline/update/withdraw/remove/log`, `hide`, `unhide`, `hidden`, `waiting`, `tidy-replies` | `RepliesCommands` (what each command is called) and `RepliesWording` |
 | `stats_commands` | `stats`, `weekly-report`, `tidy` | its `[alerts]` thresholds, its reports folder, its embedder and the similarity for themes |
 | `eval_commands` | `eval run`, `eval compare`, `eval replay` | its `EvalSite`, configuration, prices, thresholds and the most a run may spend |
+
+**Telling the site that a page may have changed.** `replies_commands(..., changed=…)` is called after each
+change a page may show: to a statement (with the statement as it now is), after a report is closed (with the
+report), and after an item is hidden or shown again (with its `item`). A site whose pages are built ahead of time
+writes them again there, as Where Landlords Stand does. What the function returns is added to the fields its line
+is filled with (`"published #{id}: {pages_changed} pages written again"`).
+
+**Keeping an older shape of command.** The commands are subcommands (`statements publish 3`). A site that had
+one command with an option for each action (`statements --publish 3`: Where Landlords Stand) and must keep that
+working for a while keeps it itself, as the callback of a group of its own, and gives the group to
+`replies_commands`. The package's commands join that group, under the site's word, in one call. From Where
+Landlords Stand's `cli.py`, as it can be written on 0.2.0:
+
+```python
+reports_app = typer.Typer(help="Readers' reports of mistakes. With no command, those still open.")
+statements_app = typer.Typer(help="Statements from landlords in their own words. With no command, those waiting.")
+
+
+@statements_app.callback(invoke_without_command=True)
+def statements(ctx: typer.Context, publish: int = typer.Option(None), checked: str = typer.Option("")) -> None:
+    if ctx.invoked_subcommand is not None:
+        return                      # one of the package's commands was asked for: nothing to do here
+    ...                             # the old shape: `landlords statements --publish 3 --checked "..."`
+
+
+app.add_typer(replies_commands(
+    _replies,
+    # this site hides nothing yet, and its own `nightly` does the housekeeping: four commands left out,
+    # and so four lines its RepliesWording need not have
+    RepliesCommands(listed=("pending",), about_option="--landlord", hide=None, unhide=None, hidden=None, tidy=None),
+    REPLIES_WORDING, about=_landlord, changed=_written_again,
+    groups={"reports": reports_app, "statements": statements_app}))
+```
+
+A group named in `groups` that no command is in is refused when the commands are built.
+
+**The clock.** `ops_commands`, `stats_commands` and `eval_commands` each take a clock, or a function that gives
+one when a command runs. A site builds its commands once, when its command line is imported, so a test that wants
+a backup named by a time of its choosing gives the function (`clock=lambda: CLOCK`) and stands its own clock in
+afterwards.
 
 A **`BackupSpec`** says what the site's backups are called and what a restored database must hold.
 
@@ -824,27 +951,61 @@ From `examples/minimal-site/src/parks/site.py`:
 BACKUPS = BackupSpec(
     prefix="parks-state-",  # parks-state-2026-11-13.sqlite.gz: what marks a backup, here and off site, as this site's
     keep=14,  # how many stay on the server; `parks backup --keep` says otherwise for one run
+    # How many nightly copies stay off site, and so about how many days a deleted address can remain in a backup.
+    # Nothing else that holds old data may be kept longer (`parks tidy` is told this figure too).
+    keep_offsite=60,
     required_tables=("wts_schema", "wts_spending", "wts_briefings", "wts_reports", "wts_statements"),
+    # This site has no table of its own, so a sister site's backup has all the tables above. Its state database is
+    # marked as this site's when it is opened (open_state below), and a restore refuses one marked as another's.
+    site=SITE.package,
 )
 ```
 
-The package's `tidy` applies the retention to the record of briefings and to the weekly reports, forgets old
-visitor codes, and deletes copies of the database made before an import once they are older than `backup_days`.
-A site passes the days it keeps a backup.
+`keep_offsite` is how many of the site's copies stay in the off-site store: 60 if the spec does not say, which is
+every site's figure today.
+
+**One command each night.** The package's `tidy` is the housekeeping a site's timer runs. It applies the
+retention to the record of briefings and to the weekly reports, forgets old visitor codes, and deletes copies of
+the database made before an import once they are older than `backup_days` (a site passes the days it keeps a
+backup). Given `also_tidy`, it then does the rest of the site's nightly housekeeping and prints what each step
+says. `cli.replies_tidy` is the right of reply's step: statements nobody decided in three months lapse, old
+confirming addresses and the contact details of old reports are deleted, and earlier days' counts are emptied. It
+says what it did in the site's own words (`RepliesWording.tidied`).
 
 From `examples/minimal-site/src/parks/cli.py`:
 
 ```python
-    backup_days=BACKUPS_KEPT_DAYS,  # tidy deletes copies of the database older than the backups are kept
+    backup_days=BACKUPS.keep_offsite,  # tidy deletes copies of the database older than the backups are kept
+    # The one command the site's timer runs each night does the right of reply's housekeeping too: what the
+    # privacy notice promises of old addresses and undecided statements must not wait for a visitor.
+    also_tidy=[replies_tidy(_replies, REPLIES_WORDING)],
 ```
 
-The housekeeping of reports and statements is not in `tidy`. A site's nightly run calls it too:
-`Replies.lapse_undecided`, `Replies.forget_old_emails` and `Replies.forget_old_counts`. The example's own
-`parks nightly` command calls all three.
+The site's routes do the same housekeeping on every report and statement, and the nightly family check does it
+when it asks what is waiting. The command is for the night nobody writes in, on a site with no check token set.
+A site with no record of briefings (and so no `tidy`) runs `tidy-replies`, which `replies_commands` adds
+(`RepliesCommands.tidy` names it, or leaves it out with `None`, as the example does).
 
-A restore accepts any file that has the tables `required_tables` names. A site with a table of its own should
-name it there, so that a sister site's backup is refused. The example has no table of its own, so its list holds
-the package's tables only.
+**Figures read when a command runs.** `eval_commands`' `max_cost_usd` and `stats_commands`' `similarity` each
+take a number or a function that gives one. A function is called when the command runs, so the figure can live
+in the site's settings.
+
+From `examples/minimal-site/src/parks/cli.py`:
+
+```python
+    max_cost_usd=lambda: float(load().section("eval")["max_cost_usd"]),  # no run starts without a limit
+```
+
+**A restore refuses a sister site's backup.** A restore takes a file that has the tables `required_tables`
+names. Two sites built on the package can have exactly the same tables, so the state database also carries a mark
+of whose it is. `StateDB(..., site=SITE.package)` writes the site's package name into `wts_kv` (key `site`) the
+first time the site opens the file, never writes over another's, and refuses to open a file marked as another
+site's. With `site=` in its `BackupSpec`, a site's restore refuses a backup marked as another's
+(`RestoreRefused.why` is `"other-site"`).
+
+The example's `open_state` (section 6) does this. A backup with no mark is accepted as before, on its tables:
+every backup made before the site started marking its database has none, and must still be restorable. A site
+with a table of its own should still name it in `required_tables`.
 
 **The check route** answers the nightly family check ([ADR 0010](adr/0010-ci-and-nightly-check.md)). `check_route`
 returns a plain function; the site's own route calls it.
@@ -864,6 +1025,23 @@ From `examples/minimal-site/src/parks/app.py`:
 
 The site's ask route must also treat a question that carries the check token as the nightly check's: no cache key,
 and `kind="check"`. The example does this in `is_the_nightly_check` in `parks/app.py`.
+
+**With no token set, the address must look as if it were never there.** `check_route` then answers 404 with the
+body a web framework gives a missing address (`{"detail": "Not Found"}`), which is right for a site whose missing
+addresses answer that way, as the example's do. A site that answers a missing address with a page of its own (a
+static site's `404.html`, as on Where Landlords Stand) would give the route away by answering this one address
+differently. Such a site adds the route only when a token is set, so that with none the address falls through to
+its own "not found" like any other:
+
+```python
+    if SITE.env("CHECK_TOKEN"):
+        check = check_route(SITE, token=SITE.env("CHECK_TOKEN"), replies=replies, clock=clock)
+
+        @app.get("/api/check")
+        def api_check(authorization: str | None = Header(None)) -> JSONResponse:
+            status_code, body = check(authorization)
+            return JSONResponse(body, status_code=status_code)
+```
 
 ## 11. The two checks every site's tests must call
 

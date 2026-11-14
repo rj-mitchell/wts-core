@@ -1,7 +1,7 @@
 # The accessibility check every site runs: its own scripts/a11y.mjs (axe, WCAG 2.2 AA, light and dark, desktop and
 # phone) against an address the site's job has already started. Each site starts itself in its own way (a Docker
 # image on sample data, an empty data folder, real files), which is why this is a step and not a whole workflow.
-#   - uses: rj-mitchell/wts-core/.github/actions/a11y@v0.1.0
+#   - uses: rj-mitchell/wts-core/.github/actions/a11y@v0.2.0
 #     with: { url: "http://localhost:8000" }
 name: Accessibility check
 description: Run the site's scripts/a11y.mjs with Playwright and axe at the family's versions.

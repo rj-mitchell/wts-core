@@ -15,7 +15,7 @@ import os
 import shutil
 import sqlite3
 import threading
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
@@ -23,9 +23,16 @@ from pathlib import Path
 
 from wts_core.ports import SYSTEM_CLOCK, Clock
 
-__all__ = ["Import", "Migration", "StateDB", "core_migrations", "iso", "today"]
+__all__ = ["Import", "Migration", "StateDB", "columns", "core_migrations", "iso", "today"]
 
 PREFIX = "wts_"
+SITE_KEY = "site"  # in ``wts_kv``: the package name of the site whose state database this is
+
+
+def _another_sites(path: Path, theirs: str, ours: str) -> RuntimeError:
+    return RuntimeError(f"{path} is the state database of another site: it is marked {theirs!r}, and this site is "
+                        f"{ours!r}. Nothing in it has been changed. Check the data folder this site was started "
+                        "with")
 
 
 def iso(clock: Clock = SYSTEM_CLOCK) -> str:
@@ -49,11 +56,23 @@ class Migration:
 @dataclass(frozen=True)
 class Import:
     """A site's own one-off copy of rows from its old tables into the package's. Run once, in one transaction,
-    after the migrations; skipped (and tried again next start) while any table in ``needs`` is missing."""
+    after the migrations; skipped (and tried again next start) while any table in ``needs`` is missing.
+
+    A statement is SQL, or a function that is given the connection when the import runs and returns the SQL to
+    run then: for an old table whose shape is not the same in every copy of the database. Where Landlords Stand's
+    ``reports`` gained its ``kind`` column late, so a backup from before has none, and its import reads
+    ``columns(con, "reports")`` to choose what to select. The function runs inside the import's transaction and
+    should only read."""
 
     name: str
-    statements: tuple[str, ...]
+    statements: tuple[str | Callable[[sqlite3.Connection], Iterable[str]], ...]
     needs: tuple[str, ...] = ()
+
+
+def columns(con: sqlite3.Connection, table: str) -> set[str]:
+    """The names of a table's columns (none if there is no such table): for an ``Import`` whose statement depends
+    on what an old table has."""
+    return {row[0] for row in con.execute("SELECT name FROM pragma_table_info(?)", (table,))}
 
 
 def core_migrations() -> tuple[Migration, ...]:
@@ -67,11 +86,19 @@ class StateDB:
     """A site's state database. Implements ``ports.KeyValue`` over the ``wts_kv`` table."""
 
     def __init__(self, path: Path, *, migrations: Sequence[Migration] = (), imports: Sequence[Import] = (),
-                 clock: Clock = SYSTEM_CLOCK) -> None:
+                 clock: Clock = SYSTEM_CLOCK, site: str | None = None) -> None:
+        """``site`` is the site's package name (``Site.package``). Given one, the file is marked as that site's
+        (``wts_kv``, key ``site``) the first time it is opened, and a file marked as another site's is refused
+        before anything in it is touched: two sites' data folders mixed up on the shared server stop here. The
+        mark is what lets a restore refuse a sister site's backup (``ops.BackupSpec.site``)."""
         self.path = Path(path)
         self.clock = clock
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if site is not None:
+            self._refuse_another_sites(site)
         self._migrate((*core_migrations(), *migrations))
+        if site is not None:
+            self._mark_as(site)
         self._import(imports)
 
     @contextmanager
@@ -123,6 +150,28 @@ class StateDB:
                     con.execute(statement)
                 con.execute("INSERT INTO wts_schema (name, applied_at) VALUES (?, ?)", (key, iso(self.clock)))
 
+    # ---- whose database this is ---------------------------------------------------------------------------------
+
+    def _refuse_another_sites(self, site: str) -> None:
+        """Before anything is made or changed: a file already marked as another site's is left exactly as it is."""
+        if not self.path.exists():
+            return
+        con = sqlite3.connect(self.path, timeout=30)
+        try:
+            marked = con.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'wts_kv'").fetchone()
+            row = con.execute(f"SELECT value FROM wts_kv WHERE key = '{SITE_KEY}'").fetchone() if marked else None
+        finally:
+            con.close()
+        if row is not None and row[0] != site:
+            raise _another_sites(self.path, row[0], site)
+
+    def _mark_as(self, site: str) -> None:
+        with self._alone() as con:  # read and written under the one lock: the first mark stands
+            con.execute("INSERT OR IGNORE INTO wts_kv (key, value) VALUES (?, ?)", (SITE_KEY, site))
+            marked = con.execute("SELECT value FROM wts_kv WHERE key = ?", (SITE_KEY,)).fetchone()["value"]
+        if marked != site:
+            raise _another_sites(self.path, marked, site)
+
     def tables(self) -> set[str]:
         with self.connect() as con:
             return {r["name"] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
@@ -143,7 +192,8 @@ class StateDB:
         with self._alone() as con:  # all of them, or none; and only once, however many processes start together
             for i in todo(con):
                 for statement in i.statements:
-                    con.execute(statement)
+                    for sql in ((statement,) if isinstance(statement, str) else tuple(statement(con))):
+                        con.execute(sql)
                 con.execute("INSERT INTO wts_schema (name, applied_at) VALUES (?, ?)",
                             (f"import:{i.name}", iso(self.clock)))
 

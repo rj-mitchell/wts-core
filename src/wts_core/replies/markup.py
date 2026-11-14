@@ -20,26 +20,15 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from datetime import date
 from html import escape
 from typing import Any
 
+from wts_core.dates import long_date  # the family's date format: exported from here too, as it always was
 from wts_core.replies.rules import ReplyMessages, safe_link
 
 __all__ = ["long_date", "statement_html"]
 
 LINK_REL = "nofollow ugc noopener noreferrer"
-# written out, so the date in a heading never depends on the server's language settings
-_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
-           "November", "December")
-
-
-def long_date(iso: str | date | None) -> str:
-    """A date as every site writes it in a statement's heading: "12 November 2026"."""
-    if not iso:
-        return ""
-    d = iso if isinstance(iso, date) else date.fromisoformat(str(iso)[:10])
-    return f"{d.day} {_MONTHS[d.month - 1]} {d.year}"
 
 
 def statement_html(statement: Mapping[str, Any], messages: ReplyMessages, *, level: int = 2) -> str:

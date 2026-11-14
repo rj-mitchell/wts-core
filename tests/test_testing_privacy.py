@@ -240,6 +240,19 @@ def test_the_visitors_code_is_allowed_only_in_its_own_columns(tmp_path):
         assert_no_reader_data(site.state, site.lines, question=QUESTION, address=ADDRESS, visitor=site.visitor())
 
 
+def test_a_site_with_no_questions_checks_the_address_and_the_visitors_code_alone(tmp_path):
+    """Where Landlords Stand writes no briefings: its readers search, and it had to pass search words as a
+    "question". With none given, the address and the code are checked just the same."""
+    site = asked(tmp_path)
+    assert_no_reader_data(site.state, site.lines, address=ADDRESS, visitor=site.visitor())
+    assert_no_reader_data(site.state, site.lines, address=ADDRESS)
+    leaking = asked(tmp_path / "leaking", "address")
+    with pytest.raises(AssertionError, match="the address is in wts_kv.value"):
+        assert_no_reader_data(leaking.state, leaking.lines, address=ADDRESS)
+    with pytest.raises(TypeError, match="address"):  # the address is what every site has: it is always given
+        assert_no_reader_data(site.state, site.lines)
+
+
 @pytest.mark.parametrize("short", [{"question": "bins"}, {"address": "::1"}, {"visitor": "abc"}])
 def test_something_too_short_to_prove_anything_is_refused(tmp_path, short):
     site = asked(tmp_path)

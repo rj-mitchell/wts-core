@@ -12,7 +12,7 @@ from __future__ import annotations
 import secrets
 import time
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, runtime_checkable
@@ -24,6 +24,7 @@ __all__ = [
     "SYSTEM_CLOCK",
     "SYSTEM_RANDOM",
     "AnswerCache",
+    "BriefingConfig",
     "BriefingLog",
     "BriefingRecord",
     "Busy",
@@ -37,6 +38,7 @@ __all__ = [
     "Limiter",
     "ModelClient",
     "ModelRequest",
+    "ModelStream",
     "OffsiteError",
     "OffsiteStore",
     "OffsiteUnavailable",
@@ -194,14 +196,29 @@ class Schema(Protocol):
     def model_validate(cls, obj: Any) -> Self: ...
 
 
+class ModelStream(Protocol):
+    """A model's answer as it is being written: text and citations to take one by one, then exactly one
+    ``Completed``. A generator is one, and every adapter's stream is a generator today."""
+
+    def __iter__(self) -> Iterator[ModelEvent]: ...
+
+    def __next__(self) -> ModelEvent: ...
+
+    def close(self) -> None:
+        """Stop the model: nothing more is written or paid for. For a pipeline to call when it has finished with
+        the stream, however it finished: the reader may have gone. Closing a stream that has ended, or never
+        began, does no harm."""
+        ...
+
+
 class ModelClient(Protocol):
     """A model that writes briefings from documents, with citations, and reads questions into a schema."""
 
     provider: str
     supports: frozenset[str]  # of "caching", "long_cache", "fallbacks", "effort", "citations"
 
-    def stream(self, request: ModelRequest) -> Iterator[ModelEvent]:
-        """Text and citations as they are written, then exactly one ``Completed``. Closing the iterator stops the
+    def stream(self, request: ModelRequest) -> ModelStream:
+        """Text and citations as they are written, then exactly one ``Completed``. Closing the stream stops the
         model."""
         ...
 
@@ -442,6 +459,28 @@ class BriefingRecord:
     reported: bool = False
     corrected: bool = False
     followed_up: bool = False
+
+
+@dataclass(frozen=True)
+class BriefingConfig:
+    """The configuration a site's briefings run with, as each briefing's record names it: built once when the site
+    starts (``observe.briefing_config`` works out the id and keeps the parts behind it) and given to the briefing
+    desk. Every field has a name, so a misspelt one stops the site when it starts and is never recorded as empty.
+
+    ``parse_model`` is the model that reads a question, and what the reading is priced as: None on a site whose own
+    rules read every question. ``experiment`` and ``arm`` are set only while an experiment runs; the arm is then
+    part of the answer cache's key. ``settings`` is everything the id was made from: never a key, a password or
+    anything about a reader."""
+
+    config_id: str
+    model: str
+    parse_model: str | None
+    instructions: str  # the version of the site's instructions to the model
+    package_version: str
+    site_version: str
+    experiment: str | None = None
+    arm: str | None = None
+    settings: Mapping[str, Any] = field(default_factory=dict)
 
 
 class BriefingLog(Protocol):

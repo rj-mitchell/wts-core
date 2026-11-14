@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 import tomllib
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -35,7 +35,13 @@ LOCAL_FILE = "settings.local.toml"
 
 
 class SettingsError(RuntimeError):
-    """A setting the site needs is missing or wrong. The message names the section and key."""
+    """A setting the site needs is missing or wrong. The message names the section and key, and the settings file
+    where whoever raised it knew which. ``problems`` is each thing wrong on its own, without the file's name: for a
+    start-up check that gathers several errors into one (``briefing.desk_settings``)."""
+
+    def __init__(self, message: str, *, problems: Sequence[str] = ()) -> None:
+        super().__init__(message)
+        self.problems: tuple[str, ...] = tuple(problems) or (message,)
 
 
 @dataclass(frozen=True)
@@ -138,10 +144,13 @@ def load_settings[S: Settings](cls: type[S], site: Site, config_path: str | Path
             for section, values in tomllib.load(fh).items():
                 raw.setdefault(section, {}).update(values)
     for setting in site.env_settings:
+        # the section is there whether or not the variable is set, as it was with each site's own loader: a
+        # site's accessor that reads ``raw["site"]`` finds a table, empty until something sets a key in it
+        section = raw.setdefault(setting.section, {})
         value = site.env(setting.suffix, env)
         if value is not None:
-            raw.setdefault(setting.section, {})[setting.key] = (
-                value.strip().lower() in ("1", "true", "yes") if setting.kind == "flag" else value.strip())
+            section[setting.key] = value.strip().lower() in ("1", "true", "yes") if setting.kind == "flag" \
+                else value.strip()
     for dotted, value in overrides.items():
         section, _, key = dotted.partition(".")
         raw.setdefault(section, {})[key] = value

@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import typer
 
 from cli_sites import (  # noqa: F401
     REPLIES,
@@ -41,7 +42,7 @@ from cli_sites import (  # noqa: F401
 )
 from test_ops_sites import COUNCILS, COUNTRIES, LANDLORDS, MPS
 from test_replies_sites import BARNSLEY, SITES, Open, site_fixture
-from wts_core.cli import RepliesCommands, replies_commands
+from wts_core.cli import RepliesCommands, replies_commands, replies_tidy
 from wts_core.replies import NotDone
 
 pytestmark = pytest.mark.usefixtures("logging_left_as_it_was")
@@ -453,6 +454,22 @@ def test_where_landlords_stands_commands(landlords, tmp_path):
     assert ours == Said(1, "Not done: no open report 2\n", "", None)
 
 
+def test_where_landlords_stand_still_refuses_a_landlord_whose_page_has_gone_when_publishing(landlords, tmp_path):
+    """The site's own publish looked for the stored landlord's page again; the package's now asks the site whether
+    the item is still shown. Each says so in its own words, and neither publishes."""
+    d = landlords
+    sid = d.send()
+    d.next_day()
+    (d.data / "site" / "landlords" / "example-housing" / "index.html").unlink()  # the page has gone, on both
+    d.open.items.pages.discard("landlords/example-housing/")
+    assert d.not_done(["statements", "--publish", sid, "--checked", CHECKED],
+                      ["statements", "publish", sid, "--checked", CHECKED]) == (
+        "Not done: no landlord's page landlords/example-housing/ on the site",
+        f"Not done: statement {sid} is beside landlords/example-housing/, which is no longer shown on the site: "
+        "decline the statement, saying why, or put the item back first")
+    assert d.replies.statement(sid)["status"] == "pending" and d.changes == []
+
+
 # ---- names and options ---------------------------------------------------------------------------------------------
 
 
@@ -562,6 +579,54 @@ def test_waiting_counts_what_is_waiting_and_how_long(site, tmp_path):
                                "days\n")
 
 
+def test_the_nightly_housekeeping_runs_with_no_visitor_and_no_check_token_and_says_what_it_did(site, tmp_path):
+    """On a quiet site nobody writes in and the owner reads no list, so nothing else would run it: the three
+    months the privacy notice promises must not wait for a visitor."""
+    app = app_of(site)
+    waiting = site.send(visitor="a" * 24)
+    ended = site.send(email="second@example.org", visitor="a" * 24)
+    site.replies.decline(ended, "Not from the person named.")
+    site.replies.report(**site.case.report, contact="reader@example.org", visitor="b" * 24)
+    with site.db.connect() as con:  # looked at directly: a listing would do the housekeeping itself
+        assert con.execute("SELECT count(*) FROM wts_reply_counts").fetchone()[0] == 2
+    site.clock.advance(days=100)  # past three calendar months, and nobody has written in or looked
+    said = run(app, named(site, "tidy"), tmp_path)
+    assert said.exit_code == 0
+    done = {"lapsed": 1, "contacts": 1, "emails": 1, "counts": 2}
+    if site.key == "landlords":
+        assert json.loads(said.stdout) == done
+    else:
+        assert said.stdout == ("1 statements lapsed, 1 old reports' contacts deleted, 1 addresses deleted, 2 old "
+                               "counts deleted\n")
+    with site.db.connect() as con:
+        assert [tuple(r) for r in con.execute("SELECT id, status, email FROM wts_statements ORDER BY id")] == [
+            (waiting, "declined", None), (ended, "declined", None)]
+        assert con.execute("SELECT contact FROM wts_reports").fetchone()[0] is None
+        assert con.execute("SELECT count(*) FROM wts_reply_counts").fetchone()[0] == 0
+    again = run(app, named(site, "tidy"), tmp_path)  # and again: nothing more to do
+    nothing = {"lapsed": 0, "contacts": 0, "emails": 0, "counts": 0}
+    assert again.exit_code == 0 and (json.loads(again.stdout) == nothing if site.key == "landlords"
+                                     else again.stdout.startswith("0 statements lapsed, 0 old"))
+
+
+def test_the_housekeeping_is_also_a_step_for_the_sites_one_nightly_command(site, tmp_path):
+    """``replies_tidy`` is what the statistics group's ``tidy`` is given (``also_tidy``): the same work, and the
+    same line in the site's words, with nothing opened until it runs."""
+    opened: list[str] = []
+
+    def replies() -> Any:
+        opened.append("opened")
+        return site.replies
+
+    step = replies_tidy(replies, REPLIES[site.key][1])
+    site.send()
+    site.clock.advance(days=100)
+    assert opened == []
+    (line,) = step()
+    assert opened == ["opened"] and ("1 statements lapsed" in line or json.loads(line)["lapsed"] == 1)
+    assert site.replies.statements("pending") == []
+
+
 def test_a_report_is_shown_and_closed_with_its_outcome_and_notes(site, tmp_path):
     app = app_of(site)
     rid = site.replies.report(**site.case.report, contact="reader@example.org")
@@ -601,6 +666,121 @@ def test_what_changed_tells_the_site_and_adds_to_what_is_said(site, tmp_path):
     assert seen == [(sid, "published")]
 
 
+def test_the_site_is_told_of_everything_a_page_may_show_a_report_closed_and_an_item_hidden_or_shown(site, tmp_path):
+    """A site whose pages are built ahead of time writes them again when told (Where Landlords Stand): a hidden
+    item's page, and the corrections a closed report adds to, change as a statement's does."""
+    import dataclasses
+
+    seen: list[dict[str, Any]] = []
+
+    def changed(row: Mapping[str, Any]) -> dict[str, Any]:
+        seen.append(dict(row))
+        return {"pages_changed": len(seen)}
+
+    commands, wording = REPLIES[site.key]
+    telling = dataclasses.replace(wording, closed="closed #{id}, {pages_changed} pages written again",
+                                  hid="hidden: {item}, {pages_changed} pages written again",
+                                  unhid="shown again: {item}, {pages_changed} pages written again")
+    app = mounted(replies_commands(lambda: site.replies, commands, telling, changed=changed))
+    address = site.case.address
+    rid = site.replies.report(**site.case.report)
+
+    said = run(app, [*named(site, "hide"), address, "--note", "Under review after a complaint."], tmp_path)
+    assert said.stdout == f"hidden: {address}, 1 pages written again\n"
+    assert (seen[-1]["item"], seen[-1]["note"]) == (address, "Under review after a complaint.")
+    assert run(app, [*named(site, "hide"), address, "--note", "Again."], tmp_path).exit_code == 1 and len(seen) == 1
+
+    said = run(app, [*named(site, "unhide"), address], tmp_path)
+    assert said.stdout == f"shown again: {address}, 2 pages written again\n" and seen[-1] == {"item": address}
+    assert run(app, [*named(site, "unhide"), address], tmp_path).exit_code == 1 and len(seen) == 2
+
+    said = run(app, [*named(site, "reports_close"), rid, "--outcome", "resolved", "--public-note",
+                     "A date was corrected."], tmp_path)
+    assert said.stdout == f"closed #{rid}, 3 pages written again\n"
+    assert (seen[-1]["id"], seen[-1]["status"], seen[-1]["public_note"]) == (rid, "resolved", "A date was corrected.")
+    again = run(app, [*named(site, "reports_close"), rid, "--outcome", "resolved"], tmp_path)
+    assert again.exit_code == 1 and len(seen) == 3  # nothing changed, so nothing was told
+    # reading tells the site nothing
+    for reading in ("reports_list", "statements_list", "hidden", "waiting"):
+        assert run(app, named(site, reading), tmp_path).exit_code == 0
+    assert len(seen) == 3
+
+
+def test_a_site_gives_only_the_lines_its_own_commands_print(site, tmp_path):
+    """Where Landlords Stand hides nothing yet and had to write lines for commands it does not have."""
+    import dataclasses
+
+    commands, wording = REPLIES[site.key]
+    fewer = dataclasses.replace(commands, hide=None, unhide=None, hidden=None, tidy=None)
+    without = dataclasses.replace(wording, hid=None, unhid=None, hidden_item=None, tidied=None)
+    app = mounted(replies_commands(lambda: site.replies, fewer, without))
+    assert run(app, named(site, "waiting"), tmp_path).exit_code == 0
+    assert run(app, ["hide", "/b/AbC123xy", "--note", "x"], tmp_path).exit_code == 2  # there is no such command
+    # a line that is missing for a command the site does have stops the commands being built, by name
+    with pytest.raises(ValueError, match=r"^RepliesWording needs hid, hidden_item, tidied, unhid: the site has the "
+                                         "commands that print them"):
+        replies_commands(lambda: site.replies, commands, without)
+    with pytest.raises(ValueError, match="RepliesWording needs published: "):
+        replies_commands(lambda: site.replies, fewer, dataclasses.replace(without, published=None))
+    with pytest.raises(ValueError, match="RepliesWording.tidied is not given"):
+        replies_tidy(lambda: site.replies, without)
+    # the two lines for what cannot be done are always needed: every command may have to say one
+    with pytest.raises(TypeError, match="not_done"):
+        type(wording)(refused="{message}", errors_to_stderr=True)
+
+
+def test_a_group_of_the_sites_own_keeps_its_older_shape_and_gains_the_commands_in_one_call(tmp_path):
+    """Where Landlords Stand had one ``statements`` command with an option for each action
+    (``statements --publish 3``), and one ``reports`` command. To keep those working beside the new commands it
+    built both groups itself and merged the package's commands in with three calls. ``groups`` makes it one."""
+    import dataclasses
+
+    site = Open(SITES["landlords"], tmp_path)  # the package's side alone: no checkout is needed
+    commands, wording = REPLIES["landlords"]
+    sid = site.send()
+    old: list[str] = []
+
+    statements_app = typer.Typer(help="Statements from landlords in their own words. With no command, those waiting.")
+    reports_app = typer.Typer(help="Readers' reports of mistakes. With no command, those still open.")
+
+    @statements_app.callback(invoke_without_command=True)
+    def statements(ctx: typer.Context, publish: int = typer.Option(None), checked: str = typer.Option("")) -> None:
+        if ctx.invoked_subcommand is not None:
+            return
+        if publish is None:
+            typer.echo(json.dumps({"waiting": len(site.replies.statements("pending"))}))
+            return
+        site.replies.publish(publish, checked=checked)  # the old shape, kept by the site itself
+        old.append(f"published {publish}")
+
+    @reports_app.callback(invoke_without_command=True)
+    def reports(ctx: typer.Context) -> None:
+        if ctx.invoked_subcommand is None:
+            typer.echo(json.dumps({"open": len(site.replies.reports())}))
+
+    app = mounted(replies_commands(
+        lambda: site.replies, dataclasses.replace(commands, hide=None, unhide=None, hidden=None, tidy=None),
+        wording, about=landlord, changed=lambda row: {"pages_changed": 0, "shown": 1},
+        groups={"statements": statements_app, "reports": reports_app}))
+
+    helped = run(app, ["--help"], tmp_path).stdout
+    assert "Statements from landlords in their own words." in helped and "Readers' reports of mistakes." in helped
+    # the group's own callback still answers its older shape
+    assert json.loads(run(app, ["statements"], tmp_path).stdout) == {"waiting": 1}
+    assert json.loads(run(app, ["reports"], tmp_path).stdout) == {"open": 0}
+    # and the package's commands are in the same group, under the same word
+    assert [row["id"] for row in lines(run(app, ["statements", "list"], tmp_path))] == [sid]
+    assert run(app, ["statements", "--publish", sid, "--checked", CHECKED], tmp_path).exit_code == 0
+    assert old == [f"published {sid}"] and site.replies.statement(sid)["status"] == "published"
+    second = site.send(email="second@example-housing.org.uk")
+    done = run(app, ["statements", "publish", second, "--checked", CHECKED], tmp_path)
+    assert done.exit_code == 0 and lines(done)[0]["status"] == "published" and old == [f"published {sid}"]
+    assert run(app, ["waiting"], tmp_path).exit_code == 0 and run(app, ["reports", "list"], tmp_path).exit_code == 0
+    # a group no command is in is a mistake in the names, said when the commands are built
+    with pytest.raises(ValueError, match="groups names replies, and no command is in a group of that name"):
+        replies_commands(lambda: site.replies, commands, wording, groups={"replies": typer.Typer()})
+
+
 def test_the_address_of_the_sender_is_not_taken_as_the_note_of_how_they_were_confirmed(site, tmp_path):
     app, sid = app_of(site), site.send()
     said = run(app, [*named(site, "statements_publish"), sid, "--checked",
@@ -625,6 +805,9 @@ def test_names_are_the_sites_to_give(countries, tmp_path):
 
     # a command the site does not want is left out
     assert run(built(hide=None, unhide=None), ["hide", "/b/AbC123xy", "--note", "x"], tmp_path).exit_code == 2
+    assert run(built(), ["tidy-replies"], tmp_path).exit_code == 0  # the package's own name for it
+    assert run(built(tidy=None), ["tidy-replies"], tmp_path).exit_code == 2
+    assert run(built(tidy="nightly"), ["nightly"], tmp_path).exit_code == 0
     # two words put a command in a group, which a site may describe
     grouped = built(statements_list="replies waiting", help={"replies": "Statements under the right of reply."})
     assert run(grouped, ["replies", "waiting"], tmp_path).exit_code == 0

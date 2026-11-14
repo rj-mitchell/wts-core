@@ -429,6 +429,38 @@ def our_app(site: SiteFacts, folder: Path, **more: Any) -> Any:
 
 
 @each_site
+def test_the_backup_command_keeps_off_site_as_many_as_the_sites_spec_says(site, tmp_path):
+    import dataclasses
+
+    store = MemoryStore("wts-backups")
+    for day in range(1, 8):
+        store.files[site.archive_name(WHEN - timedelta(days=day))] = b"x"
+    two = dataclasses.replace(site.spec, keep_offsite=2)
+    settings = Settings(raw={}, data_dir=tmp_path / "data", config_path=Path("settings.toml"), site=site.site)
+    app = mounted(ops_commands(site.site, lambda: settings, two, OPS[site.repo], store=lambda: store,
+                               clock=FixedClock(WHEN)))
+    state_database(tmp_path / "data" / site.state_file, site.spec)
+    assert run(app, backup(tmp_path), tmp_path).exit_code == 0
+    assert sorted(store.files) == [site.archive_name(WHEN - timedelta(days=1)), site.archive_name(WHEN)]
+
+
+@each_site
+def test_the_clock_may_be_given_when_a_command_runs_so_a_test_can_fix_a_backups_name(site, tmp_path):
+    """A site builds its commands once, when its command line is imported. Given a function, they ask for the
+    clock each time, so a test that stands another clock in afterwards names the backup."""
+    stood_in = [FixedClock(WHEN)]
+    settings = Settings(raw={}, data_dir=tmp_path / "data", config_path=Path("settings.toml"), site=site.site)
+    app = mounted(ops_commands(site.site, lambda: settings, site.spec, OPS[site.repo], store=lambda: None,
+                               clock=lambda: stood_in[0]))
+    state_database(tmp_path / "data" / site.state_file, site.spec)
+    assert run(app, backup(tmp_path), tmp_path).exit_code == 0
+    later = WHEN + timedelta(days=3, hours=2)
+    stood_in[0] = FixedClock(later)  # after the commands were built
+    assert run(app, backup(tmp_path), tmp_path).exit_code == 0
+    assert names(tmp_path / "backups") == [site.archive_name(WHEN), site.archive_name(later)]
+
+
+@each_site
 def test_a_site_may_keep_its_copies_in_another_store(site, tmp_path):
     store = MemoryStore("somewhere-else")
     app = our_app(site, tmp_path, store=lambda: store, how_to_set_up="set OTHER_STORE in deploy/.env")

@@ -163,7 +163,12 @@ class Replies:
         """Show a waiting statement, as written, once the owner has confirmed who sent it. ``checked`` says how
         (policy 7.2, "Who is checked") and is required: it is kept in the log, which only the owner reads, for
         good. So it must not hold the sender's address, which the privacy notice promises to delete: a note that
-        does is refused. ``about`` is whom the statement speaks for, when its item's address doesn't say."""
+        does is refused. ``about`` is whom the statement speaks for, when its item's address doesn't say.
+
+        The item is looked at again, as it was when the statement was sent: weeks may have passed. A statement is
+        not published beside an item that is no longer there or no longer shown (the site's ``Items.shown``, asked
+        of the item with whom the statement now speaks for), or one hidden while a concern is decided. Where
+        Landlords Stand's own command refused a landlord whose page had gone; every site now does."""
         note = " ".join((checked or "").split())
         if not note:
             raise NotDone("say how you confirmed who sent it (checked), for the log")
@@ -176,6 +181,16 @@ class Replies:
             whom = (about or "").strip() or s["about"]
             if self.rules.about_required and not whom:
                 raise NotDone(f"statement {sid} is beside {s['item']}: say whom it speaks for (about)")
+            if con.execute("SELECT 1 FROM wts_hidden WHERE item = ? AND shown_at IS NULL", (s["item"],)).fetchone():
+                raise NotDone(f"statement {sid} is beside {s['item']}, which is hidden while a concern is decided: "
+                              "show the item again (unhide) before publishing a statement beside it")
+            try:
+                there = self.items.shown(Item(address=s["item"], about=whom, part=s["part"] or ""))
+            except Refused as exc:  # the site's more exact words for why not, written for a sender
+                raise NotDone(f"statement {sid} is beside {s['item']}, which cannot be shown: {exc}") from exc
+            if not there:
+                raise NotDone(f"statement {sid} is beside {s['item']}, which is no longer shown on the site: "
+                              "decline the statement, saying why, or put the item back first")
             con.execute("UPDATE wts_statements SET status = 'published', published_at = ?, about = ? WHERE id = ?",
                         (iso(self.clock), whom, sid))
             self._log(con, sid, "published", note)

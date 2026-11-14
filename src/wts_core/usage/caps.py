@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 from wts_core.ports import SYSTEM_CLOCK, Busy, Clock, SpendingRecord
@@ -48,21 +49,35 @@ class Limits:
     monthly_cap_usd: float
 
     @classmethod
-    def from_settings(cls, usage: Mapping[str, Any], *, section: str = "usage") -> Limits:
+    def from_settings(cls, usage: Mapping[str, Any], *, section: str = "usage",
+                      file: Path | str | None = None) -> Limits:
         """Read the limits from a site's ``[usage]`` section, under today's keys. Each site's copy fell back to a
-        figure in its code when a key was missing; here a missing one stops the site, naming it."""
+        figure in its code when a key was missing; here a missing one stops the site, naming it. Everything wrong
+        is said in the one error; ``file`` is the settings file, named in it where given
+        (``settings.config_path``)."""
         keys = ("per_visitor_daily_questions", "daily_spend_cap_usd", "monthly_spend_cap_usd")
+        problems: list[str] = []
         missing = [k for k in keys if k not in usage]
         if missing:
-            raise SettingsError(f"[{section}] needs " + ", ".join(missing) + ": the package has no limits of its own")
-        try:
-            per_account = usage.get("per_user_daily_questions")
-            return cls(per_visitor_daily=int(usage["per_visitor_daily_questions"]),
-                       per_account_daily=None if per_account is None else int(per_account),
-                       daily_cap_usd=float(usage["daily_spend_cap_usd"]),
-                       monthly_cap_usd=float(usage["monthly_spend_cap_usd"]))
-        except (TypeError, ValueError) as exc:
-            raise SettingsError(f"[{section}] has a limit that is not a number: {exc}") from None
+            problems.append(f"[{section}] needs " + ", ".join(missing) + ": the package has no limits of its own")
+        read: dict[str, Any] = {}
+        for key, number in (("per_visitor_daily_questions", int), ("per_user_daily_questions", int),
+                            ("daily_spend_cap_usd", float), ("monthly_spend_cap_usd", float)):
+            if usage.get(key) is None:
+                continue
+            try:
+                read[key] = number(usage[key])
+            except (TypeError, ValueError):
+                problems.append(f"[{section}] {key} is not a number: {usage[key]!r}")
+        if problems:
+            raise SettingsError(_named(file) + "; ".join(problems), problems=problems)
+        return cls(per_visitor_daily=read["per_visitor_daily_questions"],
+                   per_account_daily=read.get("per_user_daily_questions"),
+                   daily_cap_usd=read["daily_spend_cap_usd"], monthly_cap_usd=read["monthly_spend_cap_usd"])
+
+
+def _named(file: Path | str | None) -> str:
+    return "" if file is None else f"{file}: "
 
 
 class Caps:

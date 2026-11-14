@@ -14,10 +14,9 @@ It runs last, after every check has read the straight text. A site that uses it 
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
 from typing import Any, cast
 
-from wts_core.events import Answer, ReaderEvent
+from wts_core.events import Answer, Event
 
 __all__ = ["curl_answer", "curl_event", "curl_events", "curl_quotes"]
 
@@ -73,17 +72,16 @@ def curl_answer(answer: Answer | None) -> Answer | None:
     return curled
 
 
-def curl_events(events: list[ReaderEvent]) -> list[ReaderEvent]:
+def curl_events(events: list[Event]) -> list[Event]:
     """A briefing's events with the model's text curled: the plan's interpretation and the briefing."""
     return [curl_event(e) for e in events]
 
 
-def curl_event(event: ReaderEvent) -> ReaderEvent:
-    """One event with the model's text curled; any other event comes back as it is, the same object."""
-    e = cast(Mapping[str, Any], event)  # saved events are read as they were written: a key may be missing
-    if e.get("type") == "final" and isinstance(e.get("answer"), dict):
-        return cast(ReaderEvent, {**e, "answer": curl_answer(e["answer"])})
-    if e.get("type") == "plan" and isinstance(e.get("plan"), dict) and e["plan"].get("interpretation"):
-        return cast(ReaderEvent, {**e, "plan": {**e["plan"],
-                                                "interpretation": curl_quotes(e["plan"]["interpretation"])}})
+def curl_event(event: Event) -> Event:
+    """One event with the model's text curled; any other event comes back as it is, the same object. Saved events
+    are read as they were written: a key may be missing."""
+    if event.get("type") == "final" and isinstance(event.get("answer"), dict):
+        return {**event, "answer": curl_answer(event["answer"])}
+    if event.get("type") == "plan" and isinstance(event.get("plan"), dict) and event["plan"].get("interpretation"):
+        return {**event, "plan": {**event["plan"], "interpretation": curl_quotes(event["plan"]["interpretation"])}}
     return event

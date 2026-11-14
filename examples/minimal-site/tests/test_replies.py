@@ -64,7 +64,7 @@ def test_the_public_sees_the_public_fields_of_a_statement_and_nothing_else(clien
 
 @pytest.mark.parametrize("changed, said", [
     ({"item": "/parks/alder-park"}, "Please paste the address of a briefing: it looks like /b/ and then some letters."),
-    ({"item": "https://elsewhere.example/b/token0002"}, "That address is not on this site. Please paste the address "
+    ({"item": "https://elsewhere.example/b/token000002"}, "That address is not on this site. Please paste the address "
                                                         "of a briefing."),
     ({"item": "/b/nosuchbriefing"}, REPLY_MESSAGES.item_not_shown),
     ({"text": "word " * 151}, "A statement may be up to 150 words. Yours has 151."),
@@ -128,7 +128,7 @@ def test_a_briefing_hidden_while_a_concern_is_decided_shows_the_note_instead(cli
 
 
 def test_a_withdrawn_briefing_says_so_at_its_address(client: TestClient, parks: Parks, briefing: str) -> None:
-    parks.archive.withdraw(briefing.removeprefix("/b/"), "It gave the wrong year for a decision.")
+    parks.parts.archive.withdraw(briefing.removeprefix("/b/"), "It gave the wrong year for a decision.")
     page = client.get(briefing).text
     assert "This briefing was withdrawn. It gave the wrong year for a decision." in page
     assert "Dogs on leads" not in page

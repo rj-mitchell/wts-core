@@ -51,15 +51,17 @@ class AlertWording:
     offsite_stale: str  # "The last off-site copy was over two days ago ({day})."
 
 
-def send_offsite(archive: Path, store: OffsiteStore | None, spec: BackupSpec, *, keep: int = 60,
+def send_offsite(archive: Path, store: OffsiteStore | None, spec: BackupSpec, *, keep: int | None = None,
                  clock: Clock = SYSTEM_CLOCK) -> dict[str, Any]:
-    """Store one backup off site and delete this site's old copies there, keeping the newest ``keep`` (zero or less
-    deletes nothing). The outcome is returned and written to ``offsite.json`` beside the archive. With no store the
-    answer is ``{"offsite": "not set up"}`` and nothing is written. Raises OffsiteError, after recording the failure
-    there, if the copy could not be stored."""
+    """Store one backup off site and delete this site's old copies there, keeping the newest ``keep``: the spec's
+    ``keep_offsite`` unless ``keep`` says otherwise for this one call (zero or less deletes nothing). The outcome
+    is returned and written to ``offsite.json`` beside the archive. With no store the answer is
+    ``{"offsite": "not set up"}`` and nothing is written. Raises OffsiteError, after recording the failure there,
+    if the copy could not be stored."""
     archive = Path(archive)
     if store is None:
         return {"offsite": "not set up"}
+    keep = spec.keep_offsite if keep is None else keep
     when = clock.now().isoformat(timespec="seconds")
     try:
         try:
