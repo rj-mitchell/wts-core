@@ -1,7 +1,7 @@
 # Adopting wts-core in a site: the brief every adoption worker follows
 
 You are moving ONE of the Where They Stand sites onto `wts-core`, the shared package its engine was extracted
-into. The package is released: v0.1.0, public, at https://github.com/rj-mitchell/wts-core. Its checkout, with all
+into. The package is released: v0.2.0 (14 November 2026), public, at https://github.com/rj-mitchell/wts-core. Its checkout, with all
 its documents, is at `/home/user/wts-core` (read only for you: never edit it; if the package is wrong or awkward,
 say so in your hand-back, with the file and what you would change, and work round it in the site only if that is
 clean).
@@ -18,8 +18,16 @@ server, never deploy, never send email, never force-push.
    (the order of work in a site).
 3. `/home/user/wts-core/docs/AS-BUILT.md`: for every module, "At adoption": what differs from your site's copy
    and what you must handle. This wins over MIGRATION and over `docs/API-SKETCH.md` where they differ.
-4. `/home/user/wts-core/docs/EXTENDING.md`, `docs/NEW-SITE.md`, and the example site `examples/minimal-site/`
-   (a whole small site on the package: copy its shape, not its words).
+4. `/home/user/wts-core/docs/EXTENDING.md`, `docs/NEW-SITE.md`, `docs/UPGRADING.md`, `CHANGELOG.md` (0.2.0: what
+   changed since the first site adopted), and the example site `examples/minimal-site/` (a whole small site on the
+   package: copy its shape, not its words). For an AI site the wiring is `briefing.desk_parts(...)` then
+   `DeskParts.desk(config, ...)`, with the configuration from `observe.briefing_config(...)`: the example's
+   `app.py` and `/home/user/wts-core/tests/briefing_sites.py` (how each real site would wire it) show both.
+   The first site to adopt, Where Landlords Stand, is the worked example for the base slice: its merged work is at
+   `/home/user/wt/landlords-adopt` (on 0.1.0: `tests/golden/record.py`, `tests/golden/shared.py`,
+   `tests/test_parity.py`, `tests/test_import.py`, `tests/test_privacy.py`, `tests/test_dependencies.py`,
+   `src/landlords/state.py`, `replies.py`, `cli.py`, `deploy/undo-wts-core.sql`) and its pull request description
+   at `/home/user/wt/landlords-adopt-PR.md`. Copy its method, not its words.
 5. `/home/user/wts-core/docs/NOTES/independent-review-of-the-package.md` (what a privacy claim must be tested with).
 6. Your site's own `README.md`, `docs/` (its `DECISIONS.md` style), `CLAUDE.md` if it has one, tests layout, and
    the modules you are replacing, whole.
@@ -43,7 +51,7 @@ server, never deploy, never send email, never force-push.
 
 In `pyproject.toml`, the wheel by its address, with the extras your site needs (docs/adr/0006, NEW-SITE.md):
 
-    "wts-core[...] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.1.0/wts_core-0.1.0-py3-none-any.whl"
+    "wts-core[...] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.2.0/wts_core-0.2.0-py3-none-any.whl"
 
 and `[tool.hatch.metadata]` `allow-direct-references = true` (hatchling refuses the address without it). Then
 `uv lock`. Check `uv sync --frozen` works, and that the site's Dockerfile needs no `git` for it. If the address
@@ -82,12 +90,17 @@ does not resolve (the release is minutes old), say so at once rather than depend
    `forget_old_copies` with the site's backup retention. `update.sh` and `deploy/` are files in the repository:
    edit them there; nothing is run on a server.
 7. **CI:** the site's `.github/workflows/ci.yml` calls the shared workflows at the same tag
-   (`rj-mitchell/wts-core/.github/workflows/python.yml@v0.1.0` and the others it uses: read each workflow's
+   (`rj-mitchell/wts-core/.github/workflows/python.yml@v0.2.0` and the others it uses: read each workflow's
    header in `/home/user/wts-core/.github/workflows/` for its inputs; docs/adr/0010). Keep every check the site
    runs today (count the steps before and after and list them in the hand-back).
 8. **Docs:** the site's README and docs where they describe the replaced modules; a row in its `DECISIONS.md` in
    its own style; the privacy notice sentences the owner has accepted (ADR 0012 and ADR 0008 give them: add
    exactly those, only where the site turns the feature on).
+
+A test that reads a command's `--help` must turn Typer's colours off before Typer is imported (GitHub Actions
+makes Typer colour its help, which splits option names): at the very top of `tests/conftest.py`, before other
+imports, `os.environ["_TYPER_FORCE_DISABLE_TERMINAL"] = "1"` and `os.environ["NO_COLOR"] = "1"`. Run the suite
+once with `GITHUB_ACTIONS=true` set before you hand back.
 
 ## What "done" means
 

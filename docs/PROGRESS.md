@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 14 November 2026, 07:45 UTC (session 1).
+Last updated: 14 November 2026, 07:40 UTC (session 1).
 
 ## Where things stand
 
@@ -169,9 +169,9 @@ right-of-reply questions were left to the maintainer and are decided in ADR 0008
    cannot yet show a note in an item's place), the package's corrections log, and taking out the site's
    `OwnersDesk` once `Replies.publish` itself refuses an item no longer shown. **The owner deploys it with
    `update.sh`**; what to expect is in the pull request.
-2. Version 0.2.0: pull request, merge, release `v0.2.0` from the Actions page (`CONTRIBUTING.md`, "Releasing":
-   the build session cannot push a tag). Then Where Landlords Stand moves to it (three small changes, listed in
-   the changelog), with its `hide`, `unhide` and corrections log.
+2. **Version 0.2.0 is released** (rj-mitchell/wts-core#4 merged, 14 November; the wheel's sha256 is
+   `460bd523…6c8a`; a scratch project locks and installs it by its address). Where Landlords Stand moves to it in a
+   follow-up (three small changes, listed in the changelog), with its `hide`, `unhide` and corrections log.
 3. Then Where Councils Stand on 0.2.0, Where Countries Stand, Where MPs Stand, each with the adoption brief; then
    phases 5 to 7.
 
