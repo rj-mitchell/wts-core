@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 14 November 2026, 07:40 UTC (session 1).
+Last updated: 14 November 2026, 13:10 UTC (session 1).
 
 ## Where things stand
 
@@ -15,7 +15,7 @@ Last updated: 14 November 2026, 07:40 UTC (session 1).
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
 | 3. Build the package | **Done and released: `v0.1.0`** (rj-mitchell/wts-core#2 and #3 merged; the release has the wheel, sha256 `29d6f59d…2572`) | https://github.com/rj-mitchell/wts-core/releases/tag/v0.1.0 |
-| 4. Adopt, one site at a time | **Where Landlords Stand: done and merged** (rj-mitchell/wherelandlordsstand#21, 14 November: tests, docker and pages green; its built pages the same byte for byte apart from three intended differences). **Version 0.2.0 of the package** removes the rough edges before any AI site adopts ("Version 0.2.0" below). Where Councils Stand is under way (stage A on 0.1.0, the briefing desk on 0.2.0); then Where Countries Stand, Where MPs Stand | the adoption workers' brief: `docs/study/adoption-worker-brief.md` |
+| 4. Adopt, one site at a time | **Where Landlords Stand: merged** (rj-mitchell/wherelandlordsstand#21). **Where Countries Stand: pull request open** (rj-mitchell/wherecountriesstand#37; 250 tests; `/api/ask` byte for byte on 21 scripted cases and 7 through the real pipeline). **Where Councils Stand: under way** (`/home/user/wt/councils-adopt`). Then Where MPs Stand, and Where Landlords Stand's move to 0.2.0 | the adoption workers' brief: `docs/study/adoption-worker-brief.md` |
 | 5 to 7 | Not started | |
 
 ## Pull requests
@@ -139,6 +139,32 @@ Left, and why:
 - **The evaluation commands still take the configuration as a mapping** (`eval_commands(config=…, config_id=…)`):
   a site passes `BriefingConfig.settings` and `observe.config_id`, as the example does. Taking the
   `BriefingConfig` itself would be tidier and can wait for the first site that runs the harness.
+
+## For the package's next release: what the AI sites' adoptions found
+
+From Where Countries Stand's adoption (rj-mitchell/wherecountriesstand#37, on 0.2.0). None blocks a site; each
+was worked round in the site, cleanly.
+
+1. **No way to see what would lapse before it does.** `Replies.waiting()` and the listings tidy before they
+   answer, so the owner cannot be shown, after a deploy, what the first write will lapse. A read-only
+   `would_lapse()`.
+2. `SqliteAnswerCache` has no delete, so a hidden briefing's cached copy cannot be dropped (the site intercepts it
+   in `on_cached`).
+3. `testing.assert_statements_stay_out` is typed for the package's fake embedder and index; a site on a real
+   LanceDB engine passes look-alikes. A small interface for the four things it reads.
+4. `adapters.lancedb`: no public way to ask whether an index was opened to add vectors; the "unknown" embedder id
+   is not exported.
+5. `cli/stats.py`: `stats --json` wraps the figures in `{"stats": …}` (say so in the docs); `weekly-report` loads
+   the real embedding model whenever it runs, so a site's test of the command must stand one in.
+6. `cli/replies.py`: an old command name kept through `also` works silently; ADR 0008 says old names "say what
+   replaces them". The `waiting` line prints "None" for the oldest's age when nothing waits.
+7. `ops.BackupSpec.required_tables`: a site with no table only it has must name the old tables now and change
+   the spec in the release that drops them. The site mark (0.2.0) is what tells sister sites apart from now on;
+   say so in AS-BUILT.
+8. Docs: MIGRATION 1.9 says Where Countries Stand "gains both" the trap and the daily limit, but passing a
+   visitor code would be something new kept, so it passes none (the adoption brief's rule); MIGRATION should say
+   so. AS-BUILT says the pre-import copy is "the whole file as it was": it is made after the package's empty
+   tables exist.
 
 ## What could not be done, and why
 
