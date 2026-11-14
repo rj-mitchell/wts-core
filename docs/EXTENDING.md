@@ -1,6 +1,6 @@
 # Extending wts-core: every hook a site has
 
-13 November 2026. This page lists every place where a site plugs its own parts into the package, with a real
+14 November 2026 (version 0.2.0). This page lists every place where a site plugs its own parts into the package, with a real
 example of each. The design behind it is [ADR 0004](adr/0004-how-sites-plug-in.md).
 
 An example introduced by "From `examples/minimal-site/…`" is quoted from the example site,

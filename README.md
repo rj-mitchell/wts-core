@@ -8,7 +8,7 @@ reader beyond what the privacy notice says, and a right of reply for anyone name
 that keeps those promises, written once, so that a fix reaches every site and every site is held to the same
 checks. Each site keeps what is its own: its record, how it finds sources, its pages and every word a reader sees.
 
-Version 0.2.0 (13 November 2026). The four sites adopt it one at a time
+Version 0.2.0 (14 November 2026). The four sites adopt it one at a time
 ([`docs/MIGRATION.md`](docs/MIGRATION.md)).
 
 ## What is in it, and what installs what

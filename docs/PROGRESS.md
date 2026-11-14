@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 13 November 2026 (the 0.2.0 shift).
+Last updated: 14 November 2026 (the 0.2.0 shift).
 
 ## Where things stand
 
@@ -103,6 +103,23 @@ Closed:
 
 Also done on the way: the weekly page says "1 day" and the tidy command "1 record"; `Hooks.usages` says in its
 docstring that only Where MPs Stand needs it and why; `docs/UPGRADING.md` is written.
+
+**What the first site to adopt found** (Where Landlords Stand, on 0.1.0, while this was being built) is in 0.2.0
+too:
+
+| Found | What was done |
+|---|---|
+| Publishing no longer refused a landlord whose page had gone | `Replies.publish` asks the site whether the item is still shown, and refuses a hidden one |
+| The site was not told after `hide`, `unhide` or `reports close`; it had to write lines for commands it does not have; keeping its older, option-shaped commands took three calls and two groups of its own | `changed` is called after all three; `RepliesWording` needs only the lines the site's commands print; `replies_commands(groups=…)` takes the site's own groups |
+| `ops_commands` took its clock when built | every command group takes a clock or a function that gives one when a command runs |
+| No section was made for an unset `EnvSetting` | `load_settings` makes it, empty |
+| An import could not allow for a column missing from an old backup | an `Import`'s statement may be a function of the connection; `state.columns` |
+| `assert_no_reader_data` needed a question | `question` is optional |
+| Its CI failed on a test that read `--help` | the shared `python.yml` turns Typer's colour off |
+| Four mistakes in the guides | corrected: AS-BUILT (a site's `required_tables`), MIGRATION 1.1 (`load_toml` is kept), NEW-SITE (Dependabot, the colour variables), ADR 0006 (the host, and what was verified) |
+
+That site's own tests were then run against 0.2.0 in a copy (170 passed, 10 skipped) with the three changes the
+changelog asks of it. Its pull request to move to 0.2.0 is the next shift's, once the release is made.
 
 Left, and why:
 
