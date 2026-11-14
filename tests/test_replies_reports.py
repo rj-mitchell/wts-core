@@ -64,9 +64,7 @@ def test_reports_are_private_until_closed_with_a_public_note(site):
     assert log == [
         {"date": "2026-11-13", "kind": "withdrawn", "page": None, "briefing_id": "abcdefghjk",
          "question": "What has been said about trial by jury?", "note": "Misquoted a minister."},
-        {"date": "2026-11-13", "kind": site.case.report["kind"], "page": site.case.report["page"],
-         "briefing_id": "abcdefghjk", "question": None,
-         "note": "A quotation in a briefing on jury trials was corrected."}]
+        {"date": "2026-11-13", "kind": after["kind"], "note": "A quotation in a briefing on jury trials was corrected."}]
     assert "Checked" not in json.dumps(log)  # the private note never appears publicly
     assert site.case.report["message"] not in json.dumps(log) and "reader@" not in json.dumps(log)
 
@@ -196,9 +194,32 @@ def test_the_corrections_log_is_newest_first_and_as_long_as_asked(site):
         ("2026-11-05", "Wrong."), ("2026-11-05", "Correction 5."), ("2026-11-04", "Correction 4."),
         ("2026-11-03", "Correction 3."), ("2026-11-02", "Correction 2."), ("2026-11-01", "Correction 1."),
         ("2026-10-20", "It misread a statement.")]
-    assert all(set(c) == {"date", "kind", "page", "briefing_id", "question", "note"} for c in log)
+    # what the site passed keeps its six keys; what came from a report has its date, its kind and the public note
+    assert [set(c) for c in log if c["note"] in ("Wrong.", "It misread a statement.")] == [
+        {"date", "kind", "page", "briefing_id", "question", "note"}] * 2
+    assert all(set(c) == {"date", "kind", "note"} for c in log if c["note"].startswith("Correction"))
     assert [c["note"] for c in site.replies.corrections(2)] == ["Correction 5.", "Correction 4."]
     assert site.replies.corrections(0) == []
+
+
+def test_the_corrections_log_gives_nothing_a_reporter_typed(site):
+    """A review of the first adoptions found a report whose "page" box held a name, a telephone number and an
+    email address, and one that named an unlisted saved briefing: the log returned both, and a site's public
+    ``/api/corrections`` passed them on. Everything the log returns is fit to publish, so an entry made from a
+    report is its date, its kind and the owner's public note."""
+    typed = "Asha Okafor, 07700 900123, asha.okafor@example.org"
+    rid = report(site, page=typed, message="The second quotation is not what was said at the meeting.",
+                 contact="asha.okafor@example.org", briefing_id="unlisted42")
+    [kept] = site.replies.reports()
+    assert (kept["page"], kept["briefing_id"]) == (typed, "unlisted42")  # the owner still sees both
+    site.replies.close(rid, outcome="resolved", note="Rang Asha Okafor back; she was right.",
+                       public_note="A quotation was corrected.")
+    log = site.replies.corrections(withdrawn=[WITHDRAWN], removed=True)
+    [entry] = [c for c in log if c["note"] == "A quotation was corrected."]
+    assert entry == {"date": "2026-11-13", "kind": kept["kind"], "note": "A quotation was corrected."}
+    published = json.dumps(log)
+    for private in ("Okafor", "07700", "example.org", "unlisted42", "second quotation", "Rang"):
+        assert private not in published, private
 
 
 def test_a_removed_statements_reason_is_in_the_log_only_when_the_site_asks(site):

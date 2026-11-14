@@ -54,6 +54,10 @@ Each is corrected in place in the sections below as well; `CHANGELOG.md` says wh
   replayed from the cache, answered "no records", or failed. The row of a sources-only request, of one a limit
   or a cap stopped, of one that found the site full and of one the reader left has an empty `question`
   (ADR 0012, "Added while building"; `wts_core.observe` below).
+- **`Replies.corrections()` gives nothing a reporter typed.** An entry made from a closed report holds its
+  `date`, its `kind` and the owner's public `note`, and nothing else: the report's `page` (a free-text box) and
+  `briefing_id` (which can name an unlisted saved briefing) are no longer returned. Everything the log returns
+  is fit to publish.
 
 ### At adoption, because of 0.2.0
 
@@ -112,6 +116,11 @@ Each is corrected in place in the sections below as well; `CHANGELOG.md` says wh
   also replaced by `[address deleted]` in the log's notes.
 - A lapsed report stays open; only its contact is deleted.
 - The daily limits count per UTC day, not the last 24 hours.
+- **The corrections log is fit to publish as it stands (0.2.1).** An entry made from a report has three keys:
+  `date`, `kind`, `note`. Entries for a removed statement, and those the site passes as `withdrawn`, have six
+  (`date`, `kind`, `page`, `briefing_id`, `question`, `note`), so a page or route that reads `page`,
+  `briefing_id` or `question` of every entry reads them with `.get`. Where readers should know which page or
+  briefing a correction was to, the owner says so in the public note.
 
 ### At adoption
 

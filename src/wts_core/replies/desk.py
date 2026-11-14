@@ -358,7 +358,8 @@ class Replies:
     def close(self, rid: int, *, outcome: str, note: str | None = None, public_note: str | None = None) -> None:
         """Close an open report and delete its contact: it was only ever for replying. ``outcome`` is "resolved"
         or "dismissed"; ``note`` is private (what was found and done); ``public_note``, if given, appears in the
-        corrections log, and must name no one who reported."""
+        corrections log, and must name no one who reported. It is all the log says of the report besides its
+        date and kind, so say in it which page or briefing was put right, if readers should know."""
         if outcome not in REPORT_OUTCOMES:
             raise NotDone(f"say how it ended (outcome): {' or '.join(REPORT_OUTCOMES)}")
         self._tidy()
@@ -380,16 +381,26 @@ class Replies:
         briefings are the site's (it owns saved briefings): it passes them as ``withdrawn``, a list or something
         that returns one, each with a ``date`` and what it wants shown (``briefing_id``, ``question``, ``note``).
 
-        Each entry has ``date``, ``kind`` ("withdrawn", the report's kind, or "removed"), ``page``,
-        ``briefing_id``, ``question`` and ``note``. Never a report's private note, its message or its contact."""
+        Everything returned is fit to publish as it stands: a site's public route may pass it on whole.
+
+        * An entry made from a report holds ``date``, ``kind`` (the report's kind, one of the site's own fixed
+          words) and ``note`` (the owner's public note), and nothing else. Nothing a reporter typed is in it: not
+          the message, the contact or the private note, and not the report's ``page`` or ``briefing_id`` either.
+          ``page`` is a box a reporter fills in freely (one wrote a name, a telephone number and an email address
+          there), and ``briefing_id`` can name a saved briefing that is listed nowhere. Until 0.2.1 both were
+          returned. What the public should be told about where the mistake was belongs in the public note.
+        * An entry for a removed statement holds ``date``, ``kind`` ("removed"), ``page`` (the address of the item
+          it stood beside, as the site files it), ``note`` (the reason), and ``briefing_id`` and ``question`` as
+          None. Never who wrote it.
+        * An entry the site passed as ``withdrawn`` holds what the site gave, over the same six keys."""
         blank: dict[str, Any] = {"date": "", "kind": "withdrawn", "page": None, "briefing_id": None,
                                  "question": None, "note": None}
         out = [{**blank, **entry, "date": str(entry["date"])[:10]}
                for entry in (withdrawn() if callable(withdrawn) else withdrawn)]
         with self.db.connect() as con:
-            out += [{**blank, "date": r["closed_at"][:10], "kind": r["kind"], "page": r["page"],
-                     "briefing_id": r["briefing_id"], "note": r["public_note"]}
-                    for r in con.execute("SELECT closed_at, kind, page, briefing_id, public_note FROM wts_reports "
+            # only these three columns are read, so nothing else of a report can come to be published by mistake
+            out += [{"date": r["closed_at"][:10], "kind": r["kind"], "note": r["public_note"]}
+                    for r in con.execute("SELECT closed_at, kind, public_note FROM wts_reports "
                                          "WHERE closed_at IS NOT NULL AND public_note IS NOT NULL "
                                          "AND public_note != '' ORDER BY id")]
             if removed:
