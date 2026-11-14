@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 14 November 2026 (the 0.2.0 shift).
+Last updated: 14 November 2026, 07:45 UTC (session 1).
 
 ## Where things stand
 
@@ -14,8 +14,8 @@ Last updated: 14 November 2026 (the 0.2.0 shift).
 | 1b. "Why use this rather than a chatbot?" | **Done: four pull requests** (the hub and three AI sites); screenshots in the charity repository's | below |
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
-| 3. Build the package | **Done: merged** (rj-mitchell/wts-core#2, every CI job green). The release `v0.1.0` is made by the release workflow, started from the Actions page | `main`; see "Phase 3" below |
-| 4. Adoption | **Begun: version 0.2.0**, the rough edges removed before any AI site adopts (branch `claude/wts-4-builder`; no pull request opened, no site changed) | "Version 0.2.0" below |
+| 3. Build the package | **Done and released: `v0.1.0`** (rj-mitchell/wts-core#2 and #3 merged; the release has the wheel, sha256 `29d6f59d…2572`) | https://github.com/rj-mitchell/wts-core/releases/tag/v0.1.0 |
+| 4. Adopt, one site at a time | **Where Landlords Stand: done and merged** (rj-mitchell/wherelandlordsstand#21, 14 November: tests, docker and pages green; its built pages the same byte for byte apart from three intended differences). **Version 0.2.0 of the package** removes the rough edges before any AI site adopts ("Version 0.2.0" below). Where Councils Stand is under way (stage A on 0.1.0, the briefing desk on 0.2.0); then Where Countries Stand, Where MPs Stand | the adoption workers' brief: `docs/study/adoption-worker-brief.md` |
 | 5 to 7 | Not started | |
 
 ## Pull requests
@@ -167,3 +167,21 @@ The API key works since 13 November (`NOTES/what-the-build-session-cannot-do.md`
 
 Decided by the owner on 13 November 2026: the design is accepted; the privacy notice changes are accepted; the four
 right-of-reply questions were left to the maintainer and are decided in ADR 0008.
+
+## Next step
+
+1. Where Landlords Stand is merged. Left for a follow-up on 0.2.0 there: `hide` and `unhide` (its built pages
+   cannot yet show a note in an item's place), the package's corrections log, and taking out the site's
+   `OwnersDesk` once `Replies.publish` itself refuses an item no longer shown. **The owner deploys it with
+   `update.sh`**; what to expect is in the pull request.
+2. Version 0.2.0: pull request, merge, release `v0.2.0` from the Actions page (`CONTRIBUTING.md`, "Releasing":
+   the build session cannot push a tag). Then Where Landlords Stand moves to it (three small changes, listed in
+   the changelog), with its `hide`, `unhide` and corrections log.
+3. Then Where Councils Stand on 0.2.0, Where Countries Stand, Where MPs Stand, each with the adoption brief; then
+   phases 5 to 7.
+
+**ADR 0006 is proved outside the package** (14 November): Where Landlords Stand's `docker` job built the site's
+image (`python:3.12.15-slim`, no `git`, no token) from the released wheel by its address, and its `tests` job
+installed it with `uv sync --frozen`. Checked on 13 November: `uv lock` and `uv sync --frozen` against the wheel's
+address work, and the hash in the lock file is the release's. (A bare `uv pip install <address>` fails inside the build session only: its proxy
+answers a HEAD request for that address with 401.)
