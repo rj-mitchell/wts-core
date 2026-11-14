@@ -32,6 +32,28 @@ everything back.
 | 10 | `update.sh` installed the new timers before the image was built: after a failed build they would run commands the old image lacks | every site with new timers | S: timers installed after the new image is up |
 | 11 | Smaller: a malformed `follows` is refused where unknown fields were ignored, and any caller could mark a briefing "followed up"; a withdrawn briefing is still served from the answer cache for up to a week (old code too) | Countries | S: `follows` and `website` taken out of the API again (nothing sends them); a withdrawn briefing is not replayed from the cache |
 
+## Where Councils Stand (before its pull request), 14 November 2026
+
+**Confirmed.** The question flow: both routes read branch by branch; 300 seeded random scenarios (2,411 asks:
+two visitors, random limits and caps, cache hours of 0, 1 and 168, clock jumps across days and a month,
+sources-only, follow-ups, the pipeline raising, the model declining, no records, no key, a second briefing in
+progress) through the old app and the new: every byte, each visitor's count, the day's and month's spending and
+the saved briefings identical, but for the one listed difference. The checks: 27,000 cases, no report differs.
+The import: a visitor at the limit is still refused; spending equal to the cent; `undo-wts-core.sql` followed by
+the old code gives the old figures back. A hidden vote or council cannot be reached by its API, page, list,
+sitemap, search, sources or what the model is given, and unhide restores each byte for byte.
+
+**Found.**
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | The same as Where Countries Stand's first: the old tables keep senders' addresses and reports' contacts for good, and so does every backup (seven addresses in a backup made 125 days on) | as there |
+| 2 | **A `[usage.models."…"]` table in the server's local settings replaces the repository's whole table** (settings are laid over one level deep), and with strict prices the site then refuses to start; the deploy notes told the owner to write one | F: the local layer merges `[usage.models]` by model; the error names the local file. S: the deploy note reworded |
+| 3 | The public corrections log linked a saved briefing's address when a report about it was closed with a public note; saved briefings "aren't listed anywhere" | F: a report's entry carries no page |
+| 4 | **The one-off import runs on whichever command first opens the database**, not only when the site starts: a timer's command on the new image, in the gap before the site restarts, imports while the old site is still writing, and what it writes afterwards is never brought across | S: `update.sh` brings the new site up before it touches the timers; the deploy notes say not to deploy in the timers' hours nor to run a command before the restart |
+| 5 | The record kept the question of asks that got no briefing | as Where Countries Stand's eighth |
+| 6 | Smaller: lapsing happens at the first write or listing after the deploy, not "the first night"; the tidy run after the backup has systemd's 90-second stop timeout, not the unit's 30 minutes; a malformed old row stops the site from starting until mended by hand (it fails closed) | S |
+
 ## Habits
 
 - "Left untouched for the way back" is also "kept": anything left behind needs its own retention and its own end
