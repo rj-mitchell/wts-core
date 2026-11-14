@@ -161,6 +161,12 @@ was worked round in the site, cleanly.
 7. `ops.BackupSpec.required_tables`: a site with no table only it has must name the old tables now and change
    the spec in the release that drops them. The site mark (0.2.0) is what tells sister sites apart from now on;
    say so in AS-BUILT.
+9. **Shared CI:** a job that leaves `uv run <site> serve &` in the background fails at its end, when the `setup`
+   action's uv cache tidying waits for that process (Where Countries Stand's accessibility job, after the check
+   had passed). Say so in NEW-SITE's CI section, with the pattern that works (the environment's own program, a
+   pid, a last step that stops it); consider `prune-cache: false` in the `setup` action. Also: a recorder of the
+   old code's outputs must be exempt from import sorting (`# ruff: noqa: I001`), since the linter sorts imports of
+   deleted modules differently in a fresh checkout.
 8. Docs: MIGRATION 1.9 says Where Countries Stand "gains both" the trap and the daily limit, but passing a
    visitor code would be something new kept, so it passes none (the adoption brief's rule); MIGRATION should say
    so. AS-BUILT says the pre-import copy is "the whole file as it was": it is made after the package's empty

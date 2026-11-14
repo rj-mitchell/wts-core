@@ -109,6 +109,12 @@ linter then sorts imports of those modules differently from CI (this failed Wher
 A file that must import deleted modules (the recorder of the old code's outputs) takes `# ruff: noqa: I001` with a
 comment saying why.
 
+In a CI job that starts the site in the background (the accessibility job, a smoke test), start it with the
+environment's own program (`.venv/bin/<command> serve … &`, keeping its pid), never through `uv run … &`, and stop
+it in a last step with `if: always()`. A `uv run` left in the background holds uv's cache, and the shared `setup`
+action's tidying of that cache at the end of the job then waits five minutes and fails the job (this failed Where
+Countries Stand's accessibility job after the check itself had passed).
+
 ## What "done" means
 
 - The site's full test suite passes, its lint passes, its front-end tests pass if it has a front end you touched,
