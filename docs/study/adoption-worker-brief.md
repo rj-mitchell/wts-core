@@ -102,6 +102,13 @@ makes Typer colour its help, which splits option names): at the very top of `tes
 imports, `os.environ["_TYPER_FORCE_DISABLE_TERMINAL"] = "1"` and `os.environ["NO_COLOR"] = "1"`. Run the suite
 once with `GITHUB_ACTIONS=true` set before you hand back.
 
+Before you hand back, run the site's lint and tests once in a CLEAN export of your branch, as CI's fresh checkout
+sees it (`git archive HEAD | tar -x -C <a scratch folder of your own>`, then the site's lint command there with the
+worktree's `.venv/bin/ruff`): in the worktree, the cache folders of modules you deleted are still about, and the
+linter then sorts imports of those modules differently from CI (this failed Where Countries Stand's first CI run).
+A file that must import deleted modules (the recorder of the old code's outputs) takes `# ruff: noqa: I001` with a
+comment saying why.
+
 ## What "done" means
 
 - The site's full test suite passes, its lint passes, its front-end tests pass if it has a front end you touched,
