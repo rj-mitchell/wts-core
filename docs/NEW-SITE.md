@@ -31,7 +31,7 @@ The example's is `PARKS`.
 Take the example from the release of `wts-core` the site will pin, so the copy and the package agree.
 
 ```bash
-git clone --depth 1 --branch v0.1.0 https://github.com/rj-mitchell/wts-core
+git clone --depth 1 --branch v0.2.0 https://github.com/rj-mitchell/wts-core
 mkdir whereriversstand
 git -C wts-core archive HEAD examples/minimal-site | tar -x --strip-components=2 -C whereriversstand
 cd whereriversstand
@@ -71,7 +71,7 @@ without `allow-direct-references = true` the build refuses a dependency written 
 
 ```toml
 dependencies = [
-    "wts-core[cli,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.1.0/wts_core-0.1.0-py3-none-any.whl",
+    "wts-core[cli,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.2.0/wts_core-0.2.0-py3-none-any.whl",
     "fastapi>=0.115",
     "pydantic>=2.8",
     "uvicorn>=0.30",
@@ -132,6 +132,8 @@ and says what to change.
 3. **`pipeline.py`:** the site's record, its search, its instructions to the model (EXTENDING 3.2, 4.6, 4.7). This
    is most of the work, and none of it is the package's.
 4. **`app.py`:** the request body, the cache key, `group_of`, the hooks the site needs, its pages (EXTENDING 4).
+   The desk and its parts are built there in two calls (`desk_parts`, then `parts.desk`: EXTENDING 4.1), which
+   also check every limit, price and message when the site starts.
 5. **Where a statement may sit:** the site's `Items` (EXTENDING 5).
 6. **The model:** set `[answer] provider = "anthropic"`, the model names and their prices, and give the server
    `RIVERS_ANTHROPIC_API_KEY` (EXTENDING 7). Until then the scripted model keeps every test running.
@@ -239,8 +241,7 @@ The timers run the site's commands. With the example's names:
 |---|---|---|
 | nightly | `rivers backup` | backs up the state database and sends a copy off site |
 | nightly, after it | `rivers backup-check --in <backups folder>` | fails, so the owner is emailed, if backups have stopped |
-| nightly | `rivers nightly` | the site's own housekeeping of reports and statements: lapsed statements, old addresses, old counts |
-| nightly | `rivers tidy` | applies the retention to the record of briefings and the weekly reports; forgets old visitor codes and old copies of the database |
+| nightly | `rivers tidy` | the one housekeeping command: applies the retention to the record of briefings and the weekly reports; forgets old visitor codes and old copies of the database; and does the right of reply's (lapsed statements, old addresses, old counts) |
 | weekly | `rivers weekly-report` | saves the week's figures, and fails if a figure is over its threshold |
 | after each update | `rivers stats --check` | fails if a figure is over its threshold |
 
@@ -267,13 +268,13 @@ permissions:
 jobs:
   # lint, strict types and tests, installed from the site's lock file
   python:
-    uses: rj-mitchell/wts-core/.github/workflows/python.yml@v0.1.0
+    uses: rj-mitchell/wts-core/.github/workflows/python.yml@v0.2.0
     with:
       type-check: "uv run mypy"
 
   # the family kit: the copy is the version the site says it synced
   kit:
-    uses: rj-mitchell/wts-core/.github/workflows/kit.yml@v0.1.0
+    uses: rj-mitchell/wts-core/.github/workflows/kit.yml@v0.2.0
     with:
       version: "1.4.0"
       site: rivers
@@ -281,7 +282,7 @@ jobs:
 
   # the image the server builds, and one command run in it
   docker:
-    uses: rj-mitchell/wts-core/.github/workflows/docker.yml@v0.1.0
+    uses: rj-mitchell/wts-core/.github/workflows/docker.yml@v0.2.0
     with:
       tag: whereriversstand:ci
       run: rivers --help
@@ -291,11 +292,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rj-mitchell/wts-core/.github/actions/setup@v0.1.0
+      - uses: rj-mitchell/wts-core/.github/actions/setup@v0.2.0
       - run: uv sync --frozen
       - run: uv run rivers serve --port 8000 &
       - run: curl --retry 20 --retry-connrefused --fail http://127.0.0.1:8000/api/health
-      - uses: rj-mitchell/wts-core/.github/actions/a11y@v0.1.0
+      - uses: rj-mitchell/wts-core/.github/actions/a11y@v0.2.0
         with:
           url: "http://127.0.0.1:8000"
 ```
@@ -327,8 +328,8 @@ adds the site to it. It asks the site's `/api/health`, `/api/status`, `/api/chec
    uv run rivers eval run --record-fixtures eval/fixtures
    ```
 
-   With a real model this costs money. The run stops at the limit in `site.py` (`EVAL_MAX_COST_USD`) unless
-   `--max-cost` says otherwise.
+   With a real model this costs money. The run stops at the limit in `config/settings.toml`
+   (`[eval] max_cost_usd`) unless `--max-cost` says otherwise.
 4. Commit `eval/runs/` (the run, and `passed.jsonl` if it passed) and `eval/fixtures/`.
 5. Replay the fixtures in CI, so a change to the checks is measured before it ships. It is free:
 
@@ -366,10 +367,9 @@ closed; and who the data controller is, in the words of `family/GLOSSARY.md`.
 
 Two conditions make the sentences true, and both are the site's to keep:
 
-- the nightly timer runs `tidy` and the site's own nightly command (step 8), which apply the 13 months, the 90
-  days and the three months;
-- off-site copies are kept at the package's 60 a site, one a night. A site that keeps more, or backs up more
-  often, changes the sentence on backups to match.
+- the nightly timer runs `tidy` (step 8), which applies the 13 months, the 90 days and the three months;
+- off-site copies are kept at 60 a site, one a night (`keep_offsite` in the site's `BackupSpec`). A site that
+  keeps more, or backs up more often, changes the sentence on backups to match.
 
 The accessibility statement says what was tested and how to report a problem. The check behind it is the site's
 `scripts/a11y.mjs` (axe, WCAG 2.2 AA, light and dark, desktop and phone), run in CI by the shared `a11y` step and
@@ -413,6 +413,11 @@ What was wrong or unclear the first time, and what was changed:
 | It was not said that the copy still holds the example's record after the renaming, so the question to try is still about parks | Step 2 and step 3 say so |
 | The site's data went into `data/` in the repository when the server was tried | Step 3 names `RIVERS_DATA_DIR` |
 
+Since then (version 0.2.0): the example's own `nightly` command is gone, because `tidy` now does the right of
+reply's housekeeping too; the limit on an evaluation run and the similarity for themes are settings; and the
+example builds its desk with `desk_parts`. The steps above say so. The checklist was followed again for 0.2.0 as
+far as steps 2 and 3: see "Tried again for 0.2.0" below.
+
 What the trial could not follow as written:
 
 - **`v0.1.0` is not released yet.** Step 2 was done from the branch the example was built on, and step 3 with a
@@ -423,3 +428,23 @@ What the trial could not follow as written:
   GitHub. The workflow file in step 9 was checked only for being well-formed, and the actions and inputs it names
   were read against the files in `.github/`. Steps 6 to 8 repeat the charity's own pages; if those change, they
   win.
+
+## Tried again for 0.2.0
+
+On 13 November 2026, with version 0.2.0 built but not yet released, steps 2 and 3 were followed again from
+scratch into a temporary folder, and the commands of steps 8 and 10 were run. The example was copied from the
+working tree (not from a tag, which does not exist yet), renamed to Where Rivers Stand, and installed from a wheel
+built from the same tree (`uv build`), given by its `file://` address. Then:
+
+- `uv lock`, `uv sync`, `uv run ruff check .`, `uv run mypy` and `uv run pytest` passed: 64 tests;
+- `rivers serve` ran, and `/api/ask` over HTTP sent 1 `plan`, 1 `sources`, 5 `citation`, 22 `text` and 1 `final`
+  event; `/` showed "Where Rivers Stand"; `/api/check` answered 404, as it should with no token set;
+- `rivers tidy` printed its six lines, the last of them the right of reply's, and there is no `rivers nightly`;
+  `rivers backup`, `rivers waiting`, `rivers stats --since 24h`, `rivers eval run --record-fixtures` (passed,
+  and noted) and `rivers eval replay` all ran.
+
+| What happened | What was changed |
+|---|---|
+| **One of the example's own tests failed after the renaming.** The new test of a sister site's backup called the sister site "rivers", which is the very name step 2 gives the copy, so the copy's own backup was no longer another site's | The example's test calls the sister site "lakes". A name in the example's tests must not be one the checklist uses for the copy |
+
+Not tried again: steps 4 to 12, and the release's own address (as before, until the tag exists).

@@ -1,5 +1,5 @@
 # The family's toolchain in one step: uv and Python, and Node where a job needs it.
-# Use it in a site's own job:   - uses: rj-mitchell/wts-core/.github/actions/setup@v0.1.0
+# Use it in a site's own job:   - uses: rj-mitchell/wts-core/.github/actions/setup@v0.2.0
 name: Set up the Where They Stand toolchain
 description: uv and Python at the family's versions, and Node if asked for.
 inputs:

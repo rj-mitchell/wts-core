@@ -6,7 +6,7 @@ license = "AGPL-3.0-only"
 requires-python = ">=3.12"
 dependencies = [
     # A real site pins the release wheel by its address, with the extras it uses (docs/adr/0006-distribution.md):
-    #   "wts-core[cli,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.1.0/wts_core-0.1.0-py3-none-any.whl"
+    #   "wts-core[cli,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.2.0/wts_core-0.2.0-py3-none-any.whl"
     # The example takes the package from the repository it sits in instead: see [tool.uv.sources] below.
     "wts-core[cli,ai]",
     "fastapi>=0.115",

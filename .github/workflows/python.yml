@@ -3,7 +3,7 @@
 #
 #   jobs:
 #     python:
-#       uses: rj-mitchell/wts-core/.github/workflows/python.yml@v0.1.0
+#       uses: rj-mitchell/wts-core/.github/workflows/python.yml@v0.2.0
 #       with:
 #         sync-args: "--extra embed"
 #         lint-paths: "src tests scripts"

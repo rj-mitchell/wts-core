@@ -77,11 +77,11 @@ def test_a_sister_sites_backup_is_refused_though_it_has_every_table_this_site_ha
         client: TestClient, parks: Parks, clock: FixedClock, tmp_path_factory: pytest.TempPathFactory) -> None:
     ask(client, DOGS, sources_only=True)
     # a sister site built on the package: the same tables, made the same way, and its own mark
-    sister = StateDB(tmp_path_factory.mktemp("rivers") / "state.db", migrations=migrations(), clock=clock,
-                     site="rivers")
+    sister = StateDB(tmp_path_factory.mktemp("lakes") / "state.db", migrations=migrations(), clock=clock,
+                     site="lakes")
     theirs = make_backup(sister.path, sister.path.parent / "backups", BACKUPS, clock=clock)
     assert theirs is not None and BACKUPS.site == "parks" and parks.db.get("site") == "parks"
-    with pytest.raises(RestoreRefused, match="marked 'rivers', and this site is 'parks'") as refused:
+    with pytest.raises(RestoreRefused, match="marked 'lakes', and this site is 'parks'") as refused:
         restore_backup(theirs, parks.settings.state_db, BACKUPS)
     assert refused.value.why == "other-site"
     assert len(rows(parks, "SELECT 1 FROM wts_briefing_log")) == 1  # nothing was touched

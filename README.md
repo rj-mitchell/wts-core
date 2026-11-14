@@ -8,7 +8,7 @@ reader beyond what the privacy notice says, and a right of reply for anyone name
 that keeps those promises, written once, so that a fix reaches every site and every site is held to the same
 checks. Each site keeps what is its own: its record, how it finds sources, its pages and every word a reader sees.
 
-Version 0.1.0, not yet released (13 November 2026). The four sites adopt it one at a time
+Version 0.2.0 (13 November 2026). The four sites adopt it one at a time
 ([`docs/MIGRATION.md`](docs/MIGRATION.md)).
 
 ## What is in it, and what installs what
@@ -147,11 +147,12 @@ def ask(body: Question, request: Request):
     return StreamingResponse(sse(events), media_type="text/event-stream")
 ```
 
-What the package did there: counted the request against the per-minute limit; looked in the answer cache; checked
-the visitor's daily limit and the spending caps; ran the pipeline and passed its events on as server-sent events;
-checked every citation against its source; recorded the cost; saved the briefing at its own address; and put it
-in the cache, so the same question again costs nothing. A test (`tests/test_readme.py`) runs this code on every
-change.
+What the package did there: checked, as the file was loaded, that every limit, price and message a briefing
+needs was given (one missing would have stopped it, by name); counted the request against the per-minute limit;
+looked in the answer cache; checked the visitor's daily limit and the spending caps; ran the pipeline and passed
+its events on as server-sent events; checked every citation against its source; recorded the cost; saved the
+briefing at its own address; and put it in the cache, so the same question again costs nothing. A test
+(`tests/test_readme.py`) runs this code on every change.
 
 A real site is the same shape with its own parts in place of the stand-ins. The example site,
 [`examples/minimal-site/`](examples/minimal-site/), is that site in full: settings from a file, a pipeline over a
@@ -189,7 +190,7 @@ records the file's hash ([ADR 0006](docs/adr/0006-distribution.md)). In the site
 
 ```toml
 dependencies = [
-    "wts-core[cli,offsite,duckdb,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.1.0/wts_core-0.1.0-py3-none-any.whl",
+    "wts-core[cli,offsite,duckdb,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.2.0/wts_core-0.2.0-py3-none-any.whl",
 ]
 
 [tool.hatch.metadata]
@@ -198,8 +199,8 @@ allow-direct-references = true
 
 The second table is needed with the build backend the sites use, which otherwise refuses a dependency written as
 an address. A site calls the shared CI workflows in this repository at the same tag
-(`rj-mitchell/wts-core/.github/workflows/python.yml@v0.1.0`), so it has one number to raise. An upgrade is a pull
-request in the site that raises it.
+(`rj-mitchell/wts-core/.github/workflows/python.yml@v0.2.0`), so it has one number to raise. An upgrade is a pull
+request in the site that raises it: [`docs/UPGRADING.md`](docs/UPGRADING.md) has the steps.
 
 The repository is public. Nothing here needs a token to fetch: not the wheel, not the workflows. The sites'
 Docker images need no `git`.
@@ -216,6 +217,7 @@ Docker images need no `git`.
 | [`docs/MIGRATION.md`](docs/MIGRATION.md) | for each existing site: what replaces what, and how sameness is proved |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | how code in this package is written |
 | [`CHANGELOG.md`](CHANGELOG.md) | what changed in each version, and what a site must do |
+| [`docs/UPGRADING.md`](docs/UPGRADING.md) | how a site moves to a new version, how a fix reaches the sites, how a release is made |
 
 The brief this answers is `plans/family/wts-core-brief.md` in the charity's repository.
 

@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 13 November 2026, 15:30 UTC (session 1).
+Last updated: 13 November 2026 (the 0.2.0 shift).
 
 ## Where things stand
 
@@ -15,7 +15,8 @@ Last updated: 13 November 2026, 15:30 UTC (session 1).
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
 | 3. Build the package | **Done: merged** (rj-mitchell/wts-core#2, every CI job green). The release `v0.1.0` is made by the release workflow, started from the Actions page | `main`; see "Phase 3" below |
-| 4 to 7 | Not started | |
+| 4. Adoption | **Begun: version 0.2.0**, the rough edges removed before any AI site adopts (branch `claude/wts-4-builder`; no pull request opened, no site changed) | "Version 0.2.0" below |
+| 5 to 7 | Not started | |
 
 ## Pull requests
 
@@ -77,30 +78,55 @@ parity tests that import each site's own functions and compare results. I merge 
 
 The workers' brief is kept at `docs/study/package-worker-brief.md`.
 
-## Rough edges the example site found, kept for the first AI site's adoption
+## Version 0.2.0: the rough edges the example site found
 
-Building the example made its author the package's first user. These are real, and each is better settled against
-a real site's wiring than guessed at now. They are the first things to do in phase 4, before Where Councils Stand:
+Building the example made its author the package's first user, and it found ten rough edges. Version 0.2.0
+removes nine of them before Where Councils Stand adopts the package, while no site uses the briefing desk and its
+interface may still change (ADR 0007). The bytes a reader receives, and the rows written, are unchanged: the
+comparisons with each site's own flow (`tests/test_briefing_parity.py`, `tests/test_usage_parity.py`) pass as
+they stood, with only the way the desk's side is built rewritten. `CHANGELOG.md` has each change and what a site
+must do; `docs/AS-BUILT.md` has what adoption must know.
 
-1. **A builder for the desk.** `BriefingDesk` takes twelve required arguments and a site builds about ten objects
-   first, alike on every site. One function from settings, a `StateDB` and `Messages` would cut each site's wiring
-   and the room for error. With it: one start-up check that names the file for a missing limit or price.
-2. **`config` is a mapping with string keys.** A misspelt key is recorded as empty. A small dataclass, built once
-   with its id and remembered in `wts_configs` by the same call.
-3. **The model client's type has no `close()`**, and "is there a key?" needs a provider-specific import. Both
-   belong with phase 5's proof that a provider can be swapped.
-4. **Housekeeping the nightly update must call** is now: the `tidy` command (the record, reports, visitor codes,
-   old copies) and the check route (the right of reply's, through `waiting()`). A site with no check token set
-   needs a command for the second.
-5. **About forty lines of wording** for a new site's backup and right-of-reply commands, with no defaults.
-6. Two command arguments are plain values where the rest are callables (`max_cost_usd`, `similarity`); the
-   off-site `keep` is fixed at 60.
-7. **A restore accepts a sister site's backup** when both have only `wts_` tables. A stamp of the site's package
-   in `wts_kv`, checked on restore, would close it.
-8. `events.to_reader` returns a typed dictionary and the desk takes plain ones, so a site needs a cast.
-9. `FixedRandom.token()` gives nine characters and the structured log takes only the desk's eleven.
-10. `replies.long_date` (the family's date format) lives in the right-of-reply module, where a pipeline must not
-    import it.
+Closed:
+
+| Rough edge | What was done |
+|---|---|
+| 1. A builder for the desk, with one start-up check | `briefing.desk_parts` builds every part from a site's settings on one clock and one source of chance, and `DeskParts.desk` makes the desk. `briefing.desk_settings` is the check: everything missing or wrong in one error that names the file and each key. The three desk sides in `tests/briefing_sites.py`, the example and the README's quick start are built on it |
+| 2. `config` was a mapping with string keys | `ports.BriefingConfig`, made by `observe.briefing_config`, which works out the id and keeps the parts in `wts_configs` in the same call |
+| 3. The model client's type had no `close()`; "is there a key?" needed a provider's module | `ports.ModelStream`; `adapters.has_model` |
+| 4. Housekeeping the nightly update must call | one command: `tidy` takes the right of reply's housekeeping as a step (`cli.replies_tidy`); `tidy-replies` for a site with no record of briefings |
+| 6. Two arguments were plain values; the off-site `keep` was fixed at 60 | `max_cost_usd` and `similarity` may be functions read when the command runs; `BackupSpec.keep_offsite` |
+| 7. A restore accepted a sister site's backup | `StateDB(..., site=…)` marks the file, `BackupSpec(site=…)` refuses another's mark; a backup with no mark is accepted as before |
+| 8. `events.to_reader` returned a typed dictionary | one plain type, `events.Event`, wherever events are passed |
+| 9. `FixedRandom.token()` gave nine characters | as many as a real token for the bytes asked: eleven for the desk's eight |
+| 10. `replies.long_date` lived where a pipeline must not import it | `wts_core.dates.long_date`; still exported from `replies` |
+
+Also done on the way: the weekly page says "1 day" and the tidy command "1 record"; `Hooks.usages` says in its
+docstring that only Where MPs Stand needs it and why; `docs/UPGRADING.md` is written.
+
+Left, and why:
+
+- **5. About forty lines of wording for a new site's backup and right-of-reply commands, with no defaults.** Not
+  done, on purpose: ADR 0004 says no wording has a default in the package, so that the package cannot change a
+  site's words by accident, and the owner accepted that. Giving the owner's commands default lines would be a
+  change to that decision, not a rough edge to sand. 0.2.0 adds one more such line (`RepliesWording.tidied`). If
+  the owner wants defaults for words only the owner reads, it is a small change: say so and it is the next
+  shift's.
+- **The quick start did not get shorter.** The builder reads a site's settings so that its one error can name the
+  file, and the quick start has no settings file, so it writes a `Settings` in code: 105 lines where 0.1.0 had 98.
+  The example site's `build` and the three desk sides did get shorter.
+- **The new-site checklist was followed again only as far as its steps 2 and 3** (`docs/NEW-SITE.md`, "Tried
+  again for 0.2.0").
+- **`months_before` is written twice,** in `observe` and in `replies` (the wall between them is why). It could
+  join `long_date` in `wts_core.dates`; nothing depends on it, so it was left.
+- **The evaluation commands still take the configuration as a mapping** (`eval_commands(config=…, config_id=…)`):
+  a site passes `BriefingConfig.settings` and `observe.config_id`, as the example does. Taking the
+  `BriefingConfig` itself would be tidier and can wait for the first site that runs the harness.
+
+## Next step
+
+Where Councils Stand's adoption (MIGRATION.md), on 0.2.0 once it is released: merge this branch's pull request,
+then release as CONTRIBUTING.md says.
 
 ## What could not be done, and why
 
@@ -124,9 +150,3 @@ The API key works since 13 November (`NOTES/what-the-build-session-cannot-do.md`
 
 Decided by the owner on 13 November 2026: the design is accepted; the privacy notice changes are accepted; the four
 right-of-reply questions were left to the maintainer and are decided in ADR 0008.
-
-## Next step
-
-Merge `briefing`, `observe` and `eval` as each finishes; then `cli` (the shared commands and the check route),
-the remaining testing helpers, the example site and the guides. Then the interface snapshot, the package's pull
-request, and (once merged) the tag. [`AS-BUILT.md`](AS-BUILT.md) lists what adoption must handle for each module.
