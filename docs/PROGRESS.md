@@ -2,7 +2,7 @@
 
 Read this first, then `docs/NOTES/`. Keep it current: what is done, what is open, the next step.
 
-Last updated: 14 November 2026, 13:10 UTC (session 1).
+Last updated: 14 November 2026, 13:15 UTC (session 1).
 
 ## Where things stand
 
@@ -15,7 +15,7 @@ Last updated: 14 November 2026, 13:10 UTC (session 1).
 | 1c. One toolchain | **Done: six pull requests, all green on GitHub** | below |
 | 2. Design | **Written; waits for the owner's review** | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/`](adr/), [`MIGRATION.md`](MIGRATION.md), [`API-SKETCH.md`](API-SKETCH.md), [`study/`](study/) |
 | 3. Build the package | **Done and released: `v0.1.0`** (rj-mitchell/wts-core#2 and #3 merged; the release has the wheel, sha256 `29d6f59d…2572`) | https://github.com/rj-mitchell/wts-core/releases/tag/v0.1.0 |
-| 4. Adopt, one site at a time | **Where Landlords Stand: merged** (rj-mitchell/wherelandlordsstand#21). **Where Countries Stand: pull request open** (rj-mitchell/wherecountriesstand#37; 250 tests; `/api/ask` byte for byte on 21 scripted cases and 7 through the real pipeline). **Where Councils Stand: under way** (`/home/user/wt/councils-adopt`). Then Where MPs Stand, and Where Landlords Stand's move to 0.2.0 | the adoption workers' brief: `docs/study/adoption-worker-brief.md` |
+| 4. Adopt, one site at a time | **Where Landlords Stand: merged** (rj-mitchell/wherelandlordsstand#21). **Where Countries Stand: merged** (rj-mitchell/wherecountriesstand#37, 14 November: python, docker, kit and accessibility green; `/api/ask` byte for byte on 21 scripted cases and 7 through the real pipeline). **Where Councils Stand** (`/home/user/wt/councils-adopt`) and **Where MPs Stand** (`/home/user/wt/mps-adopt`) under way. Then Where Landlords Stand's move to 0.2.0. **The owner deploys each with its `update.sh`** | the adoption workers' brief: `docs/study/adoption-worker-brief.md` |
 | 5 to 7 | Not started | |
 
 ## Pull requests
