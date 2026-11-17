@@ -1,0 +1,29 @@
+{"recording": 1, "documents": 3, "sources": [{"title": "Minutes of the Birchfield Common Committee, 17 February 2026: item 5, Dogs on the common", "source": "https://whereparksstand.example/minutes/birchfield-common/2026-02-17#item-5", "passages": ["The Committee resolved to make no change to the rules on dogs, which may be off the lead across the common.", "Members asked for more bins for dog waste at the north entrance."]}, {"title": "Minutes of the Alder Park Committee, 10 March 2026: item 4, Dogs in the park", "source": "https://whereparksstand.example/minutes/alder-park/2026-03-10#item-4", "passages": ["The Committee agreed that dogs must be kept on leads in the walled garden from 1 April 2026.", "Members noted that dogs may run free on the main field as before."]}, {"title": "Minutes of the Canal Gardens Committee, 15 April 2026: item 4, Dogs and the towpath", "source": "https://whereparksstand.example/minutes/canal-gardens/2026-04-15#item-4", "passages": ["The Committee agreed that dogs must be on leads along the towpath, where cyclists and walkers share a narrow path.", "The rule will be reviewed after twelve months."]}], "synthetic": true, "question": "What have park committees decided about dogs?", "about": "written by hand for the example site, in the shape real recordings have; not a recording", "reading": {"topic": "dogs leads", "park": null}, "reading_usage": {"input_uncached": 96, "output": 14}}
+{"event": "text", "text": "**Dogs on leads*"}
+{"event": "text", "text": "*\n\n- Alder Park: "}
+{"event": "citation", "document": 1, "quoted": "The Committee agreed that dogs must be kept on leads in the walled garden from 1 April 2026."}
+{"event": "text", "text": "the Committee agreed that dogs must be kept o"}
+{"event": "text", "text": "n leads in the walled garden from 1 April 2026"}
+{"event": "text", "text": ", wh"}
+{"event": "text", "text": "ile "}
+{"event": "citation", "document": 1, "quoted": "Members noted that dogs may run free on the main field as before."}
+{"event": "text", "text": "dogs may still run f"}
+{"event": "text", "text": "ree on the main field"}
+{"event": "text", "text": ".\n- Canal"}
+{"event": "text", "text": " Gardens: "}
+{"event": "citation", "document": 2, "quoted": "The Committee agreed that dogs must be on leads along the towpath, where cyclists and walkers share a narrow path."}
+{"event": "text", "text": "the Committee agreed that dogs must be on leads a"}
+{"event": "text", "text": "long the towpath, which cyclists and walkers share"}
+{"event": "text", "text": ", a"}
+{"event": "text", "text": "nd "}
+{"event": "citation", "document": 2, "quoted": "The rule will be reviewed after twelve months."}
+{"event": "text", "text": "the rule will be revie"}
+{"event": "text", "text": "wed after twelve months"}
+{"event": "text", "text": ".\n\n**No change**\n\n-"}
+{"event": "text", "text": " Birchfield Common: "}
+{"event": "citation", "document": 0, "quoted": "The Committee resolved to make no change to the rules on dogs, which may be off the lead across the common."}
+{"event": "text", "text": "the Committee resolved to make no change to its rules,"}
+{"event": "text", "text": " under which dogs may be off the lead across the common"}
+{"event": "text", "text": "."}
+{"event": "text", "text": "\n"}
+{"event": "completed", "blocks": [{"text": "**Dogs on leads**\n\n- Alder Park: ", "citations": []}, {"text": "the Committee agreed that dogs must be kept on leads in the walled garden from 1 April 2026", "citations": [{"document": 1, "quoted": "The Committee agreed that dogs must be kept on leads in the walled garden from 1 April 2026."}]}, {"text": ", while ", "citations": []}, {"text": "dogs may still run free on the main field", "citations": [{"document": 1, "quoted": "Members noted that dogs may run free on the main field as before."}]}, {"text": ".\n- Canal Gardens: ", "citations": []}, {"text": "the Committee agreed that dogs must be on leads along the towpath, which cyclists and walkers share", "citations": [{"document": 2, "quoted": "The Committee agreed that dogs must be on leads along the towpath, where cyclists and walkers share a narrow path."}]}, {"text": ", and ", "citations": []}, {"text": "the rule will be reviewed after twelve months", "citations": [{"document": 2, "quoted": "The rule will be reviewed after twelve months."}]}, {"text": ".\n\n**No change**\n\n- Birchfield Common: ", "citations": []}, {"text": "the Committee resolved to make no change to its rules, under which dogs may be off the lead across the common", "citations": [{"document": 0, "quoted": "The Committee resolved to make no change to the rules on dogs, which may be off the lead across the common."}]}, {"text": ".\n", "citations": []}], "model": "recorded-briefing", "stop_reason": "end_turn", "usage": {"input_uncached": 612, "cache_write": 0, "cache_read": 540, "output": 148}}

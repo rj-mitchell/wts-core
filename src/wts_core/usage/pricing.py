@@ -1,0 +1,153 @@
+"""What a model call costs: a site's prices, read from its settings, and the one cost formula.
+
+A site's prices are its ``[usage]`` section as it stands today: four base figures (``price_input_per_mtok``,
+``price_output_per_mtok``, ``price_cache_read_per_mtok``, ``cache_write_multiplier``) and, under
+``[usage.models."<name>"]``, figures laid over them for any model whose id equals the name or starts with it. Where
+a model's id begins with more than one name, the longest name wins, whatever order the settings file gives
+them: a variant with a table of its own (``claude-sonnet-5-5-fast`` beside ``claude-sonnet-5-5``) is costed at its
+own prices.
+
+The package has no prices of its own. Each site's copy fell back to figures in its code when a key was missing
+(4.0 and 20.0 on Where MPs Stand and Where Countries Stand, 2.0 and 10.0 on Where Councils Stand); here a missing
+base price stops the site at start-up, naming the key.
+
+A model that matches no entry is still costed at the base prices, as today: on every site the base prices *are* a
+real model's (the briefing model's on Where Countries Stand and Where Councils Stand; a larger model's on Where
+MPs Stand, with the briefing model as an entry). ``PriceTable.require`` is the start-up check that a site which
+wants every model to have an entry of its own can ask for.
+
+What strict prices do and do not catch. A name stands for every model whose id begins with it: that is what
+lets a dated id (``claude-sonnet-5-5-20261001``) find its model's table. So a variant with no table of its own
+(``claude-sonnet-5-5-fast``, were there such a model at another price) is caught by ``require`` only if no shorter
+name matches it; where one does, it is costed at that name's prices. A site that names a variant in its settings
+gives the variant a table: the longest name then wins.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from wts_core.ports import Price, Pricing, UnknownModel, Usage
+from wts_core.settings import Settings, SettingsError
+
+__all__ = ["PriceTable"]
+
+# the settings keys, in the order of ``Price``'s fields
+KEYS = ("price_input_per_mtok", "price_output_per_mtok", "price_cache_read_per_mtok", "cache_write_multiplier")
+# an optional fifth, for a site that turns the one-hour cache on: without it, ``Price``'s own figure stands
+LONG = "cache_write_long_multiplier"
+
+
+def _price(laid: Mapping[str, float], long: float | None) -> Price:
+    price = Price(*(laid[k] for k in KEYS))
+    return price if long is None else Price(price.input, price.output, price.cache_read,
+                                            price.cache_write_multiplier, long)
+
+
+def _numbers(section: str, given: Mapping[str, Any], problems: list[str]) -> dict[str, float]:
+    """The prices ``given`` holds, each as a number; one that is not a number is added to ``problems``."""
+    read: dict[str, float] = {}
+    for key in (*KEYS, LONG):
+        if key in given:
+            try:
+                read[key] = float(given[key])
+            except (TypeError, ValueError):
+                problems.append(f"[{section}] {key} must be a number, not {given[key]!r}")
+    return read
+
+
+@dataclass(frozen=True)
+class PriceTable:
+    """A site's prices (``ports.Pricing``): the base prices, and the models that have their own."""
+
+    base: Price
+    models: tuple[tuple[str, Price], ...] = ()
+
+    @classmethod
+    def from_settings(cls, usage: Mapping[str, Any] | Settings, *, section: str = "usage",
+                      file: Path | str | None = None) -> PriceTable:
+        """Read the prices from a site's ``[usage]`` section. Everything wrong is said in the one error.
+
+        Give the site's ``Settings`` itself: the section named ``section`` is read from it, and the error names
+        its file, and the installation's own file too when one was laid over it. Given the section as a mapping
+        (``settings.usage``), ``section`` is only how it is named in an error, and ``file`` the
+        settings file to name, where there is one: ``settings.files``."""
+        if isinstance(usage, Settings):
+            file = usage.files if file is None else file
+            usage = usage.section(section)
+        problems: list[str] = []
+        missing = [k for k in KEYS if k not in usage]
+        if missing:
+            problems.append(f"[{section}] needs " + ", ".join(missing) + ": the package has no prices of its own")
+        base = _numbers(section, usage, problems)
+        per_model = usage.get("models") or {}
+        models: list[tuple[str, Mapping[str, float]]] = []
+        if not isinstance(per_model, Mapping):
+            problems.append(f"[{section}] models must be tables of prices, one for each model")
+        else:
+            for name, own in per_model.items():
+                where = f'{section}.models."{name}"'
+                if not isinstance(own, Mapping):
+                    problems.append(f"[{where}] must be a table of prices")
+                else:
+                    models.append((str(name), _numbers(where, own, problems)))
+        if problems:
+            raise SettingsError(("" if file is None else f"{file}: ") + "; ".join(problems), problems=problems)
+        return cls(base=_price(base, base.get(LONG)),
+                   models=tuple((name, _price({**base, **own}, own.get(LONG, base.get(LONG))))
+                                for name, own in models))
+
+    def _entry(self, model: str | None) -> Price | None:
+        """The prices under the longest name the model's id equals or begins with. Of two tables under the same
+        name (which one settings file cannot hold) the first stands."""
+        best: tuple[str, Price] | None = None
+        for name, price in self.models:
+            if model and model.startswith(name) and (best is None or len(name) > len(best[0])):
+                best = (name, price)
+        return None if best is None else best[1]
+
+    def price_for(self, model: str | None) -> Price:
+        """The prices for a model: its own entry's, or the base prices when it has none (or there is no model)."""
+        return self._entry(model) or self.base
+
+    def cost(self, usage: Usage | None, model: str | None) -> float:
+        """Cost of one call in US dollars, rounded to six places. Cache writes cost the input price times the
+        multiplier (the one-hour cache's own multiplier for those written to it); cache reads are priced
+        separately; each token is priced once."""
+        if usage is None:
+            return 0.0
+        p = self.price_for(model)
+        return round(
+            usage.input_uncached / 1e6 * p.input
+            + (usage.cache_write - usage.cache_write_long) / 1e6 * p.input * p.cache_write_multiplier
+            + usage.cache_write_long / 1e6 * p.input * p.cache_write_long_multiplier
+            + usage.output / 1e6 * p.output
+            + usage.cache_read / 1e6 * p.cache_read,
+            6,
+        )
+
+    def require(self, models: Iterable[str | None], *, base_counts: bool) -> None:
+        """The start-up check: every model the site's settings name must have a price.
+
+        ``base_counts`` says whether the base prices are an entry: ``True`` is today's rule on every site (a model
+        with no entry of its own takes the base prices, so nothing is unknown); ``False`` is strict pricing, where
+        each model must equal or start with a name under ``[usage.models]``, and one that doesn't raises
+        ``ports.UnknownModel`` rather than being costed at another model's prices. Models that are not set
+        (``None`` or empty) are passed over. A variant whose id begins with a shorter name that has a table is
+        not unknown: it takes that table (the module's docstring says why, and what a site should do).
+        """
+        if base_counts:
+            return
+        unknown = sorted({m for m in models if m and self._entry(m) is None})
+        if unknown:
+            raise UnknownModel(
+                "no price for " + ", ".join(unknown) + ': add [usage.models."<name>"] with its prices to the '
+                "site's settings (known: " + (", ".join(name for name, _ in self.models) or "none") + ")")
+
+if TYPE_CHECKING:  # checked by mypy: the class is what its interface asks for
+
+    def _as_pricing(x: PriceTable) -> Pricing:
+        return x

@@ -1,0 +1,95 @@
+{
+ "segments": [
+  {
+   "text": "**Collections**\n\n- In Northbridge, the Cabinet decided on a new food waste service: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "The Cabinet agreed that weekly collections of food waste would begin in April 2026.",
+   "sources": [
+    1
+   ],
+   "cited": [
+    {
+     "source": 1,
+     "cited_text": "The Cabinet agreed that weekly collections of food waste would begin in April 2026."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "\n- In Eastmere, the full Council took a different course: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "The Council resolved to keep fortnightly collections of general waste. An amendment to bring in a charge for garden waste was lost.",
+   "sources": [
+    2
+   ],
+   "cited": [
+    {
+     "source": 2,
+     "cited_text": "The Council resolved to keep fortnightly collections of general waste."
+    },
+    {
+     "source": 2,
+     "cited_text": "An amendment to bring in a charge for garden waste was lost."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "\n\n**Recycling rates**\n\n- Northbridge's scrutiny committee was told: ",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "The Committee heard that the recycling rate had fallen to 34 per cent.",
+   "sources": [
+    3
+   ],
+   "cited": [
+    {
+     "source": 3,
+     "cited_text": "The Committee heard that the recycling rate had fallen to 34 per cent."
+    }
+   ],
+   "status": "cited",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "\n",
+   "sources": [],
+   "cited": [],
+   "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  }
+ ],
+ "markdown": "**Collections**\n\n- In Northbridge, the Cabinet decided on a new food waste service: The Cabinet agreed that weekly collections of food waste would begin in April 2026. [Source 1]\n- In Eastmere, the full Council took a different course: The Council resolved to keep fortnightly collections of general waste. An amendment to bring in a charge for garden waste was lost. [Source 2]\n\n**Recycling rates**\n\n- Northbridge's scrutiny committee was told: The Committee heard that the recycling rate had fallen to 34 per cent. [Source 3]\n",
+ "no_records": false,
+ "citations_total": 4,
+ "citations_invalid": 0,
+ "grounded_ratio": 1.0,
+ "unsupported_segments": 0,
+ "loaded_words": 0,
+ "quotes_total": 0,
+ "quotes_unverified": 0,
+ "rules": 1
+}

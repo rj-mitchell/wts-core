@@ -1,0 +1,168 @@
+"""The owner's commands: the site's own, and the package's shared ones under the site's own words."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from typer.testing import CliRunner
+from wts_core.testing.models import ScriptedModel
+
+from conftest import DOGS, HOURS, ask, final_of
+from parks.app import build, create_app
+from parks.cli import app
+from parks.site import ParksSettings
+
+type Run = Callable[..., str]
+
+
+@pytest.fixture
+def run(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Run:
+    """Run ``parks …`` as the owner would, against the temporary data folder."""
+    monkeypatch.setenv("PARKS_DATA_DIR", str(data_dir))
+    for name in ("PARKS_B2_BUCKET", "PARKS_B2_KEY_ID", "PARKS_B2_APPLICATION_KEY", "PARKS_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+    runner = CliRunner()
+
+    def invoke(*args: str, code: int = 0) -> str:
+        result = runner.invoke(app, list(args))
+        assert result.exit_code == code, result.output
+        return result.output
+
+    return invoke
+
+
+@pytest.fixture
+def site(settings: ParksSettings, model: ScriptedModel) -> TestClient:
+    """The running site, on the real clock: the commands read the same state database."""
+    return TestClient(create_app(build(settings, model=model, env={})))
+
+
+def test_the_sites_own_command_lists_its_record(run: Run) -> None:
+    listed = run("minutes", "--park", "Alder Park").splitlines()
+    assert listed == ["2026-03-10  Alder Park: item 4, Dogs in the park", "2026-05-12  Alder Park: item 6, Opening hours",
+                      "2026-09-08  Alder Park: item 3, Playground"]
+
+
+def test_a_new_site_has_nothing_to_back_up(run: Run) -> None:
+    assert run("backup") == "There is no state database yet, so there is nothing to back up.\n"
+
+
+def test_backup_restore_and_the_backup_check_in_the_sites_words(run: Run, site: TestClient, data_dir: Path) -> None:
+    briefing = final_of(ask(site, DOGS))["briefing_id"]
+
+    said = run("backup").splitlines()
+    (archive,) = (data_dir / "backups").glob("parks-state-*.sqlite.gz")
+    assert said == [f"Backed up to {archive} (1 kept).", "No copy was sent off site: off-site copies are not set up."]
+    assert '"error": "not set up: add PARKS_B2_BUCKET, PARKS_B2_KEY_ID and PARKS_B2_APPLICATION_KEY' in run("offsite")
+    assert run("backup-check", "--in", str(data_dir / "backups")) \
+        == "warning: Backups are kept on this server only: no off-site copy is set up.\n"
+
+    ask(site, HOURS)
+    restored = run("restore", str(archive), "--yes")
+    assert restored == (f"Restored {data_dir / 'state.db'} from {archive}. The database it replaced is kept as "
+                        f"{data_dir / 'state.db.before-restore'}.\n")
+    assert site.get(f"/b/{briefing}").status_code == 200
+    assert "move or delete it first" in run("restore", str(archive), "--yes", code=1)  # the kept copy is never lost
+
+
+def test_a_statement_is_published_and_an_item_hidden_from_the_command_line(run: Run, site: TestClient) -> None:
+    address = f"/b/{final_of(ask(site, DOGS))['briefing_id']}"
+    assert run("waiting") == "0 reports and 0 statements are waiting, and 0 items are hidden.\n"
+    site.post("/api/statements", json={"name": "Priya Raman", "role": "Chair, Alder Park Committee", "item": address,
+                                       "text": "We stand by the decision.", "email": "chair@alderpark.example"})
+    site.post("/api/report", json={"kind": "takedown", "page": address, "contact": "reader@example.org",
+                                   "message": "Please take my name out of this briefing."})
+    assert run("waiting") == ("1 reports and 1 statements are waiting, and 0 items are hidden. The oldest has waited "
+                              "0 working days: the promise is five.\n")
+    listed = run("statements", "list")
+    assert "#1  pending  " in listed and f"beside {address}" in listed and "confirm with: chair@alderpark.example" in listed
+    assert "say how you confirmed" in run("statements", "publish", "1", "--checked", " ", code=1)
+    assert run("statements", "publish", "1", "--checked", "Replied from the committee's own address.") \
+        == f"Published statement 1. It is shown beside {address}.\n"
+    assert "Statement from Priya Raman" in site.get(address).text
+    assert "published: Replied from the committee's own address." in run("statements", "log", "1")
+
+    assert run("hide", address, "--note", "Hidden while a request about a name is decided.") \
+        == f"Hidden: {address}. Its page now shows the note.\n"
+    assert "Hidden while a request about a name is decided." in site.get(address).text
+    assert address in run("hidden")
+    assert run("unhide", address) == f"Shown again: {address}.\n"
+
+    assert "#1  takedown" in run("reports", "list")
+    assert run("reports", "close", "1", "--outcome", "resolved", "--note", "The name was not in the briefing.") \
+        == "Closed report 1. Its contact details are deleted.\n"
+    assert "reader@example.org" not in run("reports", "list", "--all")
+
+
+def test_statistics_the_weekly_report_and_the_nightly_tidy(run: Run, site: TestClient, data_dir: Path) -> None:
+    ask(site, DOGS)
+    ask(site, DOGS)
+    page = run("stats", "--since", "24h")
+    assert "Where Parks Stand" in page and "Answered from the cache" in page
+    assert run("stats", "--check") == ""  # no threshold is set, so nothing can be over one
+
+    said = run("weekly-report", "--week", datetime.now(UTC).date().isoformat())
+    written = sorted(p.name for p in (data_dir / "reports").iterdir())
+    assert len(written) == 2 and written[0].endswith(".json") and written[1].endswith(".md")
+    assert "No alert thresholds are set yet." in said and "daily_cost_usd = " in said  # proposed, for [alerts]
+
+    # one command each night, and its order is the point: the package's own deletions, then the site's (the right
+    # of reply's), and last the file written out afresh so that nothing deleted is left in it
+    assert run("tidy").splitlines() == [
+        "Deleted 0 records of briefings older than 13 months.",
+        "Removed the question from 0 records of failed briefings older than 90 days.",
+        "Deleted 0 weekly report files older than 13 months.",
+        "Forgot the visitor codes on 0 spending rows from before today.",
+        "Deleted 0 notes of failed briefings older than 90 days.",
+        "Deleted 0 visitor secrets of earlier days.",
+        "Deleted 0 cached answers older than the 168 hours the site keeps one.",
+        "Deleted 0 copies of the database made before an import, older than 60 days.",
+        "0 statements lapsed with no decision in three months; 0 old reports' contact details deleted; 0 confirming "
+        "addresses deleted, three months after their statements ended; 0 counts of earlier days' reports and "
+        "statements deleted.",
+        "Wrote the database out afresh: nothing deleted is left in the file."]
+    assert "tidy-replies" not in run("--help")  # no second command for the timer to forget
+
+
+def test_what_would_lapse_and_proposed_test_questions(run: Run, site: TestClient, data_dir: Path) -> None:
+    briefing = final_of(ask(site, DOGS))["briefing_id"]
+    site.app.state.parks.log.mark(briefing, useful=False)  # as a "Was this useful?" route would, on a reader's "no"
+    assert run("would-lapse").startswith("At the next tidy, 0 statements would lapse and 0 open reports would lose")
+    said = run("propose-questions").splitlines()
+    proposed = Path(said[0])
+    assert proposed.parent == data_dir / "proposed-questions" and "1 question proposed." in said[1]
+    text = proposed.read_text()
+    assert DOGS in text and "a reader said its briefing was not useful" in text
+    assert "NOTHING HERE IS IN THE TEST SET" in text  # a person approves each one, and copies it across by hand
+    # a briefing hidden while a concern about it is decided has its question proposed nowhere
+    run("hide", f"/b/{briefing}", "--note", "Hidden while a report about it is looked into.")
+    assert "0 questions proposed." in run("propose-questions") and DOGS not in proposed.read_text()
+
+
+def test_an_evaluation_run_is_recorded_in_the_sites_own_spending(run: Run, site: TestClient, tmp_path: Path) -> None:
+    """What a run costs shows in the site's spending and counts towards its caps (the kind "eval")."""
+    before = site.app.state.parks.parts.spending.totals("2000-01-01")
+    run("eval", "run", "--out", str(tmp_path / "runs"))
+    after = site.app.state.parks.parts.spending.totals("2000-01-01")
+    with site.app.state.parks.db.connect() as con:
+        rows = [(r["kind"], r["model"], r["visitor"]) for r in con.execute(
+            "SELECT kind, model, visitor FROM wts_spending ORDER BY id")]
+    # each of the three questions: its reading, then its writing; of the kind "eval", and for no visitor
+    assert rows == [("eval", "recorded-reading", None), ("eval", "recorded-briefing", None)] * 3
+    assert after.spent_usd > before.spent_usd == 0.0
+    assert after.briefings == before.briefings  # and it is nobody's briefing
+
+
+def test_an_evaluation_run_passes_is_noted_and_replays(run: Run, tmp_path: Path) -> None:
+    said = run("eval", "run", "--out", str(tmp_path / "runs"), "--record-fixtures", str(tmp_path / "fixtures"))
+    assert "dogs: completed" in said and "parking: no_records" in said
+    assert "Passed: every threshold met by configuration" in said
+    assert (tmp_path / "runs" / "passed.jsonl").exists()
+
+    replayed = run("eval", "replay", str(tmp_path / "fixtures"))
+    assert replayed == "The checks say of 2 recorded briefings exactly what they said when each was recorded.\n"
+    assert "--max-cost" in run("eval", "run", "--help")
