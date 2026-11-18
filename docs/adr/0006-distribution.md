@@ -16,7 +16,7 @@ One fact decides it. `uv` runs `git` to install a `git+https` dependency, and th
 
 | | A. A git tag | B. A wheel attached to a GitHub release | C. `git subtree` vendoring |
 |---|---|---|---|
-| What a site writes | `wts-core[ai] @ git+https://github.com/rj-mitchell/wts-core@v0.3.1` | `wts-core[ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.3.1/wts_core-0.3.1-py3-none-any.whl` | nothing: the code is copied into the site |
+| What a site writes | `wts-core[ai] @ git+https://github.com/rj-mitchell/wts-core@v0.3.2` | `wts-core[ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.3.2/wts_core-0.3.2-py3-none-any.whl` | nothing: the code is copied into the site |
 | Needs `git` in the image | yes, in three images (about 60 MB each) | no | no |
 | What `uv.lock` pins | the commit | the file's SHA-256 | nothing |
 | Built at install time | yes, fetching the build backend | no | no |

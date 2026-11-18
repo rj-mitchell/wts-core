@@ -4,7 +4,7 @@
 #
 #   jobs:
 #     kit:
-#       uses: rj-mitchell/wts-core/.github/workflows/kit.yml@v0.3.1
+#       uses: rj-mitchell/wts-core/.github/workflows/kit.yml@v0.3.2
 #       with:
 #         version: "2.0.1"
 #         site: countries

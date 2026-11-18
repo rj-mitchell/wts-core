@@ -3,7 +3,7 @@
 #
 #   jobs:
 #     docker:
-#       uses: rj-mitchell/wts-core/.github/workflows/docker.yml@v0.3.1
+#       uses: rj-mitchell/wts-core/.github/workflows/docker.yml@v0.3.2
 #       with:
 #         tag: wherelandlordsstand:ci
 #         run: landlords --help

@@ -141,6 +141,7 @@ Experiment: from wts_core.briefing.experiment
 ExperimentSwitch: from wts_core.briefing.experiment
 Hooks: from wts_core.briefing.desk
 KEEP_ALIVE_SECONDS = 15
+ModelCall: from wts_core.briefing.stages
 Stage: from wts_core.briefing.stages
 Stages: from wts_core.briefing.stages
 TooManyRequests: from wts_core.briefing.desk
@@ -178,6 +179,7 @@ class DeskSettings
     at_once: int
     estimate_usd: float
     cache_hours: float
+    most_output_usd: float | None = ...
 def desk_parts(settings: 'Settings', db: 'StateDB', messages: 'Messages', *, new_id: 'Callable[[Random], str]', at_once_per_visitor: 'int | str', forget_over: 'int | str', keep_failures: 'bool', require_prices_for: 'Iterable[str | None]' = (), section: 'str' = 'usage', clock: 'Clock' = <wts_core.ports.SystemClock object>, random: 'Random' = <wts_core.ports.SystemRandom object>) -> 'DeskParts'
 def desk_settings(settings: 'Settings', messages: 'Messages', *, at_once_per_visitor: 'int | str', forget_over: 'int | str', require_prices_for: 'Iterable[str | None]' = (), section: 'str' = 'usage') -> 'DeskSettings'
 
@@ -241,6 +243,8 @@ def experiment_switch(settings: 'Settings', config: 'BriefingConfig', *, log: 'S
 def unpriced_arms(experiment: 'Experiment', prices: 'PriceTable | None') -> 'str'
 
 ## wts_core.briefing.stages
+class ModelCall
+    def __init__(self, model: 'str') -> 'None'
 STAGES = tuple of 7
 type Stage = typing.Literal['parsed', 'searched', 'ranked', 'sources_sent', 'first_token', 'written', 'checked']
 class Stages
@@ -249,6 +253,8 @@ class Stages
     def elapsed(self) -> 'int'
     property last
     def mark(self, stage: 'Stage') -> 'None'
+    def model_call(self, model: 'str') -> 'ModelCall'
+    property model_calls
     def spent(self, usage: 'Usage | Mapping[str, Any] | None', cost: 'float') -> 'None'
 def calling(stages: 'Stages', config: 'BriefingConfig | None', function: 'Callable[[], T]') -> 'T'
 def current_config() -> 'BriefingConfig | None'
@@ -265,7 +271,7 @@ COMMON_LOADED_WORDS = 'lied|liar|liars|misled|misleading|dishonest|dishonesty|hy
 EVIDENCE_NOTES_STRICT = Pattern
 EVIDENCE_NOTES_WIDE = Pattern
 LoadedWords: from wts_core.checks.neutral
-RULES_VERSION = 1
+RULES_VERSION = 2
 Segment: from wts_core.checks.verify
 SourceText: from wts_core.checks.verify
 Status: from wts_core.checks.verify
@@ -314,7 +320,7 @@ def curl_quotes(text: 'str') -> 'str'
 COMMON_HONORIFICS = tuple of 8
 EVIDENCE_NOTES_STRICT = Pattern
 EVIDENCE_NOTES_WIDE = Pattern
-RULES_VERSION = 1
+RULES_VERSION = 2
 class Segment
     text: str
     sources: list[int] = ...
@@ -1124,7 +1130,7 @@ class Schema(Protocol)
     classmethod model_validate(cls, obj: 'Any') -> 'Self'
 class SpendingRecord(Protocol)
     def __init__(self, *args, **kwargs)
-    def add(self, kind: 'str', model: 'str | None', usage: 'Usage | Mapping[str, Any] | None', *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'float'
+    def add(self, kind: 'str', model: 'str | None', usage: 'Usage | Mapping[str, Any] | None', *, visitor: 'str | None' = None, account: 'int | None' = None, cost_usd: 'float | None' = None) -> 'float'
     def briefings_today(self, *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'int'
     def spent_since(self, since: 'str') -> 'float'
 class StoredFile
@@ -1690,7 +1696,7 @@ class Forgotten
     times: int = ...
 class Spending
     def __init__(self, db: 'StateDB', pricing: 'Pricing', *, clock: 'Clock' = <wts_core.ports.SystemClock object>) -> 'None'
-    def add(self, kind: 'str', model: 'str | None', usage: 'Usage | Mapping[str, Any] | None', *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'float'
+    def add(self, kind: 'str', model: 'str | None', usage: 'Usage | Mapping[str, Any] | None', *, visitor: 'str | None' = None, account: 'int | None' = None, cost_usd: 'float | None' = None) -> 'float'
     def briefings_today(self, *, visitor: 'str | None' = None, account: 'int | None' = None) -> 'int'
     def by_account(self, since: 'str') -> 'list[AccountSpending]'
     def by_day(self, since: 'str') -> 'list[DaySpending]'

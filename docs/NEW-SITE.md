@@ -27,7 +27,7 @@ The example's is `PARKS`.
 Take the example from the release of `wts-core` the site will pin, so the copy and the package agree.
 
 ```bash
-git clone --depth 1 --branch v0.3.1 https://github.com/rj-mitchell/wts-core
+git clone --depth 1 --branch v0.3.2 https://github.com/rj-mitchell/wts-core
 mkdir whereriversstand
 git -C wts-core archive HEAD examples/minimal-site | tar -x --strip-components=2 -C whereriversstand
 cd whereriversstand
@@ -67,7 +67,7 @@ without `allow-direct-references = true` the build refuses a dependency written 
 
 ```toml
 dependencies = [
-    "wts-core[cli,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.3.1/wts_core-0.3.1-py3-none-any.whl",
+    "wts-core[cli,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.3.2/wts_core-0.3.2-py3-none-any.whl",
     "fastapi>=0.115",
     "pydantic>=2.8",
     "uvicorn>=0.30",
@@ -276,13 +276,13 @@ permissions:
 jobs:
   # lint, strict types and tests, installed from the site's lock file
   python:
-    uses: rj-mitchell/wts-core/.github/workflows/python.yml@v0.3.1
+    uses: rj-mitchell/wts-core/.github/workflows/python.yml@v0.3.2
     with:
       type-check: "uv run mypy"
 
   # the family kit: the copy is the version the site says it synced
   kit:
-    uses: rj-mitchell/wts-core/.github/workflows/kit.yml@v0.3.1
+    uses: rj-mitchell/wts-core/.github/workflows/kit.yml@v0.3.2
     with:
       version: "2.0.1"
       site: rivers
@@ -290,7 +290,7 @@ jobs:
 
   # the image the server builds, and one command run in it
   docker:
-    uses: rj-mitchell/wts-core/.github/workflows/docker.yml@v0.3.1
+    uses: rj-mitchell/wts-core/.github/workflows/docker.yml@v0.3.2
     with:
       tag: whereriversstand:ci
       run: rivers --help
@@ -300,14 +300,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rj-mitchell/wts-core/.github/actions/setup@v0.3.1
+      - uses: rj-mitchell/wts-core/.github/actions/setup@v0.3.2
       - run: uv sync --frozen
       # started with the environment's own program, not `uv run`, and its process number kept to stop it by
       - run: |
           RIVERS_DATA_DIR="$RUNNER_TEMP/data" nohup .venv/bin/rivers serve --port 8000 > "$RUNNER_TEMP/site.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/site.pid"
       - run: curl --retry 20 --retry-connrefused --fail http://127.0.0.1:8000/api/health
-      - uses: rj-mitchell/wts-core/.github/actions/a11y@v0.3.1
+      - uses: rj-mitchell/wts-core/.github/actions/a11y@v0.3.2
         with:
           url: "http://127.0.0.1:8000"
       - name: What the site logged
