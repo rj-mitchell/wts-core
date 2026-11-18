@@ -33,6 +33,7 @@ from wts_core.checks import (
     britishise_segments,
     curl_answer,
 )
+from wts_core.checks import verify as our_verify
 
 
 @dataclass
@@ -387,3 +388,37 @@ def as_saved(answer: dict[str, Any], rng: random.Random) -> dict[str, Any]:
 
 def segments(seg_dicts: list[dict[str, Any]]) -> list[Segment]:
     return [Segment(s["text"], status=s["status"]) for s in seg_dicts]
+
+
+# The rules of version 1 (0.3.1 and before), as every site's own copy has them: what version 2 is compared with
+# (``test_checks_verify``), and what the comparison with each site's copy runs under (``test_checks_parity``)
+
+
+def connective_before(text: str, short: bool = True, **_: Any) -> bool:
+    """``_is_connective`` of version 1: any short line with no year, pound sign or percentage was a join."""
+    t = text.strip()
+    if not t or our_verify._DATE_ONLY.match(t):
+        return True
+    if t.startswith("#") or t.endswith(":"):
+        return True
+    stripped = re.sub(r"^[\s\-*•\d.)]+", "", t)
+    return short and len(stripped) <= 60 and not re.search(r"\d{4}|£|%", stripped)
+
+
+def note_before(pattern: re.Pattern[str], body: str) -> bool:
+    """A note about the evidence in version 1: anything the site's form of the rule matched, unless it named
+    someone as saying something."""
+    return bool(pattern.search(body)) and not our_verify._SOMEONE_SAID.search(body)
+
+
+def use_rules_before(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The checks as they were in version 1 of the rules, until ``monkeypatch`` undoes it."""
+    monkeypatch.setattr(our_verify, "_is_connective", connective_before)
+    monkeypatch.setattr(our_verify, "_is_note", note_before)
+    monkeypatch.setattr(Verifier, "rules_version", 1)
+
+
+@pytest.fixture
+def rules_before(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The checks as they were in version 1 of the rules, for the length of a test."""
+    use_rules_before(monkeypatch)

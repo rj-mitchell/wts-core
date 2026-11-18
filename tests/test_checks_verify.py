@@ -7,9 +7,28 @@ the evidence" rule), the test says so for each site: that is the behaviour its r
 
 from __future__ import annotations
 
+from itertools import product
+
 import pytest
 
-from checks_sites import COUNCILS, COUNTRIES, MPS, SITES, WIDE, SiteChecks, Source, src
+from checks_sites import (
+    CITED,
+    CLAIMS,
+    COUNCILS,
+    COUNTRIES,
+    JOINS,
+    LEAD_INS,
+    MPS,
+    NOTES,
+    RECORDS,
+    SITES,
+    WIDE,
+    SiteChecks,
+    Source,
+    briefings,
+    src,
+    use_rules_before,
+)
 from wts_core.checks import (
     COMMON_HONORIFICS,
     EVIDENCE_NOTES_STRICT,
@@ -523,9 +542,9 @@ OLD_FLAG = {"segments": [{"text": "X said it worked", "status": "cited"},
 
 
 def test_every_report_is_stamped_with_the_version_of_the_rules_that_wrote_it(v):
-    assert v.rules_version == RULES_VERSION == 1
+    assert v.rules_version == RULES_VERSION == 2  # 2: short claims and loose notes are flagged (0.3.2)
     answer = v.verify([{"text": "Ministers said "}], []).to_dict()
-    assert answer["rules"] == 1 and list(answer)[-1] == "rules"
+    assert answer["rules"] == 2 and list(answer)[-1] == "rules"
     assert set(answer) - {"rules"} == {"segments", "markdown", "no_records", "citations_total", "citations_invalid",
                                        "grounded_ratio", "unsupported_segments", "loaded_words", "quotes_total",
                                        "quotes_unverified"}  # today's keys, exactly
@@ -552,3 +571,102 @@ def test_when_the_rules_change_answers_stamped_before_are_judged_again(v):
     v.rules_version += 1
     assert v.verify([], []).to_dict()["rules"] == RULES_VERSION + 1
     assert v.recheck(stamped) is not stamped and v.recheck(stamped)["unsupported_segments"] == 0
+
+
+# Version 2 of the rules (0.3.2): a short claim is a claim, and a note about the evidence is about the records
+
+SHORT_CLAIMS = ("The minister took bribes.", "Labour voted against the bill.", "The council broke the law.",
+                "- The minister took bribes.\n", " The council broke the law. ", "Mr. Smith agreed.",
+                '" The minister admitted that the organisation was at fault.', "in May. The council broke the law.")
+# no full stop, and nothing cited after them to lead in to
+UNCLOSED_CLAIMS = ("Labour voted against the bill", "- The minister took bribes\n",
+                   "The evidence is clear that the minister lied to the House", "Note: the council broke the law")
+LOOSE_CLAIMS = ("The evidence is clear that the minister lied to the House.", "Note: the council broke the law.",
+                "There are serious gaps in the council's accounts, which have widened every year.",
+                "Caveat: the minister was never honest with the House about what the scheme would cost.",
+                "\nAbout the evidence: the minister was never honest with the House about the scheme.\n")
+STILL_JOINS = ("By contrast,", "Meanwhile, ", "In the Lords:", "In the Lords", " and ", ", while ", "in September.",
+               "at earlier stages.\n", "and that \"the borough was united behind it\".", "**In brief**\n",
+               "On the other hand, ", "No records found.", "Labour MPs\n", " (16 September 2025).\n", "with Mr. Smith.")
+STILL_NOTES = ("The sources provided contain no relevant records.", "There are gaps in the records retrieved.",
+               "Note: the records retrieved cover only the Commons.", "Caveat: no records from the Lords were supplied.",
+               "The evidence base is thin on rural councils.", "Notes: the records cover two meetings.",
+               "There are gaps in the minutes.", "No division records were supplied, so votes cannot be reported.")
+
+
+def test_a_short_sentence_that_says_something_is_a_claim(v):
+    for claim in SHORT_CLAIMS:
+        for next_is_cited in (False, True):
+            assert "unsupported" in statuses(v._classify_uncited(claim, next_is_cited)), (claim, next_is_cited)
+    for claim in UNCLOSED_CLAIMS:
+        assert "unsupported" in statuses(v._classify_uncited(claim, False)), claim
+
+
+def test_a_short_claim_between_citations_lowers_the_grounded_ratio(v):
+    sources = [src(1, "The line to Crewe is delayed by two years."), src(2, "Costs rose sharply.")]
+    blocks = [{"text": "the Crewe line is delayed by two years", "citations": [
+                  {"search_result_index": 0, "cited_text": "The line to Crewe is delayed by two years."}]},
+              {"text": ". The minister took bribes. "},
+              {"text": "Costs rose sharply.", "citations": [{"search_result_index": 1,
+                                                              "cited_text": "Costs rose sharply."}]}]
+    report = v.verify(blocks, sources)
+    assert statuses(report.segments) == ["cited", "unsupported", "cited"]
+    assert report.to_dict()["unsupported_segments"] == 1 and report.grounded_ratio < 1
+
+
+def test_the_loose_signs_of_a_note_make_one_only_about_the_records(v):
+    for claim in LOOSE_CLAIMS:
+        assert statuses(v._classify_uncited(claim, False)) != ["connective"], claim
+    for note in STILL_NOTES:
+        if v is not COUNCILS.verifier or "supplied" not in note or "division" in note:
+            assert statuses(v._classify_uncited(note, False)) == ["connective"], note
+
+
+def test_joins_transitions_and_the_close_of_a_cited_sentence_are_still_joins(v):
+    for join in STILL_JOINS:
+        for next_is_cited in (False, True):
+            assert statuses(v._classify_uncited(join, next_is_cited)) == ["connective"], (join, next_is_cited)
+
+
+def test_the_regression_cases_were_all_cleared_by_version_1(site, monkeypatch):
+    """What version 2 is for: each of these passed as a join or a note before."""
+    with monkeypatch.context() as before:
+        use_rules_before(before)
+        for claim in (*SHORT_CLAIMS[:3], *UNCLOSED_CLAIMS, *LOOSE_CLAIMS[:2]):
+            assert statuses(site.verifier._classify_uncited(claim, False)) == ["connective"], claim
+
+
+def by_character(segments) -> str:
+    """Each character's status, as one letter: what two classifications are compared on, however they merge."""
+    return "".join(s.status[0] * len(s.text) for s in segments)
+
+
+def test_version_2_only_ever_flags_more_than_version_1(site, monkeypatch):
+    """The property the rules promise (CONTRIBUTING, "the checks never get weaker"), over every fragment the sites'
+    tests use, their pairings with a lead-in, the cases above, and a few hundred generated briefings: a character
+    version 1 flagged, version 2 flags too, and only "connective" ever becomes "unsupported"."""
+    v = site.verifier
+    pieces = [*LEAD_INS, *CLAIMS, *NOTES, *JOINS, *RECORDS, *(said for said, _ in CITED), *SHORT_CLAIMS,
+              *UNCLOSED_CLAIMS, *LOOSE_CLAIMS, *STILL_JOINS, *STILL_NOTES,
+              *(a + b for a, b in product(CLAIMS[:12] + NOTES + JOINS, LEAD_INS))]
+    generated = briefings(300)
+
+    def classify() -> tuple[list[str], list[tuple[str, float]]]:
+        pieces_now = [by_character(v._classify_uncited(text, next_is_cited, flagged))
+                      for text, next_is_cited, flagged in product(pieces, (False, True), (False, True))]
+        reports = [v.verify(blocks, sources) for blocks, sources in generated]
+        return pieces_now, [(by_character(r.segments), r.grounded_ratio) for r in reports]
+
+    after_pieces, after_reports = classify()
+    with monkeypatch.context() as before:
+        use_rules_before(before)
+        before_pieces, before_reports = classify()
+    flagged = 0
+    for was, now in [*zip(before_pieces, after_pieces, strict=True),
+                     *((w[0], n[0]) for w, n in zip(before_reports, after_reports, strict=True))]:
+        assert len(was) == len(now)
+        changed = {(a, b) for a, b in zip(was, now, strict=True) if a != b}
+        assert changed <= {("c", "u")}, changed
+        flagged += bool(changed)
+    assert all(n[1] <= w[1] for w, n in zip(before_reports, after_reports, strict=True))
+    assert flagged > 50  # and it does flag more: the claims among the fragments are short

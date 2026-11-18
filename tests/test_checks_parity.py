@@ -3,6 +3,10 @@
 Each site's own modules are loaded from its checkout (``checks_sites.theirs``; the tests are skipped where there is
 none) and run beside the package's, with that site's inputs, on a few hundred generated briefings and on every
 fragment they are made of. The package stamps its reports with ``rules``; nothing else may differ.
+
+Version 2 of the rules (0.3.2) is stricter than every site's copy on purpose: short claims and loose notes about the
+evidence are flagged. So the comparison is made under version 1 (``rules_before``), which proves that nothing else
+changed, and ``test_checks_verify`` proves that version 2 only ever flags more.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from checks_sites import (
     SiteChecks,
     as_saved,
     briefings,
+    rules_before,  # noqa: F401  # a fixture
     theirs,
 )
 from wts_core.checks import (
@@ -46,6 +51,8 @@ from wts_core.checks import (
 from wts_core.checks import british as our_british
 from wts_core.checks import typography as our_typography
 from wts_core.checks import verify as our_verify
+
+pytestmark = pytest.mark.usefixtures("rules_before")
 
 COUNT = 400  # generated briefings for each site
 FRAGMENTS = (*LEAD_INS, *CLAIMS, *NOTES, *JOINS, *RECORDS, *(said for said, _ in CITED))
