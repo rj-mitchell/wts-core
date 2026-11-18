@@ -17,12 +17,12 @@ One pull request in the site, holding nothing but the upgrade:
    change asks of the site.
 2. Raise the version in the site's `pyproject.toml`. The dependency is the address of the release's wheel, which
    holds the version twice, in the tag and in the file name
-   (`…/releases/download/v0.3.1/wts_core-0.3.1-py3-none-any.whl`). Leave `[tool.hatch.metadata]
+   (`…/releases/download/v0.3.2/wts_core-0.3.2-py3-none-any.whl`). Leave `[tool.hatch.metadata]
    allow-direct-references = true` in place: without it the build refuses a dependency given as an address.
 3. Run `uv lock`, then `uv sync`. The lock file records the new wheel's hash, so a file changed after its release
    fails the build.
 4. Raise the tag of the shared workflows and actions to the same version, wherever the site's `.github/workflows/`
-   call them (`rj-mitchell/wts-core/.github/workflows/python.yml@v0.3.1`, and the same for `kit.yml`,
+   call them (`rj-mitchell/wts-core/.github/workflows/python.yml@v0.3.2`, and the same for `kit.yml`,
    `docker.yml`, `web.yml`, `actions/setup` and `actions/a11y`). The site then has one version number.
    Dependabot is told to leave these alone ([`NEW-SITE.md`](NEW-SITE.md#9-ci)), so they are raised only here.
 5. Make the changes the changelog asks for, then run the site's checks: `uv run ruff check .`, `uv run mypy`,

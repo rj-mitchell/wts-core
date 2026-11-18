@@ -3,7 +3,7 @@
 #
 #   jobs:
 #     web:
-#       uses: rj-mitchell/wts-core/.github/workflows/web.yml@v0.3.1
+#       uses: rj-mitchell/wts-core/.github/workflows/web.yml@v0.3.2
 #       with:
 #         working-directory: web
 name: Web checks

@@ -5,6 +5,72 @@ version is 0.x a minor version may change the public interface ([ADR 0007](docs/
 `api:` line under each version is the fingerprint of the public interface in `docs/api-snapshot.txt`;
 `tests/test_public_api.py` fails if the interface changes without a new entry here.
 
+## 0.3.2 (18 November 2026)
+
+Fixes for four faults an audit of 0.3.1 found: briefings that did not finish were never charged, a briefing in
+progress was reserved at less than it can cost, short claims passed the check on unsupported sentences, and a
+backup held the day's visitor secret beside the day's visitor codes. Nothing is renamed or removed.
+
+api: 3edad3a164c9
+
+### What a site must do
+
+1. Raise its pin to the 0.3.2 wheel, and the shared workflows and actions to `@v0.3.2`, then `uv lock`
+   ([`docs/UPGRADING.md`](docs/UPGRADING.md)).
+2. Set `[usage] briefing_estimate_usd` to at least the most one briefing can cost: `[answer] max_tokens` of
+   output at the briefing model's output price, plus what the model reads for the site's largest briefing. At
+   16,000 tokens and $10 a million (claude-sonnet-5-5) the output alone is $0.16, more than any site reserves
+   today ($0.15 on Where MPs Stand and Where Councils Stand, $0.10 on Where Countries Stand). Until the setting is
+   raised, the package reserves the output figure instead and says so in a warning at start-up. Where Landlords
+   Stand has no briefings and nothing to set.
+3. Expect its own tests to say what changed, and update them: the spending rows after a reader leaves or a
+   model fails part-way (now an `unfinished` row), reports stamped `"rules": 2`, and short uncited claims now
+   `unsupported` in golden reports. Run `<site> eval replay` on its recorded briefings: every difference it lists
+   must be "stricter".
+4. Read its privacy notice and its words for the daily limit: a briefing the reader leaves once the model has
+   begun, or that the model breaks off, now counts towards that reader's limit, as it is paid for.
+
+### Changed
+
+- A briefing whose model was called but whose cost never reached the desk in an event (the reader left, the
+  model's stream broke off, the site's pipeline failed after the call, or its error event carried no counts) is
+  charged when it ends, in a row of kind `unfinished`. The model's adapter reports what each call has used as it
+  goes (`briefing.Stages.model_call`, `briefing.ModelCall`): the Anthropic adapter takes the input from the API's
+  first event and the output from its counts or, until it counts, from the length of what has been written
+  (thinking included); `testing.ScriptedModel` does the same. A call nothing is known of yet, and a briefing
+  whose model wrote through an adapter that reports nothing, is charged the estimate a briefing in progress is
+  reserved at. `Spending.briefings_today` counts `unfinished` rows with `answer` rows, so they count towards the
+  daily limits; the owner's reports still count only `answer` rows as briefings.
+- A model call the spending record could not take (a locked database) no longer ends the reader's briefing: the
+  error is logged, the call is tried again when the briefing ends, and a call that still cannot be written is
+  logged as critical, as missing from the spending record. No log line holds the question or the reader's code.
+- `desk_parts` never reserves a briefing in progress at less than `[answer] max_tokens` at the `[answer] model`'s
+  output price, where both are set (`DeskSettings.most_output_usd`). An `[answer] max_tokens` that is not a number
+  stops the site with the other faults in its settings.
+- The checks on briefings are version 2 of the rules (`checks.RULES_VERSION`), stricter than version 1 in two
+  places and nowhere weaker. A short uncited line that is a sentence of its own ("The minister took bribes.",
+  "Labour voted against the bill") is a claim: it is still a join where it leads on to what follows (a comma, a
+  colon), carries a cited sentence on to its close ("in September."), is a transition or label of a word or three
+  ("By contrast", "In the Lords"), the site's words for no records, or a short note on what the records do not
+  hold. And the looser signs of a note about the evidence ("the evidence is", "gaps", "caveats", a line opening
+  "Note:") make a note only in a line about the records themselves ("the records retrieved", "the sources
+  supplied", "no records", "the evidence base"). Over the seven real briefings recorded in the sites' checkouts
+  and in this package, every uncited passage judged with each site's inputs, no passage changed. In the saved
+  briefings of the sites' own tests one passage did, wherever it appears: a sentence of its own after a citation
+  (`" The minister admitted that the organisation was at fault.`). A briefing saved under version 1 is judged
+  again when it is shown, as before, which only ever clears a flag.
+- A backup's copy of the state database holds no visitor secret (today's included) and no visitor's code: they
+  are taken out of the copy, with `secure_delete`, before it is checked and packed (`ops.make_backup`). The live
+  database keeps today's for the limits. A database restored from a backup starts a new secret, and its visitors
+  start the day afresh. Where the backup cannot forget the days before today, what it says it holds now names
+  accounts and times of day only.
+
+### Added
+
+- `briefing.ModelCall`, `Stages.model_call` and `Stages.model_calls`; `SpendingRecord.add(cost_usd=…)` and
+  `InProgress.estimate_usd` (a site's own implementation of either, of which there are none today, needs them);
+  `DeskSettings.most_output_usd`.
+
 ## 0.3.1 (17 November 2026)
 
 Documentation, comments and the example site's wording only. No change to the public interface or to behaviour,

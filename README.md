@@ -11,7 +11,7 @@ site is held to the same checks. Each site keeps its own record, search, pages a
 
 ## Status
 
-Beta, version 0.3.1 (17 November 2026). All four sites run on the package: each pins version 0.3.0 and was
+Beta, version 0.3.2 (18 November 2026). All four sites run on the package: each pins version 0.3.0 and was
 running it on its live server on 17 November 2026. While the version is 0.x a minor release may change the public interface, and
 [`CHANGELOG.md`](CHANGELOG.md) says what a site must do for each change.
 
@@ -207,7 +207,7 @@ A site depends on the wheel attached to a tagged release, by its address, with t
 
 ```toml
 dependencies = [
-    "wts-core[cli,offsite,duckdb,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.3.1/wts_core-0.3.1-py3-none-any.whl",
+    "wts-core[cli,offsite,duckdb,ai] @ https://github.com/rj-mitchell/wts-core/releases/download/v0.3.2/wts_core-0.3.2-py3-none-any.whl",
 ]
 
 [tool.hatch.metadata]
@@ -215,7 +215,7 @@ allow-direct-references = true
 ```
 
 Hatchling, the build backend the sites use, refuses a dependency given as an address without the second table. A
-site calls the shared CI workflows at the same tag (`rj-mitchell/wts-core/.github/workflows/python.yml@v0.3.1`),
+site calls the shared CI workflows at the same tag (`rj-mitchell/wts-core/.github/workflows/python.yml@v0.3.2`),
 so it has one version number to raise. The repository is public, so neither the wheel nor the workflows need a
 token, and a site's Docker image does not need `git`.
 
