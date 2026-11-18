@@ -13,16 +13,23 @@ made a refused request first every time). And how the instructions are cached is
 what the sites send today, "long" asks for the one-hour lifetime the SDK documents (``ttl``), "off" sends them as
 plain text.
 
+What a briefing's call has used is reported as the stream goes (``briefing.Stages.model_call``): the input from
+the first event the API sends, and the output from its counts or, between them, from the length of what has been
+written. So a briefing the reader leaves, or one the API breaks off, is still charged for what it used.
+
 ``anthropic`` is imported only inside functions, so importing this module needs nothing installed.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import logging
+import math
 import os
 from collections.abc import Generator, Iterator, Mapping
 from typing import Any
 
+from wts_core.briefing.stages import ModelCall, current_stages
 from wts_core.events import Block, Citation, CitationDelta, Completed, ModelEvent, TextDelta
 from wts_core.ports import Document, ModelRequest, NoStructuredAnswer, Schema, Usage, read_structured
 from wts_core.settings import Settings, Site
@@ -44,6 +51,9 @@ log = logging.getLogger(__name__)
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 KEY_FILE = "anthropic_api_key"  # in the data folder; written by hand, or by a site's own command
 BASE_URL = "https://api.anthropic.com"
+# How many characters of what the model has written are taken as one token, until the API counts them: a little
+# under English prose's usual four, so that the estimate of a call broken off errs on the high side.
+_CHARS_PER_TOKEN = 3
 
 
 def api_key(site: Site, settings: Settings, env: Mapping[str, str] | None = None) -> str | None:
@@ -138,6 +148,39 @@ def _usage(usage: Any) -> Usage:
     return Usage.from_mapping(_usage_dict(usage))
 
 
+class _SoFar:
+    """What one streamed call has used so far, kept up to date on its ``ModelCall`` from the API's own counts:
+    the input from ``message_start`` and the output from ``message_delta``. The API counts the output only at the
+    end, so until then it is estimated from the length of the text (and any thinking) written. Before
+    ``message_start`` nothing is known, and the call's usage stays None."""
+
+    def __init__(self, call: ModelCall) -> None:
+        self._call = call
+        self._start: Usage | None = None
+        self._output = 0
+        self._chars = 0
+
+    def saw(self, event: Any) -> None:
+        kind = getattr(event, "type", None)
+        if kind == "message_start":
+            usage = getattr(getattr(event, "message", None), "usage", None)
+            self._start = None if usage is None else _usage(usage)
+        elif kind == "message_delta":
+            self._output = max(self._output, int(getattr(getattr(event, "usage", None), "output_tokens", 0) or 0))
+        elif kind == "content_block_delta":
+            delta = event.delta
+            self._chars += len(getattr(delta, "text", None) or getattr(delta, "thinking", None) or "")
+        else:
+            return
+        if self._start is not None:
+            written = math.ceil(self._chars / _CHARS_PER_TOKEN)
+            self._call.usage = dataclasses.replace(self._start,
+                                                   output=max(self._start.output, self._output, written))
+
+    def done(self, usage: Usage) -> None:
+        self._call.usage = usage
+
+
 def _block(block: Any) -> Block | None:
     """A text block of the finished message with its citations; anything else (thinking, say) is dropped."""
     if getattr(block, "type", None) != "text":
@@ -187,7 +230,8 @@ class AnthropicClient:
 
     def stream(self, request: ModelRequest) -> Generator[ModelEvent, None, None]:
         """Text and citations as they are written, then one ``Completed`` (``ports.ModelStream``). Closing it
-        closes the SDK's stream, so a briefing nobody is reading stops being written."""
+        closes the SDK's stream, so a briefing nobody is reading stops being written. What the call has used so
+        far is reported to the briefing being written (``briefing.Stages.model_call``) as the stream goes."""
         content: list[dict[str, Any]] = [search_result(d) for d in request.documents]
         content.append({"type": "text", "text": request.question})
         kwargs: dict[str, Any] = {
@@ -217,7 +261,10 @@ class AnthropicClient:
         else:
             ctx = self.client.messages.stream(**kwargs)
         with ctx as stream:
+            # the API has taken the request, so it is paid for from here, however the stream ends
+            so_far = _SoFar(current_stages().model_call(str(kwargs["model"])))
             for event in stream:
+                so_far.saw(event)
                 if event.type != "content_block_delta":
                     continue
                 d = event.delta
@@ -229,7 +276,9 @@ class AnthropicClient:
                                         quoted=getattr(c, "cited_text", ""))
             msg = stream.get_final_message()
         blocks = tuple(b for b in (_block(x) for x in msg.content) if b)
-        yield Completed(blocks=blocks, model=msg.model, stop_reason=msg.stop_reason, usage=_usage(msg.usage))
+        usage = _usage(msg.usage)
+        so_far.done(usage)
+        yield Completed(blocks=blocks, model=msg.model, stop_reason=msg.stop_reason, usage=usage)
 
     # A question read into a schema
 

@@ -16,9 +16,11 @@ import pytest
 from test_usage_sites import COUNCILS, MPS, SiteFacts, site  # noqa: F401
 from wts_core import usage as core_usage
 from wts_core.briefing import Ask, BriefingDesk, Hooks, TooManyRequests, current_stages, sse
-from wts_core.ports import BriefingConfig, BriefingRecord
+from wts_core.events import Block, Completed, TextDelta, to_reader
+from wts_core.ports import BriefingConfig, BriefingRecord, ModelRequest, Usage
 from wts_core.state import StateDB
 from wts_core.testing import FixedClock, FixedRandom
+from wts_core.testing.models import ScriptedModel
 from wts_core.usage import (
     BriefingArchive,
     BriefingsInProgress,
@@ -454,7 +456,9 @@ def test_a_failure_while_writing_becomes_the_sites_error_event(told, caplog):
     assert events[-1] == {"type": "error", "message": told.messages.briefing_failed}
     assert [(f["kind"], f["question"], f["error"]) for f in told.rows("wts_failures")] == [
         ("briefing", Q, "RuntimeError: the stream broke")]
-    assert [r["kind"] for r in told.rows("wts_spending")] == ["parse"]  # the answer's tokens are not known
+    # the model had begun writing and its tokens are not known: the briefing is charged the estimate
+    assert [(r["kind"], r["cost_usd"]) for r in told.rows("wts_spending")][1:] == [
+        ("unfinished", told.in_progress.estimate_usd)]
     assert told.rows("wts_answer_cache") == told.rows("wts_briefings") == [] and told.in_progress.running == {}
     r = told.record
     assert (r.outcome, r.error_type, r.left_at, r.t_first_token, r.t_written) == (
@@ -550,9 +554,19 @@ def test_the_reader_leaving_is_recorded_with_the_stage_they_left_at(told, taken,
     assert stopped == [True] and told.in_progress.running == {}  # the pipeline, and with it the model, stopped
     r = told.record
     assert (r.outcome, r.left_at, r.t_total, r.briefing_id) == ("left", left_at, t_total, None)
-    assert [row["kind"] for row in told.rows("wts_spending")] == ["parse"]  # what was spent before they left
-    assert r.output_tokens == PARSE["output_tokens"] and r.cost_usd > 0
-    assert told.rows("wts_answer_cache") == told.rows("wts_briefings") == []
+    rows = told.rows("wts_spending")
+    parse_cost = rows[0]["cost_usd"]
+    if left_at == "first_token":
+        # The model had begun writing, and this pipeline's model says nothing of what it has used: the briefing
+        # is charged the estimate it was reserved at, and counts towards the reader's limit
+        assert [(row["kind"], row["output_tokens"], row["cost_usd"], row["visitor"]) for row in rows[1:]] == [
+            ("unfinished", 0, told.in_progress.estimate_usd, VISITOR)]
+        assert told.spending.briefings_today(visitor=VISITOR) == 1
+    else:
+        assert [row["kind"] for row in rows] == ["parse"]  # what was spent before they left: no model was called
+        assert told.spending.briefings_today(visitor=VISITOR) == 0
+    assert r.output_tokens == PARSE["output_tokens"] and r.cost_usd == round(sum(row["cost_usd"] for row in rows), 6)
+    assert parse_cost > 0 and told.rows("wts_answer_cache") == told.rows("wts_briefings") == []
 
 
 def test_the_reader_leaving_through_the_streamer(told):
@@ -612,6 +626,167 @@ def test_a_refusal_stays_a_refusal_if_the_reader_goes_before_its_sources_are_sen
     next(stream)
     stream.close()
     assert (told.record.outcome, told.record.left_at) == ("paused_limit", "parsed")
+
+
+# What a briefing that did not finish costs
+
+# what the model reads for a briefing, and what it has written when it is done
+READ = Usage(input_uncached=7000, cache_write=1000, cache_read=2000)
+WRITTEN = Usage(input_uncached=7000, cache_write=1000, cache_read=2000, output=600)
+
+
+def through_the_model(told: Told, model: Any, final: bool = True) -> Callable[[], Iterator[dict[str, Any]]]:
+    """A pipeline as the sites write theirs: the model's stream passed on, closed however it ends, and its cost
+    sent on the final event (or not, with ``final=False``, as a pipeline that says the model declined may not)."""
+
+    def write() -> Iterator[dict[str, Any]]:
+        yield {"type": "plan", "plan": {"parser": "model"}, "usage": dict(PARSE)}
+        yield {"type": "sources", "sources": CARDS, "candidates": 9}
+        done: Completed | None = None
+        stream = model.stream(ModelRequest(model=told.model, instructions="Use the sources.", question=Q))
+        try:
+            for event in stream:
+                if isinstance(event, Completed):
+                    done = event
+                else:
+                    yield to_reader(event)
+        finally:
+            stream.close()
+        assert done is not None
+        if not final:
+            yield {"type": "error", "message": told.messages.model_declined}
+            return
+        yield {"type": "final", "answer": dict(ANSWER), "usage": done.usage.as_stored(), "model": done.model,
+               "stop_reason": done.stop_reason}
+
+    return write
+
+
+def scripted(told: Told) -> ScriptedModel:
+    return ScriptedModel([TextDelta("The motion "), TextDelta("was lost."),
+                          Completed((Block("The motion was lost."),), told.model, "end_turn", WRITTEN)])
+
+
+def unfinished(told: Told) -> list[dict[str, Any]]:
+    return [r for r in told.rows("wts_spending") if r["kind"] == "unfinished"]
+
+
+def test_a_reader_who_leaves_while_the_model_writes_is_charged_what_the_model_had_used(told):
+    model = scripted(told)
+    stream = told.desk.handle(told.ask(write=through_the_model(told, model)))
+    assert [next(stream)["type"] for _ in range(3)] == ["plan", "sources", "text"]
+    stream.close()
+    assert model.closed == 1
+    # the input the model had read, and the eleven characters it had written so far, counted on the high side
+    (row,) = unfinished(told)
+    assert (row["input_tokens"], row["cache_read_tokens"], row["cache_write_tokens"], row["output_tokens"]) == (
+        8000, 2000, 1000, 4)
+    assert row["model"] == told.model and row["visitor"] == VISITOR
+    assert row["cost_usd"] == told.spending._pricing.cost(Usage(7000, 1000, 2000, 4), told.model)
+    r = told.record
+    assert (r.outcome, r.input_tokens, r.output_tokens) == ("left", 8000 + PARSE["input_tokens"], 4 + 100)
+    assert told.spending.briefings_today(visitor=VISITOR) == 1  # it counts towards the reader's limit
+
+
+def test_a_briefing_that_finished_is_charged_once_from_its_final_event(told):
+    model = scripted(told)
+    told.run(write=through_the_model(told, model))
+    assert [r["kind"] for r in told.rows("wts_spending")] == ["parse", "answer"]
+    assert told.rows("wts_spending")[1]["output_tokens"] == 600 and told.record.outcome == "completed"
+
+
+def test_a_pipeline_that_leaves_the_cost_off_its_error_event_is_charged_what_the_model_said(told):
+    """As Where MPs Stand's pipeline does when the model declines: the call was paid for all the same."""
+    told.run(write=through_the_model(told, scripted(told), final=False))
+    (row,) = unfinished(told)
+    assert (row["input_tokens"], row["output_tokens"]) == (8000, 600)  # the counts the model finished with
+    assert told.record.outcome == "error"
+
+
+class BrokenOff:
+    """A model that reports what it has used as the Anthropic adapter does, and whose stream breaks part-way."""
+
+    provider = "broken"
+    supports = frozenset({"citations"})
+
+    def __init__(self, *, knows: bool = True) -> None:
+        self.knows = knows
+
+    def stream(self, request: ModelRequest) -> Iterator[Any]:
+        call = current_stages().model_call(request.model)
+        call.usage = READ if self.knows else None
+        yield TextDelta("The motion ")
+        if self.knows:
+            call.usage = dataclasses.replace(READ, output=40)
+        raise ConnectionError("the stream was cut off")
+
+
+def test_a_model_that_breaks_off_part_way_is_charged_what_it_had_used(told):
+    events = told.run(write=through_the_model(told, BrokenOff()))
+    assert types(events) == ["plan", "sources", "text", "error"]
+    (row,) = unfinished(told)
+    assert (row["input_tokens"], row["output_tokens"]) == (8000, 40)
+    r = told.record
+    assert (r.outcome, r.error_type, r.output_tokens) == ("error", "ConnectionError", 140)
+    assert told.spending.briefings_today(visitor=VISITOR) == 1
+
+
+def test_a_call_the_model_said_nothing_of_is_charged_the_estimate(told):
+    told.run(write=through_the_model(told, BrokenOff(knows=False)))
+    (row,) = unfinished(told)
+    assert (row["input_tokens"], row["output_tokens"], row["cost_usd"]) == (0, 0, told.in_progress.estimate_usd)
+    assert row["model"] == told.model and told.record.cost_usd > told.in_progress.estimate_usd
+
+
+def test_briefings_left_unfinished_count_towards_the_readers_daily_limit(told):
+    for _ in range(2):  # the limit in these tests is two a day
+        stream = told.desk.handle(told.ask(write=through_the_model(told, scripted(told))))
+        [next(stream) for _ in range(3)]
+        stream.close()
+    record = refused_with(told, told.messages.visitor_daily_limit)
+    assert record.outcome == "paused_limit" and len(unfinished(told)) == 2
+
+
+class Flaky:
+    """The spending record, failing to write the first ``fails`` calls of one kind (a locked database)."""
+
+    def __init__(self, spending: Spending, kind: str, fails: int) -> None:
+        self.spending, self.kind, self.fails = spending, kind, fails
+
+    def add(self, kind: str, model: str | None, usage: Any, **more: Any) -> float:
+        if kind == self.kind and self.fails:
+            self.fails -= 1
+            raise OSError("database is locked")
+        return self.spending.add(kind, model, usage, **more)
+
+    def spent_since(self, since: str) -> float:
+        return self.spending.spent_since(since)
+
+    def briefings_today(self, **who: Any) -> int:
+        return self.spending.briefings_today(**who)
+
+
+def test_a_cost_the_spending_record_could_not_take_is_written_when_the_briefing_ends(site, tmp_path, caplog):  # noqa: F811
+    told = Told(site, tmp_path)
+    told.desk._spending = Flaky(told.spending, "answer", fails=1)
+    with caplog.at_level(logging.ERROR):
+        events = told.run()
+    assert events[-1]["type"] == "final" and events[-1]["briefing_id"] == "saved1"  # the reader has the briefing
+    assert [r["kind"] for r in told.rows("wts_spending")] == ["parse", "answer"]  # and it was paid for, once
+    assert told.record.cost_usd == round(sum(r["cost_usd"] for r in told.rows("wts_spending")), 6)
+    assert "could not be written to the spending record" in caplog.text
+    assert Q not in caplog.text and VISITOR not in caplog.text  # no word of the question or the reader
+
+
+def test_a_cost_that_is_never_written_is_reported_as_missing_from_the_spending_record(site, tmp_path, caplog):  # noqa: F811
+    told = Told(site, tmp_path)
+    told.desk._spending = Flaky(told.spending, "answer", fails=2)
+    with caplog.at_level(logging.ERROR):
+        events = told.run()
+    assert events[-1]["type"] == "final"
+    assert [r["kind"] for r in told.rows("wts_spending")] == ["parse"]
+    (lost,) = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+    assert "missing from the spending record" in lost.getMessage() and Q not in caplog.text
 
 
 # The hooks

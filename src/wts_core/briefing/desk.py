@@ -13,7 +13,10 @@ is today's, on every site:
 5. when the pipeline has finished, what is needed to play the briefing again goes into the answer cache;
 6. a cap, a limit or a full house stops the briefing, never the answer: the sources are sent anyway, with the
    site's note saying why, which costs nothing;
-7. whatever happens the place is released, and one record of how the briefing went is written (ADR 0012). The
+7. a briefing whose model was called but whose cost never reached the desk in an event (the reader left, or the
+   model or the pipeline failed part-way) is charged for what the model's adapter said it had used
+   (``Stages.model_call``), or else at the estimate it was reserved at, and counts towards the reader's limit;
+8. whatever happens the place is released, and one record of how the briefing went is written (ADR 0012). The
    record holds the question only where the site keeps it already: see ``_QUESTION_KEPT``.
 
 What differs between the sites is passed in: every word a reader sees (``Messages``), what is in the cache key,
@@ -43,7 +46,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from wts_core.briefing.experiment import ExperimentSwitch
-from wts_core.briefing.stages import STAGES, Stages, calling, marking
+from wts_core.briefing.stages import STAGES, ModelCall, Stages, calling, marking
 from wts_core.events import Event
 from wts_core.ports import (
     SYSTEM_CLOCK,
@@ -63,6 +66,7 @@ from wts_core.ports import (
 from wts_core.settings import Messages
 from wts_core.state import iso
 from wts_core.usage import Caps, FailureLog, Refusal, SavedBriefings, busy_refusal, cache_key
+from wts_core.usage.spending import UNFINISHED
 
 __all__ = ["CHECKED", "Ask", "BriefingDesk", "Event", "Hooks", "TooManyRequests"]
 
@@ -219,6 +223,10 @@ class _Run:
         self.warned = False
         self.recorded = False
         self.no_briefing = False  # only the sources were asked for, or the briefing was refused: none was begun
+        self.answered = False  # the writing of the briefing has been charged, from a final or an error event
+        self.ended = False  # the pipeline sent its final or its error event: its own account of the briefing
+        # calls the spending record could not take when they were made, tried again when the briefing ends
+        self.unwritten: list[tuple[str, str | None, Usage | None, float | None]] = []
 
     def left(self, *, writing: bool) -> None:
         """The reader went before the end. Only a briefing that was being written is recorded as one the reader
@@ -463,6 +471,8 @@ class BriefingDesk:
                     if self._failures is not None:
                         self._failures.note("briefing", ask.question, str(event.get("message", "")))
                     run.failed(DECLINED)
+                if kind in ("final", "error"):
+                    run.ended = True
                 for spent in self._spent(ask, event):
                     self._spend(ask, run, *spent)
                 if kind == "error":  # the declined call was paid for and is recorded; its counts are not sent
@@ -503,6 +513,7 @@ class BriefingDesk:
         finally:
             if pipeline is not None:
                 _close(pipeline)
+            self._settle(ask, run)
         if run.outcome is None:
             run.failed(NO_FINAL)
         if key is not None and last.get("type") == "final" and last.get("answer"):
@@ -519,11 +530,58 @@ class BriefingDesk:
             yield "answer", event.get("model"), event.get("usage")
 
     def _spend(self, ask: Ask, run: _Run, kind: str, model: str | None,
-               usage: Usage | Mapping[str, Any] | None) -> None:
-        if not usage:
+               usage: Usage | Mapping[str, Any] | None, cost_usd: float | None = None) -> None:
+        if not usage and cost_usd is None:
             return
-        run.cost += self._spending.add(kind, model, usage, visitor=ask.visitor, account=ask.account)
-        run.usage += usage if isinstance(usage, Usage) else Usage.from_mapping(usage)
+        counts = None if not usage else usage if isinstance(usage, Usage) else Usage.from_mapping(usage)
+        if kind == "answer":
+            run.answered = True
+        if counts is not None:
+            run.usage += counts
+        try:
+            run.cost += self._spending.add(kind, model, counts, visitor=ask.visitor, account=ask.account,
+                                           cost_usd=cost_usd)
+        except Exception:
+            # The call was paid for whatever happens here, so the reader still has the briefing, and the cost is
+            # tried again when it ends. Meanwhile the caps count less than was spent: said loudly, with no word
+            # of the question or the reader.
+            log.exception("briefing %s: a %s call (%s, %s, $%s) could not be written to the spending record; it "
+                          "will be tried again when the briefing ends", run.id, kind, model,
+                          counts.as_stored() if counts else "no token counts", cost_usd)
+            run.unwritten.append((kind, model, counts, cost_usd))
+
+    def _settle(self, ask: Ask, run: _Run) -> None:
+        """When the pipeline has ended, however it ended: charge a briefing whose model was called but whose
+        cost never reached the desk in a final or an error event (the reader left, or the model or the pipeline
+        failed part-way), and try again to record what the spending record could not take earlier.
+
+        Each call the model's adapter reported (``Stages.model_call``) is charged for what it had used, as far as
+        the adapter knew, and one it knew nothing of yet at the estimate a briefing in progress is reserved at. An
+        adapter that reports nothing leaves only the model's words to go by: a briefing whose model had begun
+        writing, and that ended without the pipeline's own final or error event, is charged the estimate. These
+        rows are of kind ``unfinished``, and count towards the reader's daily limit as a briefing does."""
+        try:
+            if not run.answered:
+                calls = run.stages.model_calls
+                if not calls and run.stages.at("first_token") is not None and not run.ended:
+                    calls = (ModelCall(run.config.model),)
+                for call in calls:
+                    if call.usage:
+                        self._spend(ask, run, UNFINISHED, call.model, call.usage)
+                    else:
+                        self._spend(ask, run, UNFINISHED, call.model, None,
+                                    cost_usd=self._in_progress.estimate_usd)
+            unwritten, run.unwritten = run.unwritten, []
+            for kind, model, counts, cost_usd in unwritten:
+                try:
+                    run.cost += self._spending.add(kind, model, counts, visitor=ask.visitor, account=ask.account,
+                                                   cost_usd=cost_usd)
+                except Exception:
+                    log.critical("briefing %s: a %s call (%s, %s, $%s) is missing from the spending record, which "
+                                 "now counts less than was spent: the caps will stop briefings late", run.id, kind,
+                                 model, counts.as_stored() if counts else "no token counts", cost_usd, exc_info=True)
+        except Exception:  # never in the reader's way: the briefing is over
+            log.exception("briefing %s: what it spent could not be settled", run.id)
 
     def _saved(self, ask: Ask, final: Event, kept: list[Event], text: str) -> Event:
         """The final event of a briefing that has just been saved, with its address."""

@@ -20,11 +20,13 @@ recording made through one adapter can be replayed to test anything downstream o
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Generator, Iterable, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from wts_core.briefing.stages import current_stages
 from wts_core.events import Block, Citation, CitationDelta, Completed, ModelEvent, TextDelta
 from wts_core.ports import Document, ModelRequest, NoStructuredAnswer, Schema, Usage, read_structured
 
@@ -138,6 +140,11 @@ class ScriptedModel:
     answer's own usage where it is a refusal, empty, cut off, not JSON or does not fit. ``closed`` counts the streams that were closed before they finished: a reader who left.
     ``error``, if given, is raised when the script has been replayed, in place of a stream that ends well: the
     script then needs no ``Completed``.
+
+    As a real adapter does, it reports what each stream has used so far to the briefing being written
+    (``briefing.Stages.model_call``): the input of its ``Completed`` from the start, and the output estimated from
+    the text replayed, until the ``Completed`` gives the exact counts. A script that ends in an error has no
+    counts to report, so its call's usage stays unknown.
     """
 
     provider = "scripted"
@@ -161,12 +168,23 @@ class ScriptedModel:
 
     def stream(self, request: ModelRequest) -> Generator[ModelEvent, None, None]:
         self.requests.append(request)
-        return self._replay()
+        return self._replay(request.model)
 
-    def _replay(self) -> Generator[ModelEvent, None, None]:
+    def _replay(self, model: str) -> Generator[ModelEvent, None, None]:
         self.started += 1
+        done = next((e for e in self.script if isinstance(e, Completed)), None)
+        call = current_stages().model_call(done.model if done is not None else model)
+        start = None if done is None else replace(done.usage, output=0)
+        call.usage = start
+        written = 0
         try:
-            yield from self.script
+            for event in self.script:
+                if isinstance(event, Completed):
+                    call.usage = event.usage
+                elif start is not None:
+                    written += len(event.text) if isinstance(event, TextDelta) else 0
+                    call.usage = replace(start, output=math.ceil(written / 3))
+                yield event
         except GeneratorExit:
             self.closed += 1
             raise

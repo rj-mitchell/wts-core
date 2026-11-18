@@ -202,7 +202,11 @@ class Schema(Protocol):
 
 class ModelStream(Protocol):
     """A model's answer as it is being written: text and citations to take one by one, then exactly one
-    ``Completed``. A generator is one, and every adapter's stream is a generator today."""
+    ``Completed``. A generator is one, and every adapter's stream is a generator today.
+
+    An adapter should also report what the call has used as it goes (``briefing.Stages.model_call``), so that a
+    stream closed or broken off before its ``Completed`` is still charged for what it used. One that does not is
+    charged the site's estimate for each briefing whose model had begun writing."""
 
     def __iter__(self) -> Iterator[ModelEvent]: ...
 
@@ -403,6 +407,10 @@ class Busy:
 
 
 class InProgress(Protocol):
+    # what each briefing in progress is counted as against the caps, and what one is charged when it was given up
+    # before its model said what it had used
+    estimate_usd: float
+
     def start(self, key: str) -> Busy | None: ...
 
     def finish(self, key: str) -> None: ...
@@ -429,9 +437,11 @@ class KeyValue(Protocol):
 
 class SpendingRecord(Protocol):
     def add(self, kind: str, model: str | None, usage: Usage | Mapping[str, Any] | None, *,
-            visitor: str | None = None, account: int | None = None) -> float:
+            visitor: str | None = None, account: int | None = None, cost_usd: float | None = None) -> float:
         """Record one model call and return its cost. ``usage`` may be a ``Usage`` or the token counts in either of
-        the forms the sites store today. Nothing is written when there is no usage."""
+        the forms the sites store today. Nothing is written when there is no usage and no ``cost_usd``.
+        ``cost_usd`` is for a call whose cost is known and its token counts are not (a briefing given up before
+        the model said what it had used is charged its estimate): it is recorded as it is, with no tokens."""
         ...
 
     def spent_since(self, since: str) -> float: ...

@@ -10,6 +10,12 @@ alone, a command) the marks go nowhere.
 A stage is marked once: the first mark stands, so a pipeline that marks a stage itself is not overruled by the
 desk's own, later, mark.
 
+The same ``Stages`` carries what the model writing the briefing has used so far (``model_call``). A model's
+adapter reports it as the stream goes, since the cost of a call is otherwise known only from its ``Completed``,
+which never comes when the reader leaves or the model fails part-way. The desk charges what was reported for a
+briefing whose cost never reached it in an event. ``adapters.anthropic`` and ``testing.ScriptedModel`` report;
+an adapter that does not is charged the site's estimate instead, once the model's first words have been sent.
+
 The configuration a briefing is being written with is made current in the same way (``current_config``): the
 site's own, or, while an experiment runs, the arm's the desk chose for this briefing. A pipeline reads the model,
 the instructions' version and the variant from it. Read it in the pipeline's own code, at the top: a thread the
@@ -24,12 +30,22 @@ from typing import Any, Literal
 
 from wts_core.ports import SYSTEM_CLOCK, BriefingConfig, Clock, Usage
 
-__all__ = ["STAGES", "Stage", "Stages", "calling", "current_config", "current_stages", "marking"]
+__all__ = ["STAGES", "ModelCall", "Stage", "Stages", "calling", "current_config", "current_stages", "marking"]
 
 type Stage = Literal["parsed", "searched", "ranked", "sources_sent", "first_token", "written", "checked"]
 
 # in the order they happen
 STAGES: tuple[Stage, ...] = ("parsed", "searched", "ranked", "sources_sent", "first_token", "written", "checked")
+
+
+class ModelCall:
+    """One call to the model writing a briefing, as its adapter reports it while the call runs: the model, and
+    what the call has used so far. ``usage`` is None until the provider has said anything of the call's cost; the
+    adapter replaces it as it learns more, and with the exact counts once the call is complete."""
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+        self.usage: Usage | None = None
 
 
 class Stages:
@@ -39,8 +55,22 @@ class Stages:
         self._clock = clock
         self._start = clock.monotonic()
         self._at: dict[Stage, int] = {}
+        self._calls: list[ModelCall] = []
         self.spent_unseen = Usage()
         self.cost_unseen = 0.0
+
+    def model_call(self, model: str) -> ModelCall:
+        """A call to the model that writes the briefing has begun: for its adapter to say so once the provider
+        has taken the request (from then on it is paid for), and to keep the ``ModelCall`` it is given up to date
+        as the stream goes. Outside a briefing desk the call is noted where nobody reads it."""
+        call = ModelCall(model)
+        self._calls.append(call)
+        return call
+
+    @property
+    def model_calls(self) -> tuple[ModelCall, ...]:
+        """The calls to the model this briefing has begun, in order."""
+        return tuple(self._calls)
 
     def spent(self, usage: Usage | Mapping[str, Any] | None, cost: float) -> None:
         """A model call the desk cannot see in the events, already recorded as spending by the site, for this

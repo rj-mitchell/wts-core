@@ -29,7 +29,11 @@ on a day that is over is counted from the first of its month.
 
 The per-visitor daily limit counts rows of kind ``answer`` since midnight UTC, as Where MPs Stand and Where
 Countries Stand count today. Where Councils Stand kept a table of its own for that count (one row a visitor a day,
-raised whenever an answer's cost was recorded), which comes to the same number.
+raised whenever an answer's cost was recorded), which comes to the same number. It counts rows of kind
+``unfinished`` too: the writing of a briefing whose cost never reached the briefing desk in an event, because the
+reader left or the model or the site's pipeline failed part-way. Such a briefing was paid for, so it counts, or a
+visitor could start briefings and leave each one before its end without limit. The owner's reports count only
+``answer`` rows as briefings, and every row in what was spent.
 """
 
 from __future__ import annotations
@@ -44,7 +48,8 @@ from wts_core.usage.interfaces import AccountSpending, DaySpending, SpendingFigu
 
 __all__ = ["Forgotten", "Spending", "forget_earlier_days", "forget_visitors"]
 
-ANSWER = "answer"  # the kind of row that counts towards a visitor's or an account's daily limit
+ANSWER = "answer"  # the kind of row of a briefing written, which counts towards a visitor's or account's daily limit
+UNFINISHED = "unfinished"  # a briefing begun and paid for but not finished, which counts towards the limit too
 # What stands where a visitor's code was, once its day is over: "somebody's", and nothing more. A row that was a
 # signed-in account's is given the same, and loses its account.
 FORGOTTEN = ""
@@ -135,14 +140,18 @@ class Spending:
         return since if since[:10] >= today(self._clock) else since[:10]
 
     def add(self, kind: str, model: str | None, usage: Usage | Mapping[str, Any] | None, *,
-            visitor: str | None = None, account: int | None = None) -> float:
+            visitor: str | None = None, account: int | None = None, cost_usd: float | None = None) -> float:
         """Record one model call and return its cost. ``usage`` may be a ``Usage`` or the token counts as either
         of today's dictionaries. Nothing is written when there is no usage (``None`` or an empty dictionary), as
-        Where Councils Stand's copy: the others wrote a row of noughts, and their callers took care not to ask."""
-        if usage is None or (not isinstance(usage, Usage) and not usage):
+        Where Councils Stand's copy: the others wrote a row of noughts, and their callers took care not to ask.
+
+        ``cost_usd`` is for a call whose cost is known when its token counts are not: the briefing desk charges a
+        briefing given up before its model said what it had used at the estimate it was reserved at. The row
+        then holds that cost and no tokens."""
+        if cost_usd is None and (usage is None or (not isinstance(usage, Usage) and not usage)):
             return 0.0
-        counts = usage if isinstance(usage, Usage) else Usage.from_mapping(usage)
-        cost = self._pricing.cost(counts, model)
+        counts = Usage() if usage is None else usage if isinstance(usage, Usage) else Usage.from_mapping(usage)
+        cost = round(cost_usd, 6) if cost_usd is not None else self._pricing.cost(counts, model)
         stored = counts.as_stored()
         if self._forgot != today(self._clock):
             self.forget_visitors()
@@ -164,7 +173,8 @@ class Spending:
         return float(row[0])
 
     def briefings_today(self, *, visitor: str | None = None, account: int | None = None) -> int:
-        """How many new briefings this account, or else this visitor, has had written since midnight UTC."""
+        """How many new briefings this account, or else this visitor, has had written since midnight UTC: those
+        finished, and those begun and paid for but not finished (``unfinished``)."""
         who: tuple[str, str | int]
         if account is not None:
             who = ("account", account)
@@ -173,8 +183,8 @@ class Spending:
         else:
             raise ValueError("briefings_today needs a visitor's code or an account")
         with self._db.connect() as con:
-            row = con.execute(f"SELECT count(*) FROM wts_spending WHERE {who[0]} = ? AND kind = ? AND at >= ?",
-                              (who[1], ANSWER, today(self._clock))).fetchone()
+            row = con.execute(f"SELECT count(*) FROM wts_spending WHERE {who[0]} = ? AND kind IN (?, ?) "
+                              "AND at >= ?", (who[1], ANSWER, UNFINISHED, today(self._clock))).fetchone()
         return int(row[0])
 
     # For the owner's reports: the figures only, the wording is each site's

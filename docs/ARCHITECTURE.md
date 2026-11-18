@@ -109,7 +109,9 @@ briefings.
 5. The desk records the cost, saves the briefing at its own address, caches the replay, and writes one row to the
    record of briefings: how it ended, how long each stage took and what the checks found.
 6. The streamer sends each event to the reader as it happens. If the reader leaves, it stops the pipeline at the
-   next event and closes the model's stream, so nothing more is written or paid for.
+   next event and closes the model's stream, so nothing more is written or paid for. What was paid for is still
+   recorded: the model's adapter reports what the call has used as it goes, and the desk charges a briefing that
+   did not finish (the reader left, or the model failed part-way) for that, or else at its estimate.
 
 Steps 1 and 3 are the site's; steps 2, 4, 5 and 6 are the package's.
 
