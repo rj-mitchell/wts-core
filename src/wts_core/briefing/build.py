@@ -28,6 +28,13 @@ What the three sites differ in is passed in, and nothing here has a default for 
 - how a saved briefing's id is made, and whether notes of failed briefings are kept (Where Councils Stand keeps
   none), are said outright.
 
+A briefing in progress is reserved against the caps at ``briefing_estimate_usd``, and never at less than the most
+its writing can cost in output: ``[answer] max_tokens`` at the output price of the ``[answer] model``, the names
+every site gives them. With less, briefings written at once could each cost more than they were reserved at, and
+together pass the caps. A lower setting is raised to that figure, with a warning that names it. What the model
+reads (the instructions and the sources) costs more again, and only the site knows how large its requests grow:
+it sets ``briefing_estimate_usd`` to the output figure plus the input of its largest briefing (docs/UPGRADING.md).
+
 The start-up check is ``desk_settings``, which ``desk_parts`` calls first: every limit, price and figure the
 flow of a briefing needs, and the site's messages. Everything missing or wrong is reported together, in one
 ``SettingsError`` that names the settings file and each key, so the owner mends the file once.
@@ -37,13 +44,23 @@ The pieces stay public and usable on their own: this is a convenience over them,
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, fields
 from typing import Any
 
 from wts_core.briefing.desk import BriefingDesk, Hooks
 from wts_core.briefing.experiment import ExperimentSwitch
-from wts_core.ports import SYSTEM_CLOCK, SYSTEM_RANDOM, BriefingConfig, BriefingLog, Clock, Random, UnknownModel
+from wts_core.ports import (
+    SYSTEM_CLOCK,
+    SYSTEM_RANDOM,
+    BriefingConfig,
+    BriefingLog,
+    Clock,
+    Random,
+    UnknownModel,
+    Usage,
+)
 from wts_core.settings import Messages, Settings, SettingsError
 from wts_core.state import StateDB
 from wts_core.usage import (
@@ -59,6 +76,8 @@ from wts_core.usage import (
 )
 
 __all__ = ["DeskParts", "DeskSettings", "desk_parts", "desk_settings"]
+
+log = logging.getLogger(__name__)
 
 # the settings every site names alike, and what each is
 _REQUESTS, _CACHE_HOURS, _ESTIMATE, _AT_ONCE = ("requests_per_minute", "answer_cache_hours", "briefing_estimate_usd",
@@ -77,8 +96,13 @@ class DeskSettings:
     forget_over: int  # how many visitors the per-minute limiter holds before it forgets the idle ones
     at_once_per_visitor: int  # briefings one visitor may have in progress
     at_once: int  # briefings the whole site may have in progress
-    estimate_usd: float  # what a briefing in progress is counted as against the caps, until its cost is known
+    # what a briefing in progress is counted as against the caps, until its cost is known, and what one given up
+    # before its model said what it had used is charged: the setting, or ``most_output_usd`` if that is more
+    estimate_usd: float
     cache_hours: float  # how long an answer stays in the cache; 0 keeps none
+    # the most the writing of one briefing can cost in output (``[answer] max_tokens`` at the ``[answer] model``'s
+    # output price); None where ``[answer]`` names neither
+    most_output_usd: float | None = None
 
 
 def desk_settings(settings: Settings, messages: Messages, *, at_once_per_visitor: int | str, forget_over: int | str,
@@ -130,11 +154,24 @@ def desk_settings(settings: Settings, messages: Messages, *, at_once_per_visitor
         except UnknownModel as exc:
             problems.append(str(exc))
     problems += _wrong_with(messages, limits, section)
+    most = None
+    answer = settings.section("answer")
+    if prices is not None and answer.get("model") and answer.get("max_tokens") is not None:
+        try:
+            most = prices.cost(Usage(output=int(answer["max_tokens"])), str(answer["model"]))
+        except (TypeError, ValueError):
+            problems.append(f"[answer] max_tokens is not a number: {answer['max_tokens']!r}")
     if problems or prices is None or limits is None:
         count = "1 thing" if len(problems) == 1 else f"{len(problems)} things"
         raise SettingsError(f"{settings.files}: the briefing desk cannot be built: {count} missing or wrong.\n"
                             + "\n".join(f"  - {problem}" for problem in problems), problems=problems)
-    return DeskSettings(prices=prices, limits=limits, **figures)
+    if most is not None and figures["estimate_usd"] < most:
+        log.warning("%s: [%s] %s is %s, less than the most the writing of one briefing can cost in output "
+                    "([answer] max_tokens at the output price of %s): briefings in progress are reserved at $%s "
+                    "instead. Set it to that, plus the input of the site's largest briefing.", settings.files,
+                    section, _ESTIMATE, figures["estimate_usd"], answer["model"], most)
+        figures["estimate_usd"] = most
+    return DeskSettings(prices=prices, limits=limits, most_output_usd=most, **figures)
 
 
 def _wrong_with(messages: Messages, limits: Limits | None, section: str) -> list[str]:

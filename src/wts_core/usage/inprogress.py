@@ -18,7 +18,11 @@ __all__ = ["BriefingsInProgress"]
 class BriefingsInProgress:
     """Places for briefings in progress (``ports.InProgress``): ``per_key`` for one visitor, ``total`` for the
     site, each counted at ``estimate_usd`` against the caps. The three figures are the site's own (2 and 8 on every
-    site today; $0.15 on Where MPs Stand and Where Councils Stand, $0.10 on Where Countries Stand)."""
+    site today; $0.15 on Where MPs Stand and Where Councils Stand, $0.10 on Where Countries Stand).
+
+    ``estimate_usd`` should be at least the most one briefing can cost, or briefings written at once can pass the
+    caps together: ``briefing.desk_parts`` never reserves less than the most its writing can cost in output. It is
+    also what the briefing desk charges a briefing given up before its model said what it had used."""
 
     def __init__(self, per_key: int, total: int, estimate_usd: float) -> None:
         self.per_key, self.total, self.estimate_usd = per_key, total, estimate_usd

@@ -53,7 +53,10 @@ requests_per_minute = 20           # package: questions a visitor may ask in a m
 forget_idle_visitors_over = 50000
 answer_cache_hours = 168           # package: the same question is answered from the cache for a week; 0 turns it off
 # A briefing's cost is known only when it finishes, so each one being written counts against the caps at this
-# estimate meanwhile; and only so many are written at once, for one visitor and in all.
+# estimate meanwhile; and only so many are written at once, for one visitor and in all. Make it at least the most
+# one briefing can cost: [answer] max_tokens of output at the briefing model's price (4,000 at $15 a million is
+# $0.06 here), plus what the model reads for the largest briefing. The package never reserves less than the output
+# part. It is also what a briefing is charged when it was given up before the model said what it had used.
 briefing_estimate_usd = 0.10       # package
 briefings_at_once_per_visitor = 2  # the site tells the package this setting's name too
 briefings_at_once = 8              # package
