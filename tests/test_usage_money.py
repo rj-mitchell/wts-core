@@ -239,6 +239,31 @@ def test_each_call_is_costed_at_its_models_prices(site, db, clock):  # noqa: F81
     assert spending.briefings_today(visitor="v") == 2
 
 
+def test_a_briefing_begun_and_paid_for_but_not_finished_counts_towards_the_limit_and_not_as_a_briefing(db, clock):
+    """A visitor who left part-way through, or whose briefing the model broke off, was still charged: without this
+    they could begin briefings and leave each one before its end, every one of them paid for, without limit."""
+    spending = Spending(db, table(2.0, 10.0), clock=clock)
+    spending.add("answer", "m", {"input_tokens": 1000}, visitor="v")
+    spending.add("unfinished", "m", {"input_tokens": 1000, "output_tokens": 4}, visitor="v")
+    spending.add("parse", "m", {"input_tokens": 1000}, visitor="v")
+    assert spending.briefings_today(visitor="v") == 2 and spending.briefings_today(visitor="w") == 0
+    spending.add("unfinished", "m", {"input_tokens": 1000}, account=7)
+    assert spending.briefings_today(account=7) == 1
+    totals = spending.totals("2026-11-13")
+    assert (totals.calls, totals.briefings) == (4, 1)  # the owner's reports count only briefings written
+    assert [d.briefings for d in spending.by_day("2026-11-13")] == [1]
+
+
+def test_a_call_whose_cost_is_known_and_its_tokens_are_not_is_recorded_at_that_cost(db, clock):
+    """How the briefing desk charges a briefing given up before its model said what it had used: the estimate it
+    was reserved at, with no tokens."""
+    spending = Spending(db, table(2.0, 10.0), clock=clock)
+    assert spending.add("unfinished", "m", None, visitor="v", cost_usd=0.1600004) == 0.16
+    assert rows(db, "kind, visitor, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd") == [
+        ("unfinished", "v", 0, 0, 0, 0, 0.16)]
+    assert spending.spent_since("2026-11-13") == 0.16 and spending.briefings_today(visitor="v") == 1
+
+
 def test_spending_is_summed_from_a_day_a_month_or_a_time(db, clock):
     spending = Spending(db, table(2.0, 10.0), clock=clock)
     clock.set("2026-10-31T23:59:59+00:00")

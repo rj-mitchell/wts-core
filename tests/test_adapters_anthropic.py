@@ -7,6 +7,8 @@ The SDK is faked, as in the sites' tests: a client whose ``messages.stream`` ret
 from __future__ import annotations
 
 import ast
+import math
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace as NS
 from typing import Any
@@ -25,9 +27,11 @@ from wts_core.adapters.anthropic import (
     has_credentials,
     search_result,
 )
+from wts_core.briefing.stages import Stages, marking
 from wts_core.events import Block, Citation, CitationDelta, Completed, TextDelta, blocks_as_today, to_reader
 from wts_core.ports import ModelClient, ModelRequest, Usage
 from wts_core.settings import Settings, SettingsError, Site
+from wts_core.testing import FixedClock
 from wts_core.testing.contracts import ANSWERS, ModelClientContract
 from wts_core.testing.models import Answered, load_documents, load_stream, recorded
 
@@ -47,10 +51,11 @@ class FakeStream:
     """What ``client.messages.stream(...)`` returns: a context manager over the SDK's events, in the shapes the
     SDK yields them, built from a script of model events."""
 
-    def __init__(self, script, thinking: bool = False):
+    def __init__(self, script, thinking: bool = False, breaks_after: int | None = None):
         self.script = list(script)
         self.done = self.script[-1]
         self.thinking = thinking
+        self.breaks_after = breaks_after  # the API breaks the stream off after this many of the script's events
         self.entered = self.closed = False
 
     def __enter__(self):
@@ -62,14 +67,17 @@ class FakeStream:
         return False
 
     def __iter__(self):
-        yield NS(type="message_start", message=NS(id="msg_1"))
+        # as the API sends it: the input in full from the start, and an output of one token until the end
+        yield NS(type="message_start", message=NS(id="msg_1", usage=sdk_usage(replace(self.done.usage, output=1))))
         if self.thinking:
             yield NS(type="content_block_start", index=0, content_block=NS(type="thinking", thinking=""))
             yield NS(type="content_block_delta", index=0, delta=NS(type="thinking_delta", thinking="Let me see."))
             yield NS(type="content_block_delta", index=0, delta=NS(type="signature_delta", signature="sig"))
             yield NS(type="content_block_stop", index=0)
         yield NS(type="content_block_start", index=1, content_block=NS(type="text", text="", citations=[]))
-        for event in self.script[:-1]:
+        for at, event in enumerate(self.script[:-1]):
+            if at == self.breaks_after:
+                raise ConnectionError("the API broke the stream off")  # as the SDK raises an overloaded_error
             if isinstance(event, TextDelta):
                 yield NS(type="content_block_delta", index=1, delta=NS(type="text_delta", text=event.text))
                 yield NS(type="text", text=event.text, snapshot="")  # the SDK's own helper event: not read
@@ -79,7 +87,8 @@ class FakeStream:
                               start_block_index=0, end_block_index=1)
                 yield NS(type="content_block_delta", index=1, delta=NS(type="citations_delta", citation=citation))
         yield NS(type="content_block_stop", index=1)
-        yield NS(type="message_delta", delta=NS(stop_reason=self.done.stop_reason), usage=NS(output_tokens=1))
+        yield NS(type="message_delta", delta=NS(stop_reason=self.done.stop_reason),
+                 usage=NS(output_tokens=self.done.usage.output))
         yield NS(type="message_stop")
 
     def get_final_message(self):
@@ -97,8 +106,8 @@ class FakeSDK:
     """The SDK's client: records every call, and answers a briefing with the script and a question with ``parsed``."""
 
     def __init__(self, script, parsed: Any = None, refuse_fallbacks: Exception | None = None, thinking=False,
-                 parse_stop_reason: str = "end_turn", parse_usage: Any = None):
-        self.script, self.parsed, self.thinking = script, parsed, thinking
+                 parse_stop_reason: str = "end_turn", parse_usage: Any = None, breaks_after: int | None = None):
+        self.script, self.parsed, self.thinking, self.breaks_after = script, parsed, thinking, breaks_after
         self.parse_usage = parse_usage or NS(input_tokens=900, output_tokens=60, cache_read_input_tokens=700,
                                              cache_creation_input_tokens=None)
         self.refuse_fallbacks = refuse_fallbacks
@@ -120,7 +129,7 @@ class FakeSDK:
         return self._open()
 
     def _open(self):
-        self.streams.append(FakeStream(self.script, self.thinking))
+        self.streams.append(FakeStream(self.script, self.thinking, self.breaks_after))
         return self.streams[-1]
 
     def _parse(self, **kw):
@@ -292,6 +301,65 @@ def test_a_reader_who_leaves_closes_the_sdks_stream():
     assert sdk.streams[0].closed
 
 
+# What a call has used, reported as it goes (for the briefing desk to charge a briefing that does not finish)
+
+
+def watched(client: AnthropicClient, **changes: Any) -> tuple[Stages, Any]:
+    """A briefing's stream with its ``Stages`` the current ones, as the briefing desk runs a site's pipeline."""
+    stages = Stages(FixedClock())
+    return stages, marking(stages, client.stream(request(**changes)))
+
+
+def written(events: list[Any]) -> int:
+    """The model's own tokens for the text so far, as the adapter estimates them until the API counts them."""
+    return math.ceil(sum(len(e.text) for e in events if isinstance(e, TextDelta)) / 3)
+
+
+def test_a_finished_call_is_reported_with_the_apis_own_counts():
+    stages, events = watched(client_with(FakeSDK(SCRIPT)))
+    assert list(events) == SCRIPT
+    (call,) = stages.model_calls
+    assert (call.model, call.usage) == (MODEL, SCRIPT[-1].usage)
+
+
+@pytest.mark.parametrize("taken", [1, 3, 6])
+def test_a_reader_who_leaves_leaves_behind_what_the_call_had_used(taken):
+    stages, events = watched(client_with(sdk := FakeSDK(SCRIPT)))
+    got = [next(events) for _ in range(taken)]
+    events.close()
+    assert sdk.streams[0].closed
+    (call,) = stages.model_calls
+    # the input the API counted at the start, and the output estimated from what had been written
+    assert call.usage == replace(SCRIPT[-1].usage, output=max(1, written(got)))
+    assert call.usage.output < SCRIPT[-1].usage.output
+
+
+def test_a_stream_the_api_breaks_off_leaves_behind_what_the_call_had_used():
+    stages, events = watched(client_with(FakeSDK(SCRIPT, breaks_after=4)))
+    with pytest.raises(ConnectionError):
+        list(events)
+    (call,) = stages.model_calls
+    assert call.usage == replace(SCRIPT[-1].usage, output=max(1, written(SCRIPT[:4])))
+
+
+def test_thinking_is_counted_towards_what_a_call_has_used():
+    stages, events = watched(client_with(FakeSDK(SCRIPT, thinking=True)))
+    first = next(events)
+    events.close()
+    (call,) = stages.model_calls
+    assert call.usage.output == math.ceil((len("Let me see.") + len(first.text)) / 3)
+
+
+def test_a_request_the_api_refused_is_no_call_and_its_retry_is_one():
+    stages, events = watched(client_with(FakeSDK(SCRIPT, refuse_fallbacks=bad_request("fallbacks: not permitted"))))
+    assert list(events) == SCRIPT
+    assert [(c.model, c.usage) for c in stages.model_calls] == [(MODEL, SCRIPT[-1].usage)]
+
+
+def test_outside_a_briefing_desk_the_report_goes_nowhere():
+    assert list(client_with(FakeSDK(SCRIPT)).stream(request())) == SCRIPT
+
+
 # The fallback beta
 
 
@@ -447,6 +515,12 @@ def test_the_real_sdk_accepts_the_briefing_call_and_its_stream_is_read():
     assert body["stream"] is True and body["output_config"] == {"effort": "medium"}
     assert [b["type"] for b in body["messages"][0]["content"]] == ["search_result"] * 3 + ["text"]
     assert body["messages"][0]["content"][0]["citations"] == {"enabled": True}
+    # what the call had used, read from the SDK's own events, when the reader leaves after the first words
+    stages = Stages(FixedClock())
+    partial = marking(stages, AnthropicClient("sk-ant-test", base_url=BASE_URL, client=sdk).stream(request()))
+    assert next(partial) == TextDelta("The Cabinet decided: ")
+    partial.close()
+    assert [c.usage for c in stages.model_calls] == [Usage(input_uncached=1840, cache_read=2890, output=7)]
 
 
 @pytest.mark.parametrize("stop_reason, parsed", [("refusal", {"search_text": "x"}), ("end_turn", None)])

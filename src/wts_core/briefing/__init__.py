@@ -21,7 +21,7 @@ from wts_core.briefing.experiment import (
     experiment_switch,
     unpriced_arms,
 )
-from wts_core.briefing.stages import Stage, Stages, current_config, current_stages
+from wts_core.briefing.stages import ModelCall, Stage, Stages, current_config, current_stages
 from wts_core.briefing.stream import KEEP_ALIVE_SECONDS, sse
 
 __all__ = [
@@ -37,6 +37,7 @@ __all__ = [
     "Experiment",
     "ExperimentSwitch",
     "Hooks",
+    "ModelCall",
     "Stage",
     "Stages",
     "TooManyRequests",
