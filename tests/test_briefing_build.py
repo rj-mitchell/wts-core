@@ -174,8 +174,9 @@ def test_a_briefing_in_progress_is_never_reserved_at_less_than_its_writing_can_c
     prices = PriceTable.from_settings(site.usage)
     model = site.models[0]
     most = prices.cost(Usage(output=16000), model)
-    assert most > site.usage["briefing_estimate_usd"]
-    settings = with_answer(settings_of(site, tmp_path), model=model, max_tokens=16000)
+    low = 0.10  # what Where Countries Stand reserved before 0.3.2: the sites have since raised theirs
+    assert most > low
+    settings = with_answer(settings_of(site, tmp_path, briefing_estimate_usd=low), model=model, max_tokens=16000)
     read = desk_settings(settings, site.messages, at_once_per_visitor=site.at_once_key, forget_over=site.forget_over)
     assert read.estimate_usd == read.most_output_usd == most
     assert "[usage] briefing_estimate_usd is" in caplog.text and str(settings.config_path) in caplog.text
