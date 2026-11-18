@@ -119,7 +119,8 @@ def _forget_before_copying(path: Path, clock: Clock) -> str:
     """Forget, in the database about to be copied, what the days before today are due to forget: who each model
     call was for and its time of day (``usage.forget_earlier_days``) and every visitor secret but today's
     (``forget_old_secrets``). The same forgetting the nightly tidy and the day's first visitor do, and nothing a
-    site still serves.
+    site still serves. Today's secret and today's codes the site still needs, so they stay in the database; the
+    copy holds neither, nor any other secret or code (``ops.make_backup``).
 
     It is done here with no help from the site: the database is the package's own if it has the package's
     tables, and is opened as such, with no migration and no import of a site's run (a backup must not change
@@ -127,7 +128,7 @@ def _forget_before_copying(path: Path, clock: Clock) -> str:
     package's spending and no visitor secret. Where there is something to forget and it cannot be done (the
     database has spending rows and has not yet been opened by this version, so the tables the forgetting writes
     to are not there), what the copy will hold is returned in words, for the command to say loudly; empty
-    otherwise."""
+    otherwise. (Codes and secrets it never holds, so the words name accounts and times of day.)"""
     if not path.exists():
         return ""
     from wts_core.state import StateDB, today
@@ -139,10 +140,12 @@ def _forget_before_copying(path: Path, clock: Clock) -> str:
         con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         try:
             tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-            rows = con.execute(
-                "SELECT count(*) FROM wts_spending WHERE at < ? AND ((visitor IS NOT NULL AND visitor != '') "
-                "OR account IS NOT NULL OR at != substr(at, 1, 10) || 'T00:00:00+00:00')", (day,)
-            ).fetchone()[0] if "wts_spending" in tables else 0
+            rows, held = con.execute(
+                "SELECT count(*), count(*) FILTER (WHERE account IS NOT NULL "
+                "OR at != substr(at, 1, 10) || 'T00:00:00+00:00') FROM wts_spending WHERE at < ? AND "
+                "((visitor IS NOT NULL AND visitor != '') OR account IS NOT NULL "
+                "OR at != substr(at, 1, 10) || 'T00:00:00+00:00')", (day,)
+            ).fetchone() if "wts_spending" in tables else (0, 0)
             secrets = con.execute("SELECT count(*) FROM wts_kv WHERE key LIKE ? AND key != ?",
                                   (f"{SALT}:%", f"{SALT}:{day}")).fetchone()[0] if "wts_kv" in tables else 0
         finally:
@@ -157,9 +160,7 @@ def _forget_before_copying(path: Path, clock: Clock) -> str:
             forget_earlier_days(db, clock=clock)
         forget_old_secrets(db, clock)
         return ""
-    found = [f"{rows:,} model calls of days before today with a visitor's code, an account or a time of day"]
-    found += [f"{secrets:,} visitor secret{'' if secrets == 1 else 's'} of earlier days"] if secrets else []
-    return " and ".join(found)
+    return f"{held:,} model calls of days before today with an account or a time of day" if held else ""
 
 
 def ops_commands(site: Site, settings: Callable[[], Settings], spec: BackupSpec, wording: OpsWording, *,

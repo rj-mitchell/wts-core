@@ -1364,7 +1364,9 @@ that day lasted, for as long as the backup is kept. A site gives the command not
 has the package's tables is the package's to keep to its promises, and is opened for that alone, with no
 migration and no import of the site's run. A file with none of the package's spending is copied as it is.
 Where the forgetting cannot be done (a database with spending that this version has not opened yet) the backup
-is still made and sent, a line on standard error says what it holds, and the command ends with status 1.
+is still made and sent, a line on standard error says what it holds, and the command ends with status 1. Today's
+secret and codes stay in the database, for the limits, but no backup holds them: `ops.make_backup` takes every
+visitor secret and every visitor's code out of the copy before it is packed.
 
 From `examples/minimal-site/src/parks/cli.py`:
 

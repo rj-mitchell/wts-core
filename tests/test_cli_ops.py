@@ -599,6 +599,60 @@ def test_a_nightly_backup_holds_nothing_of_the_day_before_that_the_tidy_would_fo
         assert con.execute("SELECT count(*) FROM wts_spending").fetchone()[0] == 160
 
 
+def test_a_backup_made_during_the_day_holds_no_secret_and_no_code_that_could_give_back_an_address(tmp_path):
+    """Found by the audit of 0.3.1. The backup forgot the secrets of the days before today but kept today's, beside
+    today's codes, which are a hash of that secret and an address: every IPv4 address can be tried. The copy now
+    holds no secret and no code at all; the live database keeps both for today's limits."""
+    import hashlib
+
+    from wts_core import replies, usage
+    from wts_core.ops import BackupSpec
+    from wts_core.ports import Price, Usage
+    from wts_core.state import StateDB
+
+    clock = FixedClock("2026-11-14T13:00:00+00:00")
+    data = tmp_path / "data"
+    db = StateDB(data / "state.db", migrations=(*usage.migrations(), *replies.migrations()), clock=clock)
+    spending = usage.Spending(db, usage.PriceTable(base=Price(2.0, 10.0, 0.2)), clock=clock)
+    addresses = [f"203.0.113.{n}" for n in range(1, 31)]
+    for address in addresses[:12]:
+        spending.add("answer", "big", Usage(input_uncached=9000, output=700),
+                     visitor=usage.visitor_code(db, address, clock=clock))
+    with db.connect() as con:
+        con.execute("INSERT INTO wts_kv (key, value) VALUES ('visitor_salt', 'an old permanent secret')")
+        con.execute("INSERT INTO wts_reply_counts (day, visitor, what, n) VALUES (?, ?, 'report', 1)",
+                    ("2026-11-14", usage.visitor_code(db, addresses[0], clock=clock)))
+        salt = con.execute("SELECT value FROM wts_kv WHERE key = 'visitor_salt:2026-11-14'").fetchone()[0]
+        codes = {r[0] for r in con.execute("SELECT visitor FROM wts_spending")}
+    spec = BackupSpec(prefix="councils-state-", keep=14, required_tables=("wts_spending",))
+    settings = Settings(raw={}, data_dir=data, config_path=Path("settings.toml"), site=COUNCILS.site)
+    app = mounted(ops_commands(COUNCILS.site, lambda: settings, spec, OPS[COUNCILS.repo], store=lambda: None,
+                               clock=clock))
+    assert run(app, backup(tmp_path), tmp_path).exit_code == 0
+    (archive,) = (tmp_path / "backups").iterdir()
+    raw = gzip.decompress(archive.read_bytes())
+    copy = sqlite3.connect(":memory:")
+    copy.deserialize(raw)
+
+    def given_back(salts: list[str], held: set[str]) -> int:
+        """The attack: every candidate address hashed with every secret the file holds."""
+        return sum(hashlib.sha256(f"{s}|{a}".encode()).hexdigest()[:24] in held for s in salts for a in addresses)
+
+    salts = [r[0] for r in copy.execute("SELECT value FROM wts_kv WHERE key LIKE 'visitor_salt%'")]
+    held = {r[0] for r in copy.execute("SELECT visitor FROM wts_spending")} | {
+        r[0] for r in copy.execute("SELECT visitor FROM wts_reply_counts")}
+    assert salts == [] and held <= {""} and given_back(salts, held) == 0
+    assert copy.execute("SELECT count(*) FROM wts_spending").fetchone()[0] == 12  # what was spent is all there
+    # nor is anything of them left in the file's free pages
+    assert salt.encode() not in raw and b"an old permanent secret" not in raw
+    assert not any(code.encode() in raw for code in codes)
+    # the live database is not touched: the site still counts today's visitors by their codes
+    with db.connect() as con:
+        assert con.execute("SELECT value FROM wts_kv WHERE key = 'visitor_salt:2026-11-14'").fetchone()[0] == salt
+        assert {r[0] for r in con.execute("SELECT visitor FROM wts_spending")} == codes
+    assert given_back([salt], codes) == 12  # which is what a backup that kept the secret gave away
+
+
 def test_where_the_backup_cannot_forget_it_says_so_loudly_and_is_still_made(tmp_path):
     """A database with spending that this version has not opened yet has nowhere for an account's month to be
     kept, so the forgetting cannot be done there. The backup is still made (a night without one is worse), and
@@ -608,11 +662,11 @@ def test_where_the_backup_cannot_forget_it_says_so_loudly_and_is_still_made(tmp_
     assert [s.exit_code for s in said] == [1, 1] and len(list(backups.iterdir())) == 2
     told = " ".join(said[0].stderr.split())
     assert ("The backup was made, and it holds what should have been forgotten first: 80 model calls of days "
-            "before today with a visitor's code, an account or a time of day and 1 visitor secret of earlier "
-            "days.") in told
+            "before today with an account or a time of day.") in told
     assert "has not been opened by this version of the site yet" in told
     first = _given_back(sorted(backups.iterdir())[0], "2026-11-14", truth)
-    assert first["given back"] == 40 and first["secret"] == 1  # what the review found: every record of the day
+    assert first["given back"] == 40  # what the review found: every record of the day, by its account and second
+    assert first["secret"] == first["coded"] == 0  # but no backup holds a secret or a code (0.3.2)
 
 
 @each_site
