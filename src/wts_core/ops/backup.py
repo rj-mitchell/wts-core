@@ -1,7 +1,10 @@
 """Backup and restore of the one thing that cannot be rebuilt from public sources: the state database.
 
 A backup is a consistent copy made with SQLite's online backup (safe while the site is running), checked, then
-packed into the site's own kind of archive under the site's own name, readable by its owner only. The newest
+packed into the site's own kind of archive under the site's own name, readable by its owner only. The copy holds no
+secret a visitor's code was made with and no visitor's code (``_forget_visitors``): a backup is kept for weeks, and
+with a day's secret, that day's codes could be turned back into addresses by trying every IPv4 address. The
+database itself keeps both for the day, for the limits. The newest
 ``keep`` of the site's archives are kept. What differs between the sites on purpose is a ``BackupSpec``: the name's
 prefix and date stamp, the kind of archive (the database gzipped, or Where MPs Stand's tar that also holds the local
 settings), how many to keep, and the tables a restored database must have.
@@ -30,6 +33,7 @@ from pathlib import Path
 from typing import Literal
 
 from wts_core.ports import SYSTEM_CLOCK, Clock
+from wts_core.usage.visitor import SALT
 
 __all__ = ["BackupSpec", "RestoreRefused", "make_backup", "restore_backup"]
 
@@ -88,6 +92,34 @@ class BackupSpec:
         return sorted(Path(folder).glob(f"{self.prefix}*{self.suffix}"))
 
 
+def _forget_visitors(con: sqlite3.Connection) -> None:
+    """In a backup's copy of the database, before it is checked and packed: forget every secret visitors' codes
+    were made with (``visitor_salt:<day>`` in ``wts_kv``) and every visitor's code still kept (today's in
+    ``wts_spending``, and the day's counts of reports and statements sent, ``wts_reply_counts``, which are kept by
+    code). The live database is not touched: the site still needs today's secret and codes for its limits.
+
+    Today's secret is the one that matters. The days before today have lost theirs and their codes by the time a
+    nightly backup is made (``cli.ops`` forgets them first), but a backup made during the day held the secret and
+    the codes made with it side by side, and a code is a hash of the secret and an address: every IPv4 address can
+    be tried. A database restored from a backup starts a new secret, and its visitors start the day afresh.
+
+    Deleted with ``secure_delete`` on, and the copy written afresh, so that nothing of either is left in the
+    file's free pages."""
+    tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    con.execute("PRAGMA secure_delete = ON")
+    changed = 0
+    if "wts_kv" in tables:
+        # and the un-dated secret one site once kept, should an import have brought it across
+        changed += con.execute("DELETE FROM wts_kv WHERE key = ? OR key LIKE ?", (SALT, f"{SALT}:%")).rowcount
+    if "wts_spending" in tables:
+        changed += con.execute("UPDATE wts_spending SET visitor = '' WHERE visitor != ''").rowcount
+    if "wts_reply_counts" in tables:
+        changed += con.execute("DELETE FROM wts_reply_counts").rowcount
+    con.commit()
+    if changed:
+        con.execute("VACUUM")
+
+
 class RestoreRefused(RuntimeError):
     """Why a backup was not put back, in words for the owner. ``why`` is the same in one word, for a command that
     says it in its own: "kept-copy" (an earlier restore's kept copy is in the way), "unreadable", "foreign" (not this
@@ -106,7 +138,7 @@ def make_backup(state_db: Path, dest: Path, spec: BackupSpec, *, keep: int | Non
     """The backup written into ``dest``, or None when there is no state database yet (a new site): opening it to copy
     it would create an empty one, and an empty database is not a backup. ``keep`` overrides the spec's; zero or less
     deletes nothing. Raises RuntimeError if the copy fails SQLite's integrity check: nothing is then left behind,
-    and no older archive is deleted."""
+    and no older archive is deleted. The copy holds no visitor's secret or code (``_forget_visitors``)."""
     state_db, dest = Path(state_db), Path(dest)
     if not state_db.exists():
         return None
@@ -119,6 +151,9 @@ def make_backup(state_db: Path, dest: Path, spec: BackupSpec, *, keep: int | Non
         try:
             src.backup(dst)  # a consistent copy, even while the site is writing
             ok = dst.execute("PRAGMA integrity_check").fetchone()[0]
+            if ok == "ok":
+                _forget_visitors(dst)
+                ok = dst.execute("PRAGMA integrity_check").fetchone()[0]
         finally:
             dst.close()
             src.close()
