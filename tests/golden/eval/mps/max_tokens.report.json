@@ -24,10 +24,18 @@
    "misquotes": []
   },
   {
-   "text": "\n- In Eastmere, the full Council resolved to keep fortn",
+   "text": "\n",
    "sources": [],
    "cited": [],
    "status": "connective",
+   "loaded": [],
+   "misquotes": []
+  },
+  {
+   "text": "- In Eastmere, the full Council resolved to keep fortn",
+   "sources": [],
+   "cited": [],
+   "status": "unsupported",
    "loaded": [],
    "misquotes": []
   }
@@ -36,10 +44,10 @@
  "no_records": false,
  "citations_total": 1,
  "citations_invalid": 0,
- "grounded_ratio": 1.0,
- "unsupported_segments": 0,
+ "grounded_ratio": 0.606,
+ "unsupported_segments": 1,
  "loaded_words": 0,
  "quotes_total": 0,
  "quotes_unverified": 0,
- "rules": 1
+ "rules": 2
 }

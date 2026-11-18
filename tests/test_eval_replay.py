@@ -106,7 +106,7 @@ def test_the_made_up_briefing_meets_every_check():
     counts = {k: v for k, v in answer.items() if k not in ("segments", "markdown")}
     assert counts == {"no_records": False, "citations_total": 3, "citations_invalid": 1, "grounded_ratio": 0.36,
                       "unsupported_segments": 2, "loaded_words": 1, "quotes_total": 3, "quotes_unverified": 1,
-                      "rules": 1}
+                      "rules": 2}
     text = "".join(s["text"] for s in answer["segments"])
     assert text.startswith("Two councils took different courses.")  # the opener about the records is dropped
     assert "favoured a new programme" in text  # the model's own words are made British

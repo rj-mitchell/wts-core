@@ -4,7 +4,7 @@ and its end-to-end test of the order the checks run in."""
 from __future__ import annotations
 
 from checks_sites import COUNTRIES, MPS, src
-from wts_core.checks import curl_answer, curl_event, curl_events, curl_quotes
+from wts_core.checks import RULES_VERSION, curl_answer, curl_event, curl_events, curl_quotes
 
 
 def test_quotes_and_apostrophes_are_curled():
@@ -60,7 +60,7 @@ def test_briefings_are_written_with_curly_quotes():
     text = "".join(s["text"] for s in final["segments"])
     assert text.startswith("Kenya’s delegate said “") and "”" in text and '"' not in text and "'" not in text
     assert final["quotes_total"] == 1  # the quotation was checked before its marks were curled
-    assert final["rules"] == 1  # and the stamp of the rules is kept
+    assert final["rules"] == RULES_VERSION  # and the stamp of the rules is kept
     assert '"' in "".join(s["text"] for s in MPS.check(blocks, [src(1, quote)])["segments"])  # only where turned on
 
 

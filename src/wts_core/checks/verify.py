@@ -15,10 +15,21 @@ Countries Stand's has, and both fixes to the recheck of saved briefings made to 
   Countries Stand have today, ``EVIDENCE_NOTES_STRICT`` what Where Councils Stand has. The package has no default
   for it.
 
-One thing is new. Every report is stamped with the version of the checking rules that wrote it (``rules``), and
-``Verifier.recheck`` leaves alone an answer written under the current rules: a saved briefing keeps its segments but
-not the blocks the model wrote, so judging it again can never repeat exactly what ``verify`` did the first time, and
-only a briefing saved under older rules needs it.
+Every report is stamped with the version of the checking rules that wrote it (``rules``), and ``Verifier.recheck``
+leaves alone an answer written under the current rules: a saved briefing keeps its segments but not the blocks the
+model wrote, so judging it again can never repeat exactly what ``verify`` did the first time, and only a briefing
+saved under older rules needs it.
+
+Version 2 of the rules is stricter than every site's copy in two places, each of which let a short claim through:
+
+* a short uncited line is a join or a transition ("By contrast,", " and ", "In the Lords", or the close of a cited
+  sentence: "in September.") only if it is not a sentence of its own. "The minister took bribes." is a claim,
+  however short;
+* the looser signs of a note about the evidence ("the evidence is", "gaps", "caveats", a line opening "Note:")
+  make a note only when the line is about the records themselves ("the records retrieved", "the sources
+  supplied", "no records", "the evidence base"). "Note: the council broke the law" is a claim.
+
+Both only ever flag more: a line version 1 flagged, version 2 flags too.
 """
 
 from __future__ import annotations
@@ -45,7 +56,7 @@ __all__ = [
 
 # The version of the checking rules: stamped on every report as ``rules``. It goes up by one whenever a rule here
 # changes what is flagged or cleared, so that briefings saved before the change are judged again when shown.
-RULES_VERSION = 1
+RULES_VERSION = 2
 
 # an honorific's full stop ("Mr. Smith") ends no sentence; the part every site shares
 COMMON_HONORIFICS: tuple[str, ...] = ("Mr", "Mrs", "Ms", "Dr", "Prof", "Sr", "Jr", "St")
@@ -76,6 +87,17 @@ EVIDENCE_NOTES_STRICT: re.Pattern[str] = re.compile(
     _NOTES_BEFORE
     + r"no (division|voting) records|evidence (base|is|set)|gaps?\b|caveats?\b|cannot be (reported|attributed)|"
     + _NOTES_AFTER, re.I)
+
+# The looser signs of a note about the evidence, in either form above. Alone they say nothing of the records ("The
+# evidence is clear that ...", "Note: the council ..."), so a line they match is a note only if it is also about the
+# records themselves (``_ABOUT_THE_RECORDS``). The other signs of a note name the records already.
+_LOOSE_NOTE = re.compile(r"evidence (base|is|set)|gaps?\b|caveats?\b|^\W*(about the evidence|notes?)\b\W*:", re.I)
+_ABOUT_THE_RECORDS = re.compile(
+    r"\b(the|these|those|this|no|any|retrieved|supplied)\s+(\w+\s+)?(records?|sources?|results|contributions|"
+    r"documents|minutes)\b|\bevidence (base|set)\b|\b(records?|sources?|results) (retrieved|supplied|shown|provided|"
+    r"available|here)\b", re.I)
+# what a short note on the records says of them: what they do not hold, or hold only a little of
+_ABSENCE = re.compile(r"\b(no|not|none|nothing|only|little|few)\b", re.I)
 
 type Status = Literal["cited", "connective", "unsupported", "invalid"]
 
@@ -184,8 +206,11 @@ _DATE_ONLY = re.compile(r"^\W*(?:on\s+)?\(?\s*(?:(?:written|oral)\s+(?:answer|qu
                         r"(?:\d{1,2}\s+)?(?:[A-Z][a-z]+\s+)?\d{4}\s*\)?\W*$")
 
 
-def _is_connective(text: str, short: bool = True) -> bool:
-    """A date, a heading, a line ending in a colon or, with ``short``, a join or short transition."""
+def _is_connective(text: str, short: bool = True, *, no_records: str = "") -> bool:
+    """A date, a heading, a line ending in a colon or, with ``short``, a join or short transition ("By contrast,",
+    " and ", "In the Lords", "in September."). A short sentence of its own ("The minister took bribes.") says
+    something, and is no join (``_says_something``); ``no_records`` is the site's words for an answer with none.
+    ``text`` is read with any honorific's full stop masked, so that "Mr. Smith" ends no sentence."""
     t = text.strip()
     if not t or _DATE_ONLY.match(t):
         return True
@@ -193,7 +218,42 @@ def _is_connective(text: str, short: bool = True) -> bool:
         return True
     # bullet markers, joins between cited spans, short transitions
     stripped = re.sub(r"^[\s\-*•\d.)]+", "", t)
-    return short and len(stripped) <= _CONNECTIVE_MAX and not re.search(r"\d{4}|£|%", stripped)
+    return (short and len(stripped) <= _CONNECTIVE_MAX and not re.search(r"\d{4}|£|%", stripped)
+            and not _says_something(stripped, no_records))
+
+
+def _says_something(line: str, no_records: str) -> bool:
+    """Whether a short uncited line is a sentence of its own, and so a claim: it begins a sentence (a capital
+    letter or a figure first) or holds the end of one before its last words, and either closes as a sentence does
+    ("The minister took bribes.") or runs to a few words without doing so ("Labour voted against the bill").
+
+    A line that ends in a comma, a semicolon or a dash leads on to something, and is a join. So is a line that
+    carries a cited sentence on to its close ("in September.", "and that it was late."), and a transition or a
+    label of a word or three ("By contrast", "In the Lords"), as they always were. So are the site's own words for
+    an answer with no records, and a short note on what the records do not hold ("The sources provided contain no
+    relevant records.")."""
+    if _LEADS_ON.search(line):
+        return False
+    first = re.search(r"[^\W_]", line)
+    begins = first is not None and (first.group(0).isupper() or first.group(0).isdigit())
+    if not begins and not _SENTENCE_END.search(line):
+        return False
+    if not _CLOSED.search(line) and len(line.split()) < _TRANSITION_WORDS:
+        return False
+    if line == no_records.strip():
+        return False
+    return not (_ABOUT_THE_RECORDS.search(line) and _ABSENCE.search(line))
+
+
+def _is_note(pattern: re.Pattern[str], body: str) -> bool:
+    """Whether a line is a note about the evidence itself (``pattern`` is the site's form of the rule) and not a
+    claim: it names no one as saying something, and a looser sign of a note (``_LOOSE_NOTE``) counts only in a line
+    about the records."""
+    if _SOMEONE_SAID.search(body):
+        return False
+    signs = [m.group(0) for m in pattern.finditer(body)]
+    return bool(signs) and (any(not _LOOSE_NOTE.fullmatch(sign.strip()) for sign in signs)
+                            or bool(_ABOUT_THE_RECORDS.search(body)))
 
 
 _LABEL = re.compile(r"^\s*(#+ .*|\*\*[^*]+\*\*:?)\s*$")
@@ -203,6 +263,8 @@ _SOMEONE_SAID = re.compile(r"\b(?:[A-Z][\w'-]+|[Hh]e|[Ss]he|[Tt]hey)\s+(?:also\s
                            r"(?:said|argued|claimed|stated|told|described|called)\b")
 _SENTENCE_END = re.compile(r"[.!?][\"')\]]*\s+\S")
 _CLOSED = re.compile(r"[.!?][\"')\]]*$")  # the text ends where a sentence does
+_LEADS_ON = re.compile(r"[,;:(\u2013\u2014-]$")  # the text leads on to what follows it
+_TRANSITION_WORDS = 4  # a line of fewer words that does not close as a sentence is a transition or a label
 _ATTRIBUTION_MAX = 220
 
 # "Across the records retrieved, ..." and the like: an opener about the records rather than the substance
@@ -467,8 +529,9 @@ class Verifier:
             # which it counts as a claim whatever it looks like (a date, a heading, something short)
             claim = i in claims or (flagged and not line.endswith("\n"))
             status: Status
-            if ((_is_connective(line, short=not flagged) and not claim) or _LABEL.match(line) or lead_in
-                    or (self._evidence_note.search(body) and not _SOMEONE_SAID.search(body))):
+            if ((_is_connective(mlines[i], short=not flagged, no_records=self._no_records) and not claim)
+                    or _LABEL.match(line) or lead_in
+                    or _is_note(self._evidence_note, body)):
                 status = "connective"
             else:
                 status = "unsupported"
