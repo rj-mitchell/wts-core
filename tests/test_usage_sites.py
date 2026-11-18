@@ -58,8 +58,8 @@ class SiteFacts:
 MPS = SiteFacts(
     name="Where MPs Stand", repo="wherempsstand", package="hansard",
     usage={
-        "support_reminder_every": 10, "per_visitor_daily_questions": 40, "per_user_daily_questions": 60,
-        "requests_per_minute": 20, "answer_cache_hours": 168, "briefing_estimate_usd": 0.15, "briefings_at_once": 8,
+        "support_reminder_every": 10, "per_visitor_daily_questions": 10, "per_user_daily_questions": 60,
+        "requests_per_minute": 20, "answer_cache_hours": 168, "briefing_estimate_usd": 0.30, "briefings_at_once": 8,
         "briefings_at_once_per_reader": 2, "daily_spend_cap_usd": 10.0, "monthly_spend_cap_usd": 150.0,
         "price_input_per_mtok": 4.0, "price_output_per_mtok": 20.0, "price_cache_read_per_mtok": 0.2,
         "cache_write_multiplier": 1.25,
@@ -82,8 +82,8 @@ MPS = SiteFacts(
 COUNTRIES = SiteFacts(
     name="Where Countries Stand", repo="wherecountriesstand", package="wcs",
     usage={
-        "daily_spend_cap_usd": 3.0, "monthly_spend_cap_usd": 50.0, "per_visitor_daily_questions": 40,
-        "requests_per_minute": 20, "answer_cache_hours": 168, "briefing_estimate_usd": 0.10, "briefings_at_once": 8,
+        "daily_spend_cap_usd": 3.0, "monthly_spend_cap_usd": 50.0, "per_visitor_daily_questions": 8,
+        "requests_per_minute": 20, "answer_cache_hours": 168, "briefing_estimate_usd": 0.25, "briefings_at_once": 8,
         "briefings_at_once_per_visitor": 2, "price_input_per_mtok": 2.0, "price_output_per_mtok": 10.0,
         "price_cache_read_per_mtok": 0.2, "cache_write_multiplier": 1.25,
         "models": {"claude-haiku-5-5": dict(HAIKU)}},
@@ -101,8 +101,8 @@ COUNTRIES = SiteFacts(
 COUNCILS = SiteFacts(
     name="Where Councils Stand", repo="wherecouncilsstand", package="councils",
     usage={
-        "per_visitor_daily_questions": 30, "requests_per_minute": 20, "answer_cache_hours": 168,
-        "daily_spend_cap_usd": 3.0, "monthly_spend_cap_usd": 50.0, "briefing_estimate_usd": 0.15,
+        "per_visitor_daily_questions": 8, "requests_per_minute": 20, "answer_cache_hours": 168,
+        "daily_spend_cap_usd": 3.0, "monthly_spend_cap_usd": 50.0, "briefing_estimate_usd": 0.25,
         "briefings_at_once_per_visitor": 2, "briefings_at_once": 8, "price_input_per_mtok": 2.0,
         "price_output_per_mtok": 10.0, "price_cache_read_per_mtok": 0.2, "cache_write_multiplier": 1.25,
         "models": {"claude-haiku-5-5": dict(HAIKU)}},
