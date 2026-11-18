@@ -14,7 +14,7 @@ import pytest
 from test_usage_sites import COUNCILS, MPS, SITES, SiteFacts, checkout_of, site  # noqa: F401
 from wts_core import observe, usage
 from wts_core.briefing import Ask, BriefingDesk, DeskParts, DeskSettings, desk_parts, desk_settings
-from wts_core.ports import Price
+from wts_core.ports import Price, Usage
 from wts_core.settings import Settings, SettingsError, Site
 from wts_core.state import StateDB
 from wts_core.testing import FixedClock, FixedRandom
@@ -162,6 +162,47 @@ def test_a_figure_that_is_not_a_number_is_named_with_the_rest(site, tmp_path):  
         "[usage] needs briefings_at_once",
         "[usage] briefing_estimate_usd is not a number: 'a few pence'")
     assert "settings.toml: the briefing desk cannot be built: 4 things" in str(stopped.value)
+
+
+def with_answer(settings: Settings, **answer: Any) -> Settings:
+    return dataclasses.replace(settings, raw={**settings.raw, "answer": answer})
+
+
+def test_a_briefing_in_progress_is_never_reserved_at_less_than_its_writing_can_cost(site, tmp_path, caplog):  # noqa: F811
+    """16,000 tokens of output at $10 a million is $0.16: more than the $0.10 to $0.15 the sites reserve today, so
+    eight briefings written at once could each cost more than they were counted at, and together pass the caps."""
+    prices = PriceTable.from_settings(site.usage)
+    model = site.models[0]
+    most = prices.cost(Usage(output=16000), model)
+    assert most > site.usage["briefing_estimate_usd"]
+    settings = with_answer(settings_of(site, tmp_path), model=model, max_tokens=16000)
+    read = desk_settings(settings, site.messages, at_once_per_visitor=site.at_once_key, forget_over=site.forget_over)
+    assert read.estimate_usd == read.most_output_usd == most
+    assert "[usage] briefing_estimate_usd is" in caplog.text and str(settings.config_path) in caplog.text
+    parts = desk_parts(settings, state(tmp_path, FixedClock()), site.messages, new_id=lambda chance: "x",
+                       at_once_per_visitor=site.at_once_key, forget_over=site.forget_over, keep_failures=True)
+    assert parts.in_progress.estimate_usd == most
+    assert parts.in_progress.pending_usd() == 0 and parts.in_progress.start("v") is None
+    assert parts.in_progress.pending_usd() == most  # what the caps count while it is written
+
+
+def test_an_estimate_above_what_the_writing_can_cost_is_the_sites_own(site, tmp_path, caplog):  # noqa: F811
+    settings = with_answer(settings_of(site, tmp_path, briefing_estimate_usd=0.50), model=site.models[0],
+                           max_tokens=16000)
+    read = desk_settings(settings, site.messages, at_once_per_visitor=site.at_once_key, forget_over=site.forget_over)
+    assert read.estimate_usd == 0.50 and read.most_output_usd is not None and read.most_output_usd < 0.50
+    assert caplog.text == ""
+    # and with no [answer] model or max_tokens, nothing is known to raise it by
+    plain = desk_settings(settings_of(site, tmp_path), site.messages, at_once_per_visitor=site.at_once_key,
+                          forget_over=site.forget_over)
+    assert (plain.estimate_usd, plain.most_output_usd) == (site.usage["briefing_estimate_usd"], None)
+
+
+def test_a_max_tokens_that_is_not_a_number_is_named_with_the_rest(site, tmp_path):  # noqa: F811
+    settings = with_answer(settings_of(site, tmp_path), model=site.models[0], max_tokens="lots")
+    with pytest.raises(SettingsError) as stopped:
+        desk_settings(settings, site.messages, at_once_per_visitor=site.at_once_key, forget_over=site.forget_over)
+    assert stopped.value.problems == ("[answer] max_tokens is not a number: 'lots'",)
 
 
 def test_one_thing_wrong_is_said_as_one(site, tmp_path):  # noqa: F811

@@ -144,6 +144,7 @@ The keys the package reads itself. Those of the briefing flow are checked togeth
 | `[usage.models."<name>"]` | `PriceTable.from_settings` | no: a model with no table takes the base prices |
 | `[usage] cache_write_long_multiplier` | `PriceTable.from_settings` | no |
 | `[usage] requests_per_minute`, `answer_cache_hours`, `briefing_estimate_usd`, `briefings_at_once` | `briefing.desk_parts` | yes, on a site that builds its desk with it |
+| `[answer] model`, `max_tokens` | `briefing.desk_parts` | no: where both are there, no briefing in progress is reserved at less than `max_tokens` of output at that model's price |
 | two more, under the site's own names: how many briefings one visitor may have in progress, and how many idle visitors the per-minute limiter holds | `briefing.desk_parts`, told the names | yes, unless the site gives the numbers |
 
 Every other key is read by the site and handed to the package as an argument. The example's
