@@ -628,6 +628,27 @@ def test_joins_transitions_and_the_close_of_a_cited_sentence_are_still_joins(v):
             assert statuses(v._classify_uncited(join, next_is_cited)) == ["connective"], (join, next_is_cited)
 
 
+# what is left of a line once its label, an opener about the records, bullets and stray full stops are set aside:
+# nothing, a date or a heading (found by Where Councils Stand's own tests of 0.3.2 before its release)
+SAYS_NOTHING = ("- ## Councils controlled by Labour\n", ". ## Councils controlled by Labour\n",
+                "She said ## Councils controlled by Labour\n", ".\n", "1. ", "Based on the evidence, .\n",
+                "According to the sources, .\n", "Based on the evidence, 1. ")
+EMPTY_NOTES = ("Notes:  (26 February 2025). ", "Notes: ", "Notes: Based on the evidence, ",
+               "Notes: ## Councils controlled by Labour\n")
+STILL_SAYS_SOMETHING = ("She said the council broke the law ## Councils", "Notes: Labour lied.",
+                        "Based on the evidence, the minister took bribes.", "1. The council broke the law.")
+
+
+def test_a_line_with_no_words_of_its_own_is_no_claim(v):
+    for line in SAYS_NOTHING:
+        for next_is_cited in (False, True):
+            assert statuses(v._classify_uncited(line, next_is_cited)) == ["connective"], (line, next_is_cited)
+    for note in EMPTY_NOTES:
+        assert statuses(v._classify_uncited(note, False)) == ["connective"], note
+    for claim in STILL_SAYS_SOMETHING:
+        assert "unsupported" in statuses(v._classify_uncited(claim, False)), claim
+
+
 def test_the_regression_cases_were_all_cleared_by_version_1(site, monkeypatch):
     """What version 2 is for: each of these passed as a join or a note before."""
     with monkeypatch.context() as before:

@@ -29,7 +29,10 @@ Version 2 of the rules is stricter than every site's copy in two places, each of
   make a note only when the line is about the records themselves ("the records retrieved", "the sources
   supplied", "no records", "the evidence base"). "Note: the council broke the law" is a claim.
 
-Both only ever flag more: a line version 1 flagged, version 2 flags too.
+Both only ever flag more: a line version 1 flagged, version 2 flags too. A line with no words of its own (once its
+label, an opener about the records, bullets and stray full stops are set aside, nothing but a date or a heading is
+left: "- ## Councils controlled by Labour", "Based on the evidence, .", "Notes: (26 February 2025).") is no claim
+under either.
 """
 
 from __future__ import annotations
@@ -91,6 +94,7 @@ EVIDENCE_NOTES_STRICT: re.Pattern[str] = re.compile(
 # The looser signs of a note about the evidence, in either form above. Alone they say nothing of the records ("The
 # evidence is clear that ...", "Note: the council ..."), so a line they match is a note only if it is also about the
 # records themselves (``_ABOUT_THE_RECORDS``). The other signs of a note name the records already.
+_NOTE_LABEL = re.compile(r"^\W*(about the evidence|notes?)\b\W*:\s*", re.I)
 _LOOSE_NOTE = re.compile(r"evidence (base|is|set)|gaps?\b|caveats?\b|^\W*(about the evidence|notes?)\b\W*:", re.I)
 _ABOUT_THE_RECORDS = re.compile(
     r"\b(the|these|those|this|no|any|retrieved|supplied)\s+(\w+\s+)?(records?|sources?|results|contributions|"
@@ -218,8 +222,29 @@ def _is_connective(text: str, short: bool = True, *, no_records: str = "") -> bo
         return True
     # bullet markers, joins between cited spans, short transitions
     stripped = re.sub(r"^[\s\-*•\d.)]+", "", t)
-    return (short and len(stripped) <= _CONNECTIVE_MAX and not re.search(r"\d{4}|£|%", stripped)
-            and not _says_something(stripped, no_records))
+    if not (short and len(stripped) <= _CONNECTIVE_MAX and not re.search(r"\d{4}|£|%", stripped)):
+        return False
+    return _says_nothing(t) or not _says_something(stripped, no_records)
+
+
+def _says_nothing(text: str) -> bool:
+    """Whether a line holds no words of its own: once a label ("Notes:"), an opener about the records ("Based on
+    the evidence,"), bullet markers, list numbers and stray full stops are set aside, nothing is left but a date or
+    a heading, or a heading after a lead-in of a word or three ("- ## Councils controlled by Labour", ".\n", "1. ",
+    "Notes: (26 February 2025)."). Such a line is no claim, however it begins or ends."""
+    t = _NOTE_LABEL.sub("", text.strip(), count=1)
+    opener = _PREAMBLE.match(t)
+    if opener:
+        t = t[opener.start(3):]
+    t = re.sub(r"^[\s\-*•\d.)]+", "", t).strip()
+    if not re.search(r"[^\W_]", t) or _DATE_ONLY.match(t):
+        return True
+    heading = re.search(r"(?:^|\s)#{1,6}\s", t)
+    if heading is None:
+        return False
+    before = t[:heading.start()].strip()
+    return not before or (len(before.split()) < _TRANSITION_WORDS and not _SENTENCE_END.search(before)
+                           and not _CLOSED.search(before))
 
 
 def _says_something(line: str, no_records: str) -> bool:
@@ -251,6 +276,8 @@ def _is_note(pattern: re.Pattern[str], body: str) -> bool:
     about the records."""
     if _SOMEONE_SAID.search(body):
         return False
+    if _NOTE_LABEL.match(body) and _says_nothing(body):  # a label with nothing after it but a date or a heading
+        return True
     signs = [m.group(0) for m in pattern.finditer(body)]
     return bool(signs) and (any(not _LOOSE_NOTE.fullmatch(sign.strip()) for sign in signs)
                             or bool(_ABOUT_THE_RECORDS.search(body)))
