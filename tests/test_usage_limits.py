@@ -281,8 +281,8 @@ def spend(spending: Spending, usd: float, **who) -> None:
 def test_each_sites_limits_are_read_from_its_settings(site):  # noqa: F811
     limits = Limits.from_settings(site.usage)
     assert limits == {
-        "wherempsstand": Limits(10, 60, 10.0, 150.0), "wherecountriesstand": Limits(8, None, 3.0, 50.0),
-        "wherecouncilsstand": Limits(8, None, 3.0, 50.0)}[site.repo]
+        "wherempsstand": Limits(10, 60, 50.0, 150.0), "wherecountriesstand": Limits(8, None, 25.0, 50.0),
+        "wherecouncilsstand": Limits(8, None, 25.0, 50.0)}[site.repo]
     assert type(limits.per_visitor_daily) is int and type(limits.daily_cap_usd) is float
 
 
