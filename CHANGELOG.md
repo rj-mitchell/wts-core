@@ -19,10 +19,10 @@ api: 3edad3a164c9
    ([`docs/UPGRADING.md`](docs/UPGRADING.md)).
 2. Set `[usage] briefing_estimate_usd` to at least the most one briefing can cost: `[answer] max_tokens` of
    output at the briefing model's output price, plus what the model reads for the site's largest briefing. At
-   16,000 tokens and $10 a million (claude-sonnet-5-5) the output alone is $0.16, more than any site reserves
-   today ($0.15 on Where MPs Stand and Where Councils Stand, $0.10 on Where Countries Stand). Until the setting is
-   raised, the package reserves the output figure instead and says so in a warning at start-up. Where Landlords
-   Stand has no briefings and nothing to set.
+   16,000 tokens and $10 a million (claude-sonnet-5-5) the output alone is $0.16, more than the sites reserved
+   under 0.3.1 ($0.15 on Where MPs Stand and Where Councils Stand, $0.10 on Where Countries Stand); they have since
+   raised theirs to $0.30, $0.25 and $0.25. Until the setting is raised, the package reserves the output figure
+   instead and says so in a warning at start-up. Where Landlords Stand has no briefings and nothing to set.
 3. Expect its own tests to say what changed, and update them: the spending rows after a reader leaves or a
    model fails part-way (now an `unfinished` row), reports stamped `"rules": 2`, and short uncited claims now
    `unsupported` in golden reports. Run `<site> eval replay` on its recorded briefings: every difference it lists
