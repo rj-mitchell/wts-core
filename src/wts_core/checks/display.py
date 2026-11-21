@@ -19,11 +19,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from wts_core.events import Answer
 
-__all__ = ["quotes_beside"]
+__all__ = ["CheckCounts", "check_counts", "quotes_beside"]
 
 # a quotation at the end of a passage: straight or curly double quotes, as the verifier reads them
 _LAST_QUOTE = re.compile(r'["“]([^"“”\n]{6,}?)["”]\W{0,3}$')
@@ -87,3 +88,34 @@ def quotes_beside(answer: Answer | None) -> Answer | None:
     shown = dict(answer)
     shown["segments"] = out
     return shown  # type: ignore[return-value]  # the same keys as the answer it was made from
+
+
+@dataclass(frozen=True)
+class CheckCounts:
+    """The three counts a reader is shown at the top of a briefing (the family's check strip), and on its share
+    card: citations matched of those made, quotations found word for word of those checked, and sentences shown
+    as having no source."""
+
+    citations_matched: int
+    citations_total: int
+    quotes_found: int
+    quotes_total: int
+    no_source: int
+
+    @property
+    def all_clear(self) -> bool:
+        return (self.citations_matched == self.citations_total and self.quotes_found == self.quotes_total
+                and self.no_source == 0)
+
+
+def check_counts(shown: Answer) -> CheckCounts:
+    """The strip's counts for an answer as it is shown (after ``quotes_beside``): the verifier's counts of
+    citations and quotations, and the passages shown as having no source, those with no citation and those whose
+    every citation failed and was removed."""
+    segments = shown.get("segments") or []
+    total = int(shown.get("citations_total") or 0)
+    quotes = int(shown.get("quotes_total") or 0)
+    return CheckCounts(
+        citations_matched=total - int(shown.get("citations_invalid") or 0), citations_total=total,
+        quotes_found=quotes - int(shown.get("quotes_unverified") or 0), quotes_total=quotes,
+        no_source=sum(1 for s in segments if s.get("status") in ("unsupported", "invalid")))

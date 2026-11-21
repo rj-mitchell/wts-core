@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from wts_core.checks.balance import blend, recency_factor, round_robin
 from wts_core.checks.british import britishise_segments, outside_quotes, to_british
-from wts_core.checks.display import quotes_beside
+from wts_core.checks.display import CheckCounts, check_counts, quotes_beside
 from wts_core.checks.neutral import COMMON_LOADED_WORDS, LoadedWords
 from wts_core.checks.report import check_briefing
 from wts_core.checks.typography import curl_answer, curl_event, curl_events, curl_quotes
@@ -49,6 +49,7 @@ from wts_core.checks.verify import (
 
 __all__ = [
     "COMMON_HONORIFICS",
+    "CheckCounts",
     "COMMON_LOADED_WORDS",
     "EVIDENCE_NOTES_STRICT",
     "EVIDENCE_NOTES_WIDE",
@@ -62,6 +63,7 @@ __all__ = [
     "Verifier",
     "blend",
     "britishise_segments",
+    "check_counts",
     "check_briefing",
     "curl_answer",
     "curl_event",

@@ -34,6 +34,19 @@ class B2Store
 def configured(site: 'Site', env: 'Mapping[str, str] | None' = None, *, client: 'httpx.Client | None' = None) -> 'B2Store | None'
 def how_to_set_up(site: 'Site') -> 'str'
 
+## wts_core.adapters.cards
+class CardStyle
+    site_name: str
+    domain: str
+    cloth: tuple[int, int, int]
+    record: str
+    serif: Path | None = ...
+    sans: Path | None = ...
+    sans_bold: Path | None = ...
+    icon: Path | None = ...
+def briefing_card(style: 'CardStyle', *, title: 'str', counts: 'CheckCounts', prepared: 'str') -> 'bytes'
+def card_count_lines(counts: 'CheckCounts') -> 'list[tuple[str, str, bool]]'
+
 ## wts_core.adapters.duckdb
 class SharedConnection
     def __init__(self, con: 'duckdb.DuckDBPyConnection | None' = None)
@@ -268,6 +281,7 @@ def sse(events: 'Iterator[Mapping[str, Any]]', keep_alive: 'float' = 15) -> 'Ite
 ## wts_core.checks
 COMMON_HONORIFICS = tuple of 8
 COMMON_LOADED_WORDS = 'lied|liar|liars|misled|misleading|dishonest|dishonesty|hypocrisy|hypocrite|hypocrites|hypocritical|u-turn|u-turns|u-turned|backtracked|backtracking|flip-flopped|flip-flop|flip-flops|admitted|conceded|claimed(?=\\s*(?:that|to|the|a|an|it|there|this|these|he|she|they|we)\\b|\\s*[,:\\"“]|\\s*$)|attacked|slammed|blasted|dodged|evaded|evasive|refused to answer|gaffe|gaffes|scandal|scandals|scandalous|disgraceful|shameful|incompetent|incompetence'
+CheckCounts: from wts_core.checks.display
 EVIDENCE_NOTES_STRICT = Pattern
 EVIDENCE_NOTES_WIDE = Pattern
 LoadedWords: from wts_core.checks.neutral
@@ -281,6 +295,7 @@ Verifier: from wts_core.checks.verify
 blend: from wts_core.checks.balance
 britishise_segments: from wts_core.checks.british
 check_briefing: from wts_core.checks.report
+check_counts: from wts_core.checks.display
 curl_answer: from wts_core.checks.typography
 curl_event: from wts_core.checks.typography
 curl_events: from wts_core.checks.typography
@@ -302,6 +317,14 @@ def outside_quotes(segments: 'Sequence[Segment]') -> 'list[tuple[int, int, str]]
 def to_british(text: 'str') -> 'str'
 
 ## wts_core.checks.display
+class CheckCounts
+    citations_matched: int
+    citations_total: int
+    quotes_found: int
+    quotes_total: int
+    no_source: int
+    property all_clear
+def check_counts(shown: 'Answer') -> 'CheckCounts'
 def quotes_beside(answer: 'Answer | None') -> 'Answer | None'
 
 ## wts_core.checks.neutral

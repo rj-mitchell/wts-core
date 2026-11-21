@@ -16,7 +16,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "wts_core"
 # Outside the adapters a module may import the standard library and this package, and nothing else. The two
 # exceptions are named, with why.
 MAY_IMPORT = {
-    "adapters": {"anthropic", "fastembed", "lancedb", "duckdb", "httpx", "numpy", "pyarrow", "pydantic"},
+    "adapters": {"anthropic", "fastembed", "lancedb", "duckdb", "httpx", "numpy", "pyarrow", "pydantic", "PIL"},
     "cli": {"typer"},  # the command line's own library, imported only when a command group is built
     "testing/contracts.py": {"pytest"},  # the contract tests are classes for pytest
 }

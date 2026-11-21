@@ -17,6 +17,8 @@ cli = ["typer>=0.27"]
 offsite = ["httpx>=0.28"]
 # the thread-safe DuckDB wrapper
 duckdb = ["duckdb>=2.0,<3"]
+# share cards for saved briefings, drawn with Pillow (wts_core.adapters.cards)
+cards = ["pillow>=11"]
 # the adapters behind the model, embedder and index interfaces
 ai = [
     "anthropic>=2.3,<3",
@@ -28,6 +30,7 @@ ai = [
 
 [dependency-groups]
 dev = [
+    "pillow>=11",
     "duckdb>=2.0,<3",
     "fastapi>=0.162",
     "httpx>=0.28",

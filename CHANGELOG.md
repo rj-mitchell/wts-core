@@ -7,11 +7,11 @@ version is 0.x a minor version may change the public interface ([ADR 0007](docs/
 
 ## 0.4.0 (21 November 2026)
 
-The display rule for quotations beside their citation, for the family's design of checked briefings
-(`family/BRIEFINGS.md` in the charity's repository; the review plan of 21 November 2026, B1). Nothing is renamed or
-removed, and no check changes.
+The display rule for quotations beside their citation, the check strip's counts, and share cards for saved
+briefings, for the family's design of checked briefings (`family/BRIEFINGS.md` in the charity's repository; the
+review plan of 21 November 2026, B1 and B5). Nothing is renamed or removed, and no check changes.
 
-api: fb98dcedfae6
+api: c921c08b0fe4
 
 ### What changed
 
@@ -21,6 +21,11 @@ api: fb98dcedfae6
   and every other passage are unchanged (a property test over 3,000 made-up briefings says so). It was found in
   Where Countries Stand's saved briefing `kGfKBI3cRLw`, where Italy's quotation, found word for word in its source,
   was shown as if nothing supported it because the citation sat on "in November 2025".
+- `wts_core.checks.check_counts(shown)` gives the strip's three counts (`CheckCounts`): citations matched of those
+  made, quotations found of those checked, and passages shown as having no source.
+- `wts_core.adapters.cards.briefing_card(style, title=, counts=, prepared=)` draws a saved briefing's share card
+  (1200 by 630 PNG) in the site's cloth, with the counts in words, using Pillow (the new `cards` extra). The site
+  chooses the title: its own neutral title for a reader's briefing, never the reader's question.
 
 ### What a site must do
 
@@ -29,6 +34,7 @@ api: fb98dcedfae6
 2. Pass every answer it shows (a new briefing's final event, a saved or cached briefing) through `quotes_beside`
    after `recheck`, and count the sentences without a source from the segments it returns.
 3. Keep showing the verifier's own counts in the check details.
+4. For share cards, add the `cards` extra and pass `CardStyle` its fonts and icon.
 
 ## 0.3.2 (18 November 2026)
 
