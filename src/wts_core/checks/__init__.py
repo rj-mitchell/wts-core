@@ -18,7 +18,9 @@ A site's pipeline runs them through ``check_briefing``, which keeps the order al
     verifier.check_quotes(report, sources)
     answer = report.to_dict()            # then curl_answer(answer), for a site with curly quotes
 
-and shows a saved or cached briefing through ``loaded.still_loaded(verifier.recheck(answer))``.
+and shows a saved or cached briefing through ``loaded.still_loaded(verifier.recheck(answer))``. What the reader
+sees is then ``quotes_beside(answer)`` (``wts_core.checks.display``): a quotation found in the source cited straight
+after it is shown as that source's, with the counts unchanged.
 
 Plain Python over text and lists: nothing here imports an outside library, the model, the index or a site's record.
 ``wts_core.checks.balance`` holds the three small functions the sites' rankings share.
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 from wts_core.checks.balance import blend, recency_factor, round_robin
 from wts_core.checks.british import britishise_segments, outside_quotes, to_british
+from wts_core.checks.display import quotes_beside
 from wts_core.checks.neutral import COMMON_LOADED_WORDS, LoadedWords
 from wts_core.checks.report import check_briefing
 from wts_core.checks.typography import curl_answer, curl_event, curl_events, curl_quotes
@@ -65,6 +68,7 @@ __all__ = [
     "curl_events",
     "curl_quotes",
     "outside_quotes",
+    "quotes_beside",
     "recency_factor",
     "round_robin",
     "to_british",

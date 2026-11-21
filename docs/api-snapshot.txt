@@ -286,6 +286,7 @@ curl_event: from wts_core.checks.typography
 curl_events: from wts_core.checks.typography
 curl_quotes: from wts_core.checks.typography
 outside_quotes: from wts_core.checks.british
+quotes_beside: from wts_core.checks.display
 recency_factor: from wts_core.checks.balance
 round_robin: from wts_core.checks.balance
 to_british: from wts_core.checks.british
@@ -299,6 +300,9 @@ def round_robin(pool: 'Sequence[T]', limit: 'int', *, group_of: 'Callable[[T], s
 def britishise_segments(segments: 'Sequence[Segment]') -> 'None'
 def outside_quotes(segments: 'Sequence[Segment]') -> 'list[tuple[int, int, str]]'
 def to_british(text: 'str') -> 'str'
+
+## wts_core.checks.display
+def quotes_beside(answer: 'Answer | None') -> 'Answer | None'
 
 ## wts_core.checks.neutral
 COMMON_LOADED_WORDS = 'lied|liar|liars|misled|misleading|dishonest|dishonesty|hypocrisy|hypocrite|hypocrites|hypocritical|u-turn|u-turns|u-turned|backtracked|backtracking|flip-flopped|flip-flop|flip-flops|admitted|conceded|claimed(?=\\s*(?:that|to|the|a|an|it|there|this|these|he|she|they|we)\\b|\\s*[,:\\"“]|\\s*$)|attacked|slammed|blasted|dodged|evaded|evasive|refused to answer|gaffe|gaffes|scandal|scandals|scandalous|disgraceful|shameful|incompetent|incompetence'

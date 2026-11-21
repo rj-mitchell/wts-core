@@ -5,6 +5,31 @@ version is 0.x a minor version may change the public interface ([ADR 0007](docs/
 `api:` line under each version is the fingerprint of the public interface in `docs/api-snapshot.txt`;
 `tests/test_public_api.py` fails if the interface changes without a new entry here.
 
+## 0.4.0 (21 November 2026)
+
+The display rule for quotations beside their citation, for the family's design of checked briefings
+(`family/BRIEFINGS.md` in the charity's repository; the review plan of 21 November 2026, B1). Nothing is renamed or
+removed, and no check changes.
+
+api: fb98dcedfae6
+
+### What changed
+
+- `wts_core.checks.quotes_beside(answer)` returns the answer as it is shown. A passage marked unsupported that ends
+  in a quotation the verifier found in the source cited straight after it is split: the quotation is shown as that
+  source's passage (`"beside": True`), and the words before it keep their "unsupported" mark. The text, the counts
+  and every other passage are unchanged (a property test over 3,000 made-up briefings says so). It was found in
+  Where Countries Stand's saved briefing `kGfKBI3cRLw`, where Italy's quotation, found word for word in its source,
+  was shown as if nothing supported it because the citation sat on "in November 2025".
+
+### What a site must do
+
+1. Raise its pin to the 0.4.0 wheel, and the shared workflows and actions to `@v0.4.0`, then `uv lock`
+   ([`docs/UPGRADING.md`](docs/UPGRADING.md)).
+2. Pass every answer it shows (a new briefing's final event, a saved or cached briefing) through `quotes_beside`
+   after `recheck`, and count the sentences without a source from the segments it returns.
+3. Keep showing the verifier's own counts in the check details.
+
 ## 0.3.2 (18 November 2026)
 
 Fixes for four faults an audit of 0.3.1 found: briefings that did not finish were never charged, a briefing in
